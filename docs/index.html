@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GuideStrap - Roblox launcher</title>
+<meta name="description" content="A Roblox launcher for Windows with graphics presets, FastFlags, mods, account switching and Discord status.">
+<link rel="icon" href="favicon.png">
+<style>
+  :root {
+    --bg: #0e0b16; --card: #18132a; --border: #271f3d; --text: #f1edfa;
+    --sub: #9b91b4; --accent: #7c48e8; --accent-hover: #8f60f2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI", system-ui, sans-serif; }
+  a { color: inherit; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+
+  nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
+  nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
+  nav .brand img { width: 30px; height: 30px; }
+  nav .links a { color: var(--sub); text-decoration: none; margin-left: 22px; font-size: 15px; }
+  nav .links a:hover { color: var(--text); }
+
+  .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; padding: 64px 0 72px; }
+  .hero h1 { font-size: 46px; line-height: 1.1; font-weight: 700; letter-spacing: -0.5px; }
+  .hero p { color: var(--sub); font-size: 18px; margin: 18px 0 30px; max-width: 480px; }
+  .hero img { width: 100%; max-width: 300px; justify-self: center; }
+  .btn { display: inline-block; padding: 12px 22px; border-radius: 6px; font-weight: 600; text-decoration: none; transition: background .15s; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.ghost { border: 1px solid var(--border); margin-left: 10px; }
+  .btn.ghost:hover { background: var(--card); }
+  .small { color: var(--sub); font-size: 13px; margin-top: 14px; }
+
+  h2 { font-size: 26px; margin-bottom: 20px; }
+  section { padding: 40px 0; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+  .card h3 { font-size: 16px; margin-bottom: 6px; }
+  .card p { color: var(--sub); font-size: 14px; }
+
+  .faq details { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; }
+  .faq summary { cursor: pointer; font-weight: 600; }
+  .faq p { color: var(--sub); margin-top: 10px; font-size: 15px; }
+
+  footer { border-top: 1px solid var(--border); margin-top: 40px; padding: 28px 0 40px; color: var(--sub); font-size: 14px; }
+
+  @media (max-width: 760px) {
+    .hero { grid-template-columns: 1fr; padding-top: 30px; }
+    .hero img { max-width: 180px; grid-row: 1; }
+    .hero h1 { font-size: 36px; }
+    .grid { grid-template-columns: 1fr; }
+    nav .links { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <nav>
+    <a class="brand" href="#"><img src="logo.png" alt="">GuideStrap</a>
+    <div class="links">
+      <a href="#features">Features</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/guideships/GuideStrap">GitHub</a>
+    </div>
+  </nav>
+
+  <div class="hero">
+    <div>
+      <h1>Roblox, set up the way you like it.</h1>
+      <p>GuideStrap is a launcher for Roblox on Windows. Pick your graphics, swap the death sound and cursor, switch accounts, and show what you're playing on Discord.</p>
+      <a class="btn primary" href="https://github.com/guideships/GuideStrap/releases/latest">Download for Windows</a>
+      <a class="btn ghost" href="https://github.com/guideships/GuideStrap">View source</a>
+      <div class="small">Free and open source. Made by Guide.</div>
+    </div>
+    <img src="logo.png" alt="GuideStrap logo">
+  </div>
+
+  <section id="features">
+    <h2>What's inside</h2>
+    <div class="grid">
+      <div class="card"><h3>Graphics presets</h3><p>One slider from Max FPS to Max Graphics, or change every setting yourself.</p></div>
+      <div class="card"><h3>FastFlags</h3><p>An editor for Roblox's allowed flags. Paste JSON, and it asks before replacing ones you already have.</p></div>
+      <div class="card"><h3>Mods</h3><p>Custom death sound, cursors, sky packs and an in-game font.</p></div>
+      <div class="card"><h3>Accounts</h3><p>Log in once, then switch accounts in one click.</p></div>
+      <div class="card"><h3>Discord status</h3><p>Shows the game you're in, its icon and a link to it.</p></div>
+      <div class="card"><h3>Server location</h3><p>Tells you where the server you joined is.</p></div>
+      <div class="card"><h3>Recent games</h3><p>Jump back into the last games you played.</p></div>
+      <div class="card"><h3>Profiles</h3><p>Export your setup as a file and share it.</p></div>
+      <div class="card"><h3>Auto updates</h3><p>GuideStrap updates itself when a new version is out.</p></div>
+    </div>
+  </section>
+
+  <section id="faq" class="faq">
+    <h2>Questions</h2>
+    <details>
+      <summary>Can this get me banned?</summary>
+      <p>GuideStrap never touches the game while it runs. It only changes files and settings Roblox reads when it starts, like Bloxstrap and Fishstrap. It isn't an exploit and doesn't give any gameplay advantage.</p>
+    </details>
+    <details>
+      <summary>Does it change my normal Roblox?</summary>
+      <p>No. Everything happens in GuideStrap's own copy of Roblox. Opening Roblox without GuideStrap always gives you the original game, sounds and settings.</p>
+    </details>
+    <details>
+      <summary>Windows says it's unrecognized. Is that normal?</summary>
+      <p>Yes, for new apps that aren't code-signed yet. Click "More info", then "Run anyway". The full source code is on GitHub if you want to check it.</p>
+    </details>
+    <details>
+      <summary>Where are my saved logins kept?</summary>
+      <p>On your PC only, encrypted with Windows so they only work for your Windows user. They're never uploaded anywhere.</p>
+    </details>
+  </section>
+
+  <footer>
+    GuideStrap is made by Guide. It's a fan project and isn't affiliated with or endorsed by Roblox Corporation.
+    Released under the MIT License.
+  </footer>
+</div>
+</body>
+</html>
