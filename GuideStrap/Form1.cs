@@ -3742,7 +3742,7 @@ namespace GuideStrap
         public string? LastSetup { get; set; }
         public bool CustomSky { get; set; }
         public string Accent { get; set; } = "Purple";
-        public string ThemeName { get; set; } = "Purple";
+        public string ThemeName { get; set; } = "Black";
         public string? LauncherBackground { get; set; }
         public string LastSeenVersion { get; set; } = "";
         public string Language { get; set; } = "";
@@ -4439,7 +4439,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.6.1";
+        public const string Version = "4.6.2";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
