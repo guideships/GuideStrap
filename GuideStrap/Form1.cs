@@ -2804,8 +2804,9 @@ namespace GuideStrap
             ("Amber", Color.FromArgb(222, 142, 28)),
         };
 
-        public static Color LogoDark = Color.FromArgb(22, 14, 40);
-        public static Color LogoLight = Color.FromArgb(52, 32, 96);
+        // the logo is always the black version, in every theme
+        public static readonly Color LogoDark = Color.FromArgb(24, 24, 24);
+        public static readonly Color LogoLight = Color.FromArgb(50, 50, 50);
 
         public static readonly string[] Themes = { "Purple", "Black" };
 
@@ -2831,8 +2832,6 @@ namespace GuideStrap
                 AccentHover = Color.FromArgb(120, 120, 120);
                 AccentLight = Color.FromArgb(215, 215, 215);
                 Magenta = Color.FromArgb(120, 120, 120);
-                LogoDark = Color.FromArgb(24, 24, 24);
-                LogoLight = Color.FromArgb(50, 50, 50);
             }
             else SetAccent(accent);
         }
@@ -2871,17 +2870,12 @@ namespace GuideStrap
 
         static Icon MakeIcon()
         {
-            // the taskbar/tray icon always uses the black logo (same as the .exe icon), whatever the theme
-            var (dark, light) = (LogoDark, LogoLight);
-            LogoDark = Color.FromArgb(24, 24, 24);
-            LogoLight = Color.FromArgb(50, 50, 50);
             using var bmp = new Bitmap(64, 64);
             using (var g = Graphics.FromImage(bmp))
             {
                 g.Clear(Color.Transparent);
                 DrawLogo(g, new RectangleF(0, 0, 64, 64));
             }
-            (LogoDark, LogoLight) = (dark, light);
             return Icon.FromHandle(bmp.GetHicon());
         }
 
@@ -3889,6 +3883,7 @@ namespace GuideStrap
         [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
         [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint ms);
         [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
+        [DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
     }
 
     // FASTFLAGS (Roblox's allowlist only)
@@ -4444,7 +4439,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.6.3";
+        public const string Version = "4.6.4";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -4452,6 +4447,8 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
+            "\u2022 The logo is now black in every theme, Purple included\n" +
+            "\u2022 Fixed desktop and Start menu icons keeping the old look after an update\n" +
             "\u2022 Black is now the default theme (Purple is still in Settings > Appearance)\n" +
             "\u2022 New black logo for the app, the taskbar, Discord and the website\n" +
             "\u2022 Uninstalling can now keep your settings, accounts and mods for a reinstall";
@@ -7840,7 +7837,8 @@ namespace GuideStrap
             new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Esto quita GuideStrap y su copia de Roblox. Roblox normal sigue instalado.", "Isso remove o GuideStrap e a cópia do Roblox dele. O Roblox normal continua instalado." },
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Guardar mis ajustes, cuentas y mods por si lo reinstalo", "Manter minhas configurações, contas e mods caso eu reinstale" },
             new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap se desinstaló. Tus ajustes, cuentas y mods se guardan para la próxima vez.", "O GuideStrap foi desinstalado. Suas configurações, contas e mods ficam guardados para a próxima vez." },
-            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" }
+            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" },
+            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• El logo ahora es negro en todos los temas, incluido Morado\n• Arreglado: los iconos del escritorio y del menú Inicio ya no se quedan con el aspecto viejo tras actualizar\n• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• O logo agora é preto em todos os temas, incluindo o Roxo\n• Corrigido: os ícones da área de trabalho e do menu Iniciar não ficam mais com a aparência antiga depois de atualizar\n• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" }
         };
 
         // English, Français, Deutsch, Türkçe, Filipino
@@ -8402,7 +8400,8 @@ namespace GuideStrap
             new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Ceci supprime GuideStrap et sa copie de Roblox. Roblox normal reste installé.", "Das entfernt GuideStrap und seine Kopie von Roblox. Normales Roblox bleibt installiert.", "Bu, GuideStrap'i ve Roblox kopyasını kaldırır. Normal Roblox kurulu kalır.", "Tatanggalin nito ang GuideStrap at ang kopya nito ng Roblox. Mananatiling naka-install ang normal na Roblox." },
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Garder mes réglages, comptes et mods au cas où je réinstalle", "Meine Einstellungen, Konten und Mods behalten, falls ich neu installiere", "Yeniden kurarsam diye ayarlarımı, hesaplarımı ve modlarımı sakla", "Itabi ang settings, account at mods ko kung sakaling mag-reinstall ako" },
             new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap a été désinstallé. Tes réglages, comptes et mods sont gardés pour la prochaine fois.", "GuideStrap wurde deinstalliert. Deine Einstellungen, Konten und Mods bleiben fürs nächste Mal erhalten.", "GuideStrap kaldırıldı. Ayarların, hesapların ve modların bir dahaki sefer için saklandı.", "Na-uninstall na ang GuideStrap. Naitabi ang settings, account at mods mo para sa susunod." },
-            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" }
+            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" },
+            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Le logo est maintenant noir dans tous les thèmes, Violet compris\n• Corrigé : les icônes du bureau et du menu Démarrer ne gardent plus l'ancien look après une mise à jour\n• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Das Logo ist jetzt in jedem Design schwarz, auch in Lila\n• Behoben: Desktop- und Startmenü-Symbole behalten nach einem Update nicht mehr das alte Aussehen\n• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Logo artık Mor dahil her temada siyah\n• Düzeltildi: masaüstü ve Başlat menüsü simgeleri güncellemeden sonra eski görünümde kalmıyor\n• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang logo sa bawat tema, pati sa Purple\n• Naayos: hindi na naiiwan sa lumang itsura ang mga icon sa desktop at Start menu pagkatapos ng update\n• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" }
         };
     }
 
@@ -8536,7 +8535,21 @@ namespace GuideStrap
         // keeps the version shown in Windows' app list right after self-updates
         public static void RefreshEntry()
         {
-            try { if (RunningInstalled && InstalledVersion() != AppInfo.Version) WriteEntry(); } catch { }
+            try
+            {
+                if (!RunningInstalled || InstalledVersion() == AppInfo.Version) return;
+                WriteEntry();
+                // after an update, remake the shortcuts and tell Windows to reload icons,
+                // otherwise the desktop and Start menu keep showing the old icon
+                if (File.Exists(DesktopLink)) CreateShortcut(DesktopLink);
+                if (File.Exists(StartMenuLink)) CreateShortcut(StartMenuLink);
+                // a GuideStrap pinned to the taskbar is a shortcut too
+                string pinned = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "Microsoft", "Internet Explorer", "Quick Launch", "User Pinned", "TaskBar", "GuideStrap.lnk");
+                if (File.Exists(pinned)) CreateShortcut(pinned);
+                NativeMethods.SHChangeNotify(0x08000000, 0, IntPtr.Zero, IntPtr.Zero);   // SHCNE_ASSOCCHANGED
+            }
+            catch { }
         }
 
         static void WriteEntry()
