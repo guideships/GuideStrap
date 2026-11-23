@@ -1,0 +1,2095 @@
+// ============================================================================
+//  GuideStrap v2 - a Roblox bootstrapper by Guide
+//  Paste this over everything in Form1.cs.
+//  Needs the NuGet package "Microsoft.Web.WebView2" (for the account login window).
+// ============================================================================
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.IO.Compression;
+using System.Runtime.InteropServices;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
+using Microsoft.Web.WebView2.Core;
+using Microsoft.Web.WebView2.WinForms;
+using Microsoft.Win32;
+
+namespace GuideStrap
+{
+    // ========================================================================
+    //  MAIN WINDOW
+    // ========================================================================
+    public partial class Form1 : Form
+    {
+        // ---------- state ----------
+        readonly AppSettings settings = AppSettings.Load();
+        List<Account> accounts = AccountStore.Load();
+        readonly Dictionary<long, Image?> avatarCache = new();
+        readonly string? launchUri;
+        bool busy;
+        bool syncing;
+
+        // ---------- shell ----------
+        readonly Panel sidebar = new();
+        readonly Panel titleBar = new();
+        readonly Panel pageHost = new();
+        readonly List<NavButton> navButtons = new();
+        readonly Dictionary<string, Panel> pages = new();
+
+        // ---------- home ----------
+        readonly Label homeGreeting = new(), homeSub = new(), statusLabel = new(), summaryLabel = new();
+        readonly AvatarBox homeAvatar = new();
+        readonly TextBox placeBox = new();
+        readonly RoundButton playButton = new();
+        readonly ProgressLine progress = new();
+
+        // ---------- accounts ----------
+        readonly FlowLayoutPanel accountList = new();
+
+        // ---------- graphics ----------
+        readonly ModernSlider presetSlider = new(), qualitySlider = new();
+        readonly Label presetTitle = new(), presetDesc = new(), qualityValue = new();
+        readonly DarkCombo textureCombo = new(), msaaCombo = new(), rendererCombo = new();
+        readonly ToggleSwitch grassToggle = new(), skyToggle = new(), meshToggle = new(), voxelToggle = new(),
+                              grassMotionToggle = new(), dpiToggle = new(), fullscreenToggle = new();
+        static readonly string[] MsaaValues = { "", "1", "2", "4", "8" };
+
+        // ---------- fastflags ----------
+        readonly DarkCombo flagPicker = new();
+        readonly TextBox flagValueBox = new();
+        readonly Label flagDesc = new();
+        readonly FlowLayoutPanel flagList = new();
+
+        // ---------- font ----------
+        readonly Label fontName = new(), fontPreview = new();
+        PrivateFontCollection? previewFonts;
+
+        // ---------- settings ----------
+        readonly ToggleSwitch websiteAccountToggle = new(), closeAfterToggle = new();
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            launchUri = Environment.GetCommandLineArgs()
+                .Skip(1)
+                .FirstOrDefault(a => a.StartsWith("roblox", StringComparison.OrdinalIgnoreCase));
+
+            BuildShell();
+            BuildHomePage();
+            BuildAccountsPage();
+            BuildGraphicsPage();
+            BuildFlagsPage();
+            BuildFontPage();
+            BuildSettingsPage();
+
+            ShowPage("Home");
+            RefreshAccounts();
+            RefreshGraphicsControls();
+            RefreshFlagList();
+            RefreshFontPreview();
+            RefreshHome();
+
+            Load += async (_, _) => await LoadAvatarsAsync();
+            if (launchUri != null)
+                Shown += async (_, _) => await PlayAsync();
+        }
+
+        // ---------- helpers ----------
+        int D(int px) => (int)Math.Round(px * DeviceDpi / 96f);   // DPI scaling
+        int CW => D(676);                                         // content width
+
+        void Later(Action a) => BeginInvoke(a);
+
+        static T At<T>(T c, int x, int y) where T : Control { c.Location = new Point(x, y); return c; }
+
+        static Label Lbl(string text, float size = 10f, Color? color = null, bool semibold = false) => new()
+        {
+            Text = text,
+            AutoSize = true,
+            Font = new Font(semibold ? "Segoe UI Semibold" : "Segoe UI", size),
+            ForeColor = color ?? Theme.Text,
+            BackColor = Color.Transparent,
+        };
+
+        static string Initial(string s) => s.Length > 0 ? s[..1].ToUpperInvariant() : "?";
+
+        Account? ActiveAccount => accounts.FirstOrDefault(a => a.UserId == settings.ActiveAccountId);
+
+        Card NewCard(Control parent, int y, int height)
+        {
+            var c = new Card { Location = new Point(0, y), Size = new Size(CW, height) };
+            parent.Controls.Add(c);
+            return c;
+        }
+
+        Card InputBox(TextBox tb, string placeholder, int width)
+        {
+            var wrap = new Card { Size = new Size(width, D(38)), BackColor = Theme.Input, Radius = 10 };
+            tb.BorderStyle = BorderStyle.None;
+            tb.BackColor = Theme.Input;
+            tb.ForeColor = Theme.Text;
+            tb.Font = new Font("Segoe UI", 10.5f);
+            tb.PlaceholderText = placeholder;
+            tb.Width = width - D(24);
+            tb.Location = new Point(D(12), (wrap.Height - tb.PreferredHeight) / 2);
+            wrap.Controls.Add(tb);
+            return wrap;
+        }
+
+        DarkCombo SetupCombo(DarkCombo c, int width, params string[] items)
+        {
+            c.ItemHeight = D(24);
+            c.Width = width;
+            c.Items.AddRange(items);
+            c.SelectedIndex = 0;
+            return c;
+        }
+
+        RoundButton GhostButton(string text, string icon, int width) => new()
+        {
+            Text = text,
+            Icon = icon,
+            Size = new Size(width, D(40)),
+            BaseColor = Theme.Input,
+            HoverColor = Theme.CardHover,
+            BorderColor = Theme.Border,
+            ForeColor = Theme.Text,
+        };
+
+        void AddRow(Card card, ref int ry, string title, string desc, Control control, bool last = false)
+        {
+            int rowH = D(66);
+            card.Controls.Add(At(Lbl(title, 10.5f, semibold: true), D(22), ry + D(12)));
+            card.Controls.Add(At(Lbl(desc, 9f, Theme.SubText), D(22), ry + D(36)));
+            control.Location = new Point(card.Width - D(22) - control.Width, ry + (rowH - control.Height) / 2);
+            card.Controls.Add(control);
+            if (!last)
+                card.Controls.Add(new Panel
+                {
+                    BackColor = Theme.Border,
+                    Location = new Point(D(22), ry + rowH - 1),
+                    Size = new Size(card.Width - D(44), 1),
+                });
+            ry += rowH;
+        }
+
+        // ====================================================================
+        //  WINDOW SHELL (borderless window, sidebar, title bar)
+        // ====================================================================
+        protected override CreateParams CreateParams
+        {
+            get { var cp = base.CreateParams; cp.ClassStyle |= 0x20000; return cp; } // drop shadow
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            try { int round = 2; NativeMethods.DwmSetWindowAttribute(Handle, 33, ref round, sizeof(int)); } catch { }
+        }
+
+        void DragWindow(object? sender, MouseEventArgs e)
+        {
+            if (e.Button != MouseButtons.Left) return;
+            NativeMethods.ReleaseCapture();
+            NativeMethods.SendMessage(Handle, 0xA1, (IntPtr)2, IntPtr.Zero);
+        }
+
+        void BuildShell()
+        {
+            AutoScaleMode = AutoScaleMode.None;
+            Text = "GuideStrap";
+            FormBorderStyle = FormBorderStyle.None;
+            BackColor = Theme.Bg;
+            ClientSize = new Size(D(980), D(660));
+            StartPosition = FormStartPosition.CenterScreen;
+            DoubleBuffered = true;
+            Font = new Font("Segoe UI", 9.75f);
+
+            sidebar.Dock = DockStyle.Left;
+            sidebar.Width = D(220);
+            sidebar.BackColor = Theme.Sidebar;
+
+            titleBar.Dock = DockStyle.Top;
+            titleBar.Height = D(44);
+            titleBar.BackColor = Theme.Bg;
+            titleBar.Padding = new Padding(0, D(6), D(8), D(4));
+
+            pageHost.Dock = DockStyle.Fill;
+            pageHost.BackColor = Theme.Bg;
+            pageHost.Padding = new Padding(D(28), 0, D(12), D(16));
+
+            Controls.Add(pageHost);
+            Controls.Add(titleBar);
+            Controls.Add(sidebar);
+
+            // logo
+            var logo = At(Lbl("GuideStrap", 20f, Theme.Gold, semibold: true), D(22), D(22));
+            var tagline = At(Lbl("ROBLOX LAUNCHER", 8f, Theme.SubText, semibold: true), D(26), D(62));
+            sidebar.Controls.Add(logo);
+            sidebar.Controls.Add(tagline);
+
+            // nav
+            (string key, string icon, string text)[] nav =
+            {
+                ("Home", "", "Play"),
+                ("Accounts", "", "Accounts"),
+                ("Graphics", "", "Graphics"),
+                ("Flags", "", "FastFlags"),
+                ("Font", "", "Text & Font"),
+                ("Settings", "", "Settings"),
+            };
+            int y = D(108);
+            foreach (var (key, icon, text) in nav)
+            {
+                var b = new NavButton { Icon = icon, Text = text, Tag = key, Location = new Point(D(12), y), Size = new Size(D(196), D(44)) };
+                b.Click += (_, _) => ShowPage(key);
+                navButtons.Add(b);
+                sidebar.Controls.Add(b);
+                y += D(50);
+            }
+
+            sidebar.Controls.Add(new Label
+            {
+                Text = "v2.0  •  made by Guide",
+                Dock = DockStyle.Bottom,
+                Height = D(44),
+                TextAlign = ContentAlignment.MiddleCenter,
+                ForeColor = Theme.SubText,
+                BackColor = Theme.Sidebar,
+                Font = new Font("Segoe UI", 8.5f),
+            });
+
+            // title bar buttons (minimize added first so close ends up far right)
+            var minBtn = new RoundButton
+            {
+                Icon = "",
+                Dock = DockStyle.Right,
+                Width = D(46),
+                Radius = 8,
+                BaseColor = Color.Transparent,
+                HoverColor = Theme.NavHover,
+                ForeColor = Theme.SubText,
+                Font = new Font("Segoe UI", 8f),
+            };
+            minBtn.Click += (_, _) => WindowState = FormWindowState.Minimized;
+            var closeBtn = new RoundButton
+            {
+                Icon = "",
+                Dock = DockStyle.Right,
+                Width = D(46),
+                Radius = 8,
+                BaseColor = Color.Transparent,
+                HoverColor = Theme.Danger,
+                ForeColor = Theme.SubText,
+                Font = new Font("Segoe UI", 8f),
+            };
+            closeBtn.Click += (_, _) => Close();
+            titleBar.Controls.Add(minBtn);
+            titleBar.Controls.Add(closeBtn);
+
+            titleBar.MouseDown += DragWindow;
+            sidebar.MouseDown += DragWindow;
+            logo.MouseDown += DragWindow;
+            tagline.MouseDown += DragWindow;
+        }
+
+        Panel NewPage(string key, string title, string subtitle, out int y)
+        {
+            var page = new Panel { Dock = DockStyle.Fill, AutoScroll = true, BackColor = Theme.Bg, Visible = false };
+            page.Controls.Add(At(Lbl(title, 22f, semibold: true), 0, 0));
+            page.Controls.Add(At(Lbl(subtitle, 10f, Theme.SubText), D(2), D(44)));
+            pageHost.Controls.Add(page);
+            pages[key] = page;
+            y = D(84);
+            return page;
+        }
+
+        void ShowPage(string key)
+        {
+            foreach (var (k, p) in pages) p.Visible = k == key;
+            foreach (var b in navButtons) b.Selected = (string?)b.Tag == key;
+            if (key == "Home") RefreshHome();
+        }
+
+        // ====================================================================
+        //  HOME / PLAY PAGE
+        // ====================================================================
+        void BuildHomePage()
+        {
+            var page = NewPage("Home", "Play", "Launch Roblox with your graphics, font, FastFlags and account.", out int y);
+
+            var hero = NewCard(page, y, D(140));
+            homeAvatar.Size = new Size(D(84), D(84));
+            homeAvatar.Location = new Point(D(24), D(28));
+            homeAvatar.Ring = Theme.Gold;
+
+            homeGreeting.Font = new Font("Segoe UI", 18f, FontStyle.Bold);
+            homeGreeting.ForeColor = Theme.Text;
+            homeGreeting.BackColor = Color.Transparent;
+            homeGreeting.AutoSize = true;
+            homeGreeting.Location = new Point(D(126), D(34));
+
+            homeSub.Font = new Font("Segoe UI", 9.5f);
+            homeSub.ForeColor = Theme.SubText;
+            homeSub.BackColor = Color.Transparent;
+            homeSub.AutoSize = false;
+            homeSub.Size = new Size(hero.Width - D(126) - D(210), D(40));
+            homeSub.Location = new Point(D(128), D(74));
+
+            var switchBtn = GhostButton("Switch account", "", D(172));
+            switchBtn.Location = new Point(hero.Width - D(196), D(50));
+            switchBtn.Click += (_, _) => ShowPage("Accounts");
+
+            hero.Controls.AddRange(new Control[] { homeAvatar, homeGreeting, homeSub, switchBtn });
+            y += D(156);
+
+            var joinCard = NewCard(page, y, D(122));
+            joinCard.Controls.Add(At(Lbl("Join a game (optional)", 11f, semibold: true), D(22), D(16)));
+            joinCard.Controls.Add(At(Lbl("Paste a game link or place ID. Leave it empty to just open Roblox.", 9f, Theme.SubText), D(22), D(41)));
+            var input = InputBox(placeBox, "e.g. https://www.roblox.com/games/920587237", joinCard.Width - D(44));
+            input.Location = new Point(D(22), D(68));
+            joinCard.Controls.Add(input);
+            y += D(138);
+
+            playButton.Text = "Play Roblox";
+            playButton.Icon = "";
+            playButton.Font = new Font("Segoe UI Semibold", 14f);
+            playButton.Size = new Size(CW, D(62));
+            playButton.Location = new Point(0, y);
+            playButton.Radius = 14;
+            playButton.BorderColor = Theme.Gold;
+            playButton.Click += async (_, _) => await PlayAsync();
+            page.Controls.Add(playButton);
+            y += D(76);
+
+            progress.Location = new Point(0, y);
+            progress.Size = new Size(CW, D(8));
+            page.Controls.Add(progress);
+            y += D(16);
+
+            statusLabel.AutoSize = false;
+            statusLabel.Size = new Size(CW, D(24));
+            statusLabel.Location = new Point(0, y);
+            statusLabel.ForeColor = Theme.Text;
+            statusLabel.Font = new Font("Segoe UI", 10f);
+            statusLabel.Text = launchUri != null ? "Starting..." : "Ready.";
+            page.Controls.Add(statusLabel);
+            y += D(28);
+
+            summaryLabel.AutoSize = false;
+            summaryLabel.Size = new Size(CW, D(24));
+            summaryLabel.Location = new Point(0, y);
+            summaryLabel.ForeColor = Theme.Gold;
+            summaryLabel.Font = new Font("Segoe UI", 9f);
+            page.Controls.Add(summaryLabel);
+        }
+
+        void RefreshHome()
+        {
+            var acc = ActiveAccount;
+            if (acc != null)
+            {
+                homeGreeting.Text = $"Hey, {acc.DisplayName}!";
+                homeSub.Text = $"Playing as @{acc.Username}";
+                homeAvatar.Fallback = Initial(acc.DisplayName);
+                homeAvatar.Image = avatarCache.GetValueOrDefault(acc.UserId);
+            }
+            else
+            {
+                homeGreeting.Text = "Ready to play";
+                homeSub.Text = "Using whoever is logged in to Roblox. Add accounts to switch in one click.";
+                homeAvatar.Fallback = "G";
+                homeAvatar.Image = null;
+            }
+            string font = settings.FontFile != null ? settings.FontDisplayName ?? "Custom" : "Default";
+            summaryLabel.Text = $"Graphics: {PresetInfo(settings.Preset).Title}     •     Font: {font}     •     FastFlags: {settings.Flags.Count}";
+        }
+
+        void SetStatus(string text, float? value = null)
+        {
+            statusLabel.Text = text;
+            if (value.HasValue) progress.Value = value.Value;
+        }
+
+        async Task PlayAsync()
+        {
+            if (busy) return;
+            busy = true;
+            playButton.Enabled = false;
+            try
+            {
+                SetStatus("Checking for Roblox updates...", 0);
+                string versionGuid = await RobloxApi.GetLatestVersionAsync();
+                string versionDir = Path.Combine(Paths.Versions, versionGuid);
+                string exe = Path.Combine(versionDir, "RobloxPlayerBeta.exe");
+
+                if (!File.Exists(exe))
+                    await Installer.InstallAsync(versionGuid, versionDir, (t, p) => SetStatus(t, p));
+
+                Installer.CleanupOldVersions(versionGuid);
+
+                SetStatus("Applying your settings...", 1);
+                Mods.Apply(versionDir, settings);
+
+                string? arg = await BuildLaunchArgumentAsync();
+                if (arg == null) return;
+
+                SetStatus("Launching Roblox...", 1);
+                var psi = new ProcessStartInfo(exe) { WorkingDirectory = versionDir, UseShellExecute = false };
+                psi.ArgumentList.Add(arg);
+                Process.Start(psi);
+                SetStatus("Roblox is starting. Have fun!", 1);
+
+                if (settings.CloseAfterLaunch)
+                {
+                    await Task.Delay(1500);
+                    Close();
+                }
+            }
+            catch (Exception ex)
+            {
+                SetStatus("Error: " + ex.Message, 0);
+                MessageBox.Show(this, ex.Message, "GuideStrap - something went wrong", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+            finally
+            {
+                busy = false;
+                if (!IsDisposed) playButton.Enabled = true;
+            }
+        }
+
+        async Task<string?> BuildLaunchArgumentAsync()
+        {
+            var acc = ActiveAccount;
+
+            // Opened from the website's Play button
+            if (launchUri != null)
+            {
+                if (acc != null && settings.UseAccountForWebsite && launchUri.Contains("gameinfo:"))
+                {
+                    SetStatus($"Logging in as {acc.DisplayName}...", 1);
+                    string ticket = await RobloxApi.GetAuthTicketAsync(acc.Cookie);
+                    return Regex.Replace(launchUri, @"gameinfo:[^+]*", _ => "gameinfo:" + ticket);
+                }
+                return launchUri;
+            }
+
+            long? placeId = ParsePlaceId(placeBox.Text);
+            if (placeBox.Text.Trim().Length > 0 && placeId == null)
+                throw new Exception("That doesn't look like a game link or place ID.");
+
+            if (acc == null)
+            {
+                if (placeId != null)
+                {
+                    Process.Start(new ProcessStartInfo($"https://www.roblox.com/games/{placeId}") { UseShellExecute = true });
+                    SetStatus("Opened the game page - press Play there. (Add an account to join straight from here.)", 0);
+                    return null;
+                }
+                return "--app";
+            }
+
+            SetStatus($"Logging in as {acc.DisplayName}...", 1);
+            string t = await RobloxApi.GetAuthTicketAsync(acc.Cookie);
+            return RobloxApi.BuildLaunchUri(t, placeId);
+        }
+
+        static long? ParsePlaceId(string text)
+        {
+            text = text.Trim();
+            if (text.Length == 0) return null;
+            var m = Regex.Match(text, @"games/(\d+)");
+            if (m.Success) return long.Parse(m.Groups[1].Value);
+            m = Regex.Match(text, @"[?&]placeId=(\d+)", RegexOptions.IgnoreCase);
+            if (m.Success) return long.Parse(m.Groups[1].Value);
+            return long.TryParse(text, out var id) ? id : null;
+        }
+
+        // ====================================================================
+        //  ACCOUNTS PAGE
+        // ====================================================================
+        void BuildAccountsPage()
+        {
+            var page = NewPage("Accounts", "Accounts", "Save your Roblox accounts and switch between them in one click.", out int y);
+
+            var add = new RoundButton { Text = "Add account", Icon = "", Size = new Size(D(170), D(42)), BorderColor = Theme.Gold };
+            add.Location = new Point(CW - add.Width, D(6));
+            add.Click += async (_, _) => await AddAccountAsync();
+            page.Controls.Add(add);
+
+            var note = Lbl("Logins are saved encrypted on this PC only. Don't press \"Log out\" on the Roblox website for a saved account, or its saved login stops working.", 9f, Theme.SubText);
+            note.AutoSize = false;
+            note.Size = new Size(CW, D(38));
+            note.Location = new Point(0, y);
+            page.Controls.Add(note);
+            y += D(46);
+
+            accountList.Location = new Point(0, y);
+            accountList.Size = new Size(CW, D(420));
+            accountList.FlowDirection = FlowDirection.TopDown;
+            accountList.WrapContents = false;
+            accountList.AutoScroll = true;
+            accountList.BackColor = Theme.Bg;
+            page.Controls.Add(accountList);
+        }
+
+        void RefreshAccounts()
+        {
+            accountList.SuspendLayout();
+            foreach (var c in accountList.Controls.Cast<Control>().ToList()) c.Dispose();
+            accountList.Controls.Add(AccountCard(null));
+            foreach (var a in accounts) accountList.Controls.Add(AccountCard(a));
+            accountList.ResumeLayout();
+            RefreshHome();
+        }
+
+        Card AccountCard(Account? a)
+        {
+            bool active = a == null ? settings.ActiveAccountId == null : settings.ActiveAccountId == a.UserId;
+            var card = new Card
+            {
+                Size = new Size(CW - D(24), D(78)),
+                Margin = new Padding(0, 0, 0, D(10)),
+                BorderColor = active ? Theme.Gold : Theme.Border,
+            };
+
+            var av = new AvatarBox
+            {
+                Size = new Size(D(54), D(54)),
+                Location = new Point(D(14), D(12)),
+                Fallback = a == null ? "R" : Initial(a.DisplayName),
+                Image = a == null ? null : avatarCache.GetValueOrDefault(a.UserId),
+                Ring = active ? Theme.Gold : Color.Empty,
+            };
+            var name = At(Lbl(a == null ? "Default (Roblox's own login)" : a.DisplayName, 11.5f, semibold: true), D(82), D(14));
+            var sub = At(Lbl(a == null ? "Uses whoever is logged in on the Roblox website" : "@" + a.Username, 9.5f, Theme.SubText), D(83), D(42));
+            card.Controls.AddRange(new Control[] { av, name, sub });
+
+            int x = card.Width - D(16);
+            if (a != null)
+            {
+                var remove = new RoundButton
+                {
+                    Icon = "",
+                    Size = new Size(D(42), D(40)),
+                    BaseColor = Theme.Input,
+                    HoverColor = Theme.Danger,
+                    BorderColor = Theme.Border,
+                    ForeColor = Theme.Text,
+                };
+                x -= remove.Width;
+                remove.Location = new Point(x, D(19));
+                remove.Click += (_, _) => Later(() => RemoveAccount(a));
+                card.Controls.Add(remove);
+                x -= D(8);
+            }
+
+            if (active)
+            {
+                var badge = new RoundButton
+                {
+                    Text = "Active",
+                    Icon = "",
+                    Size = new Size(D(104), D(40)),
+                    BaseColor = Theme.Gold,
+                    HoverColor = Theme.Gold,
+                    ForeColor = Theme.Bg,
+                    Cursor = Cursors.Default,
+                };
+                x -= badge.Width;
+                badge.Location = new Point(x, D(19));
+                card.Controls.Add(badge);
+            }
+            else
+            {
+                var use = new RoundButton { Text = "Use", Size = new Size(D(104), D(40)) };
+                x -= use.Width;
+                use.Location = new Point(x, D(19));
+                use.Click += (_, _) => Later(() =>
+                {
+                    settings.ActiveAccountId = a?.UserId;
+                    settings.Save();
+                    RefreshAccounts();
+                });
+                card.Controls.Add(use);
+            }
+            return card;
+        }
+
+        async Task AddAccountAsync()
+        {
+            string? cookie;
+            using (var login = new LoginForm())
+            {
+                if (login.ShowDialog(this) != DialogResult.OK) return;
+                cookie = login.Cookie;
+            }
+            if (string.IsNullOrEmpty(cookie)) return;
+
+            try
+            {
+                var acc = await RobloxApi.GetAccountAsync(cookie);
+                accounts.RemoveAll(x => x.UserId == acc.UserId);
+                accounts.Add(acc);
+                AccountStore.Save(accounts);
+                settings.ActiveAccountId = acc.UserId;
+                settings.Save();
+                avatarCache[acc.UserId] = await RobloxApi.GetAvatarAsync(acc.UserId);
+                RefreshAccounts();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Couldn't add that account:\n" + ex.Message, "GuideStrap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        void RemoveAccount(Account a)
+        {
+            if (MessageBox.Show(this, $"Remove {a.DisplayName} (@{a.Username}) from GuideStrap?", "Remove account",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            accounts.RemoveAll(x => x.UserId == a.UserId);
+            if (settings.ActiveAccountId == a.UserId) { settings.ActiveAccountId = null; settings.Save(); }
+            AccountStore.Save(accounts);
+            RefreshAccounts();
+        }
+
+        async Task LoadAvatarsAsync()
+        {
+            foreach (var a in accounts.ToList())
+                avatarCache[a.UserId] = await RobloxApi.GetAvatarAsync(a.UserId);
+            if (!IsDisposed) RefreshAccounts();
+        }
+
+        // ====================================================================
+        //  GRAPHICS PAGE
+        // ====================================================================
+        void BuildGraphicsPage()
+        {
+            var page = NewPage("Graphics", "Graphics", "Pick a preset with the slider, or fine-tune every setting yourself.", out int y);
+
+            // --- preset slider ---
+            var presetCard = NewCard(page, y, D(160));
+            presetCard.Controls.Add(At(Lbl("QUICK PRESET", 8.5f, Theme.SubText, semibold: true), D(22), D(16)));
+
+            presetTitle.Font = new Font("Segoe UI", 15f, FontStyle.Bold);
+            presetTitle.ForeColor = Theme.Gold;
+            presetTitle.BackColor = Color.Transparent;
+            presetTitle.AutoSize = true;
+            presetTitle.Location = new Point(D(20), D(34));
+
+            presetDesc.ForeColor = Theme.SubText;
+            presetDesc.BackColor = Color.Transparent;
+            presetDesc.AutoSize = false;
+            presetDesc.Size = new Size(presetCard.Width - D(44), D(22));
+            presetDesc.Location = new Point(D(22), D(66));
+
+            presetSlider.Minimum = 0;
+            presetSlider.Maximum = 4;
+            presetSlider.ShowTicks = true;
+            presetSlider.Size = new Size(presetCard.Width - D(44), D(34));
+            presetSlider.Location = new Point(D(22), D(92));
+
+            var left = At(Lbl("Max FPS", 9f, Theme.SubText, semibold: true), D(22), D(128));
+            var mid = new Label
+            {
+                Text = "Balanced",
+                AutoSize = false,
+                TextAlign = ContentAlignment.TopCenter,
+                Size = new Size(D(160), D(20)),
+                Location = new Point(presetCard.Width / 2 - D(80), D(128)),
+                ForeColor = Theme.SubText,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI Semibold", 9f),
+            };
+            var right = new Label
+            {
+                Text = "Max graphics",
+                AutoSize = false,
+                TextAlign = ContentAlignment.TopRight,
+                Size = new Size(D(160), D(20)),
+                Location = new Point(presetCard.Width - D(182), D(128)),
+                ForeColor = Theme.SubText,
+                BackColor = Color.Transparent,
+                Font = new Font("Segoe UI Semibold", 9f),
+            };
+            presetCard.Controls.AddRange(new Control[] { presetTitle, presetDesc, presetSlider, left, mid, right });
+            y += D(176);
+
+            // --- advanced ---
+            page.Controls.Add(At(Lbl("Advanced settings", 12f, semibold: true), 0, y));
+            y += D(34);
+            var adv = NewCard(page, y, 0);
+            int ry = D(6);
+
+            var qualityBox = new Panel { Size = new Size(D(290), D(32)), BackColor = Theme.Card };
+            qualitySlider.Minimum = 0;
+            qualitySlider.Maximum = 21;
+            qualitySlider.Size = new Size(D(236), D(32));
+            qualitySlider.Location = new Point(0, 0);
+            qualityValue.AutoSize = false;
+            qualityValue.Size = new Size(D(50), D(32));
+            qualityValue.Location = new Point(D(240), 0);
+            qualityValue.TextAlign = ContentAlignment.MiddleRight;
+            qualityValue.ForeColor = Theme.Gold;
+            qualityValue.BackColor = Theme.Card;
+            qualityValue.Font = new Font("Segoe UI Semibold", 10f);
+            qualityBox.Controls.Add(qualitySlider);
+            qualityBox.Controls.Add(qualityValue);
+
+            SetupCombo(textureCombo, D(200), "Auto", "Lowest", "Low", "Medium", "High");
+            SetupCombo(msaaCombo, D(200), "Auto", "Off (1x)", "2x", "4x", "8x");
+            SetupCombo(rendererCombo, D(200), "Auto", "Direct3D 11", "Vulkan", "OpenGL");
+            var toggles = new[] { grassToggle, skyToggle, meshToggle, voxelToggle, grassMotionToggle, dpiToggle, fullscreenToggle };
+            foreach (var tg in toggles) tg.Size = new Size(D(46), D(24));
+
+            AddRow(adv, ref ry, "Graphics quality", "Roblox's quality level (1-21). Auto = Roblox decides.", qualityBox);
+            AddRow(adv, ref ry, "Texture quality", "How sharp surfaces and decals look.", textureCombo);
+            AddRow(adv, ref ry, "Anti-aliasing", "Smooths jagged edges. Costs FPS.", msaaCombo);
+            AddRow(adv, ref ry, "Rendering API", "Try Vulkan or D3D11 if you crash or stutter.", rendererCombo);
+            AddRow(adv, ref ry, "Remove grass", "Hides terrain grass. Big FPS boost on grassy maps.", grassToggle);
+            AddRow(adv, ref ry, "Gray sky", "Replaces the skybox with flat gray.", skyToggle);
+            AddRow(adv, ref ry, "Low-detail meshes", "Always uses the simplest version of models.", meshToggle);
+            AddRow(adv, ref ry, "Freeze lighting updates", "Faster, but lighting can look flat or wrong.", voxelToggle);
+            AddRow(adv, ref ry, "Still grass", "Stops grass from waving around.", grassMotionToggle);
+            AddRow(adv, ref ry, "Disable DPI scaling", "Sharper on high-res screens, UI gets smaller.", dpiToggle);
+            AddRow(adv, ref ry, "Alt+Enter real fullscreen", "Exclusive fullscreen, can lower input lag.", fullscreenToggle, last: true);
+            adv.Height = ry + D(6);
+            y += adv.Height + D(24);
+            page.Controls.Add(new Panel { Location = new Point(0, y), Size = new Size(1, 1) }); // bottom spacing
+
+            // --- events (wired after setup so they don't fire early) ---
+            presetSlider.ValueChanged += (_, _) => { if (!syncing) ApplyPreset(presetSlider.Value); };
+            presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != presetSlider.Value) ApplyPreset(presetSlider.Value); };
+            qualitySlider.ValueChanged += (_, _) =>
+            {
+                qualityValue.Text = qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString();
+                OnGraphicsChanged();
+            };
+            foreach (var combo in new[] { textureCombo, msaaCombo, rendererCombo })
+                combo.SelectedIndexChanged += (_, _) => OnGraphicsChanged();
+            foreach (var tg in toggles)
+                tg.CheckedChanged += (_, _) => OnGraphicsChanged();
+        }
+
+        static (string Title, string Desc) PresetInfo(int p) => p switch
+        {
+            0 => ("Max FPS", "Lowest quality, flat lighting, no grass. For weak PCs or pure frames."),
+            1 => ("Performance", "Low settings that still look okay. Great for laptops."),
+            2 => ("Balanced", "Roblox's normal automatic settings. Nothing changed."),
+            3 => ("Quality", "Sharper textures and smoother edges. Needs a decent PC."),
+            4 => ("Max Graphics", "Everything maxed out. Best looks, lowest FPS."),
+            _ => ("Custom", "You changed settings yourself. Move the slider to pick a preset again."),
+        };
+
+        void UpdatePresetLabels()
+        {
+            var (title, desc) = PresetInfo(settings.Preset);
+            presetTitle.Text = title;
+            presetDesc.Text = desc;
+        }
+
+        void ApplyPreset(int p)
+        {
+            // (quality, texture index, msaa index, no grass, gray sky, low meshes, freeze lighting)
+            var (q, tex, msaa, grass, sky, mesh, voxel) = p switch
+            {
+                0 => (1, 1, 1, true, true, true, true),
+                1 => (5, 2, 0, true, false, true, false),
+                3 => (16, 4, 3, false, false, false, false),
+                4 => (21, 4, 3, false, false, false, false),
+                _ => (0, 0, 0, false, false, false, false),
+            };
+            syncing = true;
+            qualitySlider.Value = q;
+            textureCombo.SelectedIndex = tex;
+            msaaCombo.SelectedIndex = msaa;
+            grassToggle.Checked = grass;
+            skyToggle.Checked = sky;
+            meshToggle.Checked = mesh;
+            voxelToggle.Checked = voxel;
+            syncing = false;
+
+            ApplyControlsToFlags();
+            settings.Preset = p;
+            UpdatePresetLabels();
+            settings.Save();
+            RefreshFlagList();
+            RefreshHome();
+        }
+
+        void OnGraphicsChanged()
+        {
+            if (syncing) return;
+            ApplyControlsToFlags();
+            settings.Preset = -1;
+            UpdatePresetLabels();
+            settings.Save();
+            RefreshFlagList();
+            RefreshHome();
+        }
+
+        void ApplyControlsToFlags()
+        {
+            var f = settings.Flags;
+            void Set(string name, string? value) { if (value == null) f.Remove(name); else f[name] = value; }
+
+            Set(FF.Quality, qualitySlider.Value == 0 ? null : qualitySlider.Value.ToString());
+
+            if (textureCombo.SelectedIndex <= 0) { f.Remove(FF.TexEnabled); f.Remove(FF.Texture); }
+            else { f[FF.TexEnabled] = "True"; f[FF.Texture] = (textureCombo.SelectedIndex - 1).ToString(); }
+
+            Set(FF.Msaa, msaaCombo.SelectedIndex <= 0 ? null : MsaaValues[msaaCombo.SelectedIndex]);
+
+            Set(FF.D3D11, rendererCombo.SelectedIndex == 1 ? "True" : null);
+            Set(FF.Vulkan, rendererCombo.SelectedIndex == 2 ? "True" : null);
+            Set(FF.OpenGL, rendererCombo.SelectedIndex == 3 ? "True" : null);
+
+            Set(FF.GrassMin, grassToggle.Checked ? "0" : null);
+            Set(FF.GrassMax, grassToggle.Checked ? "0" : null);
+            Set(FF.GraySky, skyToggle.Checked ? "True" : null);
+            foreach (var lod in FF.Lod) Set(lod, meshToggle.Checked ? "0" : null);
+            Set(FF.PauseVoxelizer, voxelToggle.Checked ? "True" : null);
+            Set(FF.GrassMotion, grassMotionToggle.Checked ? "0" : null);
+            Set(FF.DisableDpi, dpiToggle.Checked ? "True" : null);
+            Set(FF.AltEnter, fullscreenToggle.Checked ? "False" : null);
+        }
+
+        void RefreshGraphicsControls()
+        {
+            var f = settings.Flags;
+            bool Is(string name, string value) => f.TryGetValue(name, out var v) && string.Equals(v, value, StringComparison.OrdinalIgnoreCase);
+
+            syncing = true;
+            qualitySlider.Value = f.TryGetValue(FF.Quality, out var q) && int.TryParse(q, out var qi) ? Math.Clamp(qi, 1, 21) : 0;
+            qualityValue.Text = qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString();
+
+            textureCombo.SelectedIndex = Is(FF.TexEnabled, "True") && f.TryGetValue(FF.Texture, out var tx) && int.TryParse(tx, out var ti)
+                ? Math.Clamp(ti, 0, 3) + 1 : 0;
+
+            int msaaIdx = f.TryGetValue(FF.Msaa, out var ms) ? Array.IndexOf(MsaaValues, ms) : 0;
+            msaaCombo.SelectedIndex = msaaIdx < 0 ? 0 : msaaIdx;
+
+            rendererCombo.SelectedIndex = Is(FF.D3D11, "True") ? 1 : Is(FF.Vulkan, "True") ? 2 : Is(FF.OpenGL, "True") ? 3 : 0;
+
+            grassToggle.Checked = Is(FF.GrassMax, "0");
+            skyToggle.Checked = Is(FF.GraySky, "True");
+            meshToggle.Checked = Is(FF.Lod[0], "0");
+            voxelToggle.Checked = Is(FF.PauseVoxelizer, "True");
+            grassMotionToggle.Checked = Is(FF.GrassMotion, "0");
+            dpiToggle.Checked = Is(FF.DisableDpi, "True");
+            fullscreenToggle.Checked = Is(FF.AltEnter, "False");
+
+            if (settings.Preset >= 0) presetSlider.Value = settings.Preset;
+            UpdatePresetLabels();
+            syncing = false;
+        }
+
+        // ====================================================================
+        //  FASTFLAGS PAGE
+        // ====================================================================
+        void BuildFlagsPage()
+        {
+            var page = NewPage("Flags", "FastFlags", "Only flags on Roblox's official allowlist - Roblox ignores everything else.", out int y);
+
+            var addCard = NewCard(page, y, D(126));
+            addCard.Controls.Add(At(Lbl("Add a flag", 11f, semibold: true), D(22), D(14)));
+
+            SetupCombo(flagPicker, D(360), FF.Allowed.Select(a => a.Name).ToArray());
+            flagPicker.Location = new Point(D(22), D(47));
+            var valueWrap = InputBox(flagValueBox, "Value", D(150));
+            valueWrap.Location = new Point(D(394), D(44));
+            var addBtn = new RoundButton { Text = "Add", Icon = "", Size = new Size(D(104), D(38)) };
+            addBtn.Location = new Point(addCard.Width - D(126), D(44));
+
+            flagDesc.AutoSize = true;
+            flagDesc.ForeColor = Theme.SubText;
+            flagDesc.BackColor = Color.Transparent;
+            flagDesc.Font = new Font("Segoe UI", 9f);
+            flagDesc.Location = new Point(D(22), D(92));
+            flagDesc.Text = FF.Describe(flagPicker.SelectedItem as string);
+
+            addCard.Controls.AddRange(new Control[] { flagPicker, valueWrap, addBtn, flagDesc });
+            y += D(142);
+
+            flagPicker.SelectedIndexChanged += (_, _) => flagDesc.Text = FF.Describe(flagPicker.SelectedItem as string);
+            addBtn.Click += (_, _) => AddFlag();
+            flagValueBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddFlag(); } };
+
+            page.Controls.Add(At(Lbl("Your flags", 12f, semibold: true), 0, y));
+            var clear = GhostButton("Clear all", "", D(120));
+            clear.Size = new Size(D(120), D(34));
+            clear.Location = new Point(CW - clear.Width, y - D(2));
+            clear.Click += (_, _) =>
+            {
+                if (MessageBox.Show(this, "Remove every FastFlag? (This also resets Graphics to Balanced.)", "Clear flags",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                settings.Flags.Clear();
+                settings.Preset = 2;
+                settings.Save();
+                RefreshGraphicsControls();
+                RefreshFlagList();
+                RefreshHome();
+            };
+            page.Controls.Add(clear);
+            y += D(44);
+
+            flagList.Location = new Point(0, y);
+            flagList.Size = new Size(CW, D(250));
+            flagList.FlowDirection = FlowDirection.TopDown;
+            flagList.WrapContents = false;
+            flagList.AutoScroll = true;
+            flagList.BackColor = Theme.Bg;
+            page.Controls.Add(flagList);
+        }
+
+        void AddFlag()
+        {
+            string? name = flagPicker.SelectedItem as string;
+            string value = flagValueBox.Text.Trim();
+            if (name == null || !FF.IsAllowed(name)) return;
+            if (value.Length == 0) { flagValueBox.Focus(); return; }
+            settings.Flags[name] = value;
+            settings.Preset = -1;
+            settings.Save();
+            flagValueBox.Clear();
+            RefreshFlagList();
+            RefreshGraphicsControls();
+            RefreshHome();
+        }
+
+        void RefreshFlagList()
+        {
+            flagList.SuspendLayout();
+            foreach (var c in flagList.Controls.Cast<Control>().ToList()) c.Dispose();
+
+            if (settings.Flags.Count == 0)
+            {
+                var empty = Lbl("No flags yet. Pick a graphics preset or add one above.", 10f, Theme.SubText);
+                empty.Margin = new Padding(D(2), D(8), 0, 0);
+                flagList.Controls.Add(empty);
+            }
+
+            foreach (var (name, value) in settings.Flags.OrderBy(k => k.Key))
+            {
+                string key = name;
+                var row = new Card { Size = new Size(CW - D(24), D(58)), Margin = new Padding(0, 0, 0, D(8)), Radius = 12 };
+                row.Controls.Add(At(Lbl(name, 10f, semibold: true), D(18), D(9)));
+                row.Controls.Add(At(Lbl(FF.Describe(name), 8.5f, Theme.SubText), D(18), D(31)));
+
+                var tb = new TextBox();
+                var wrap = InputBox(tb, "", D(130));
+                tb.Text = value;
+                wrap.Location = new Point(row.Width - D(204), D(10));
+                tb.Leave += (_, _) =>
+                {
+                    string v = tb.Text.Trim();
+                    if (v.Length == 0 || settings.Flags.GetValueOrDefault(key) == v) return;
+                    settings.Flags[key] = v;
+                    settings.Preset = -1;
+                    settings.Save();
+                    RefreshGraphicsControls();
+                    RefreshHome();
+                };
+
+                var del = new RoundButton
+                {
+                    Icon = "",
+                    Size = new Size(D(46), D(38)),
+                    Location = new Point(row.Width - D(62), D(10)),
+                    BaseColor = Theme.Input,
+                    HoverColor = Theme.Danger,
+                    BorderColor = Theme.Border,
+                    ForeColor = Theme.Text,
+                };
+                del.Click += (_, _) => Later(() =>
+                {
+                    settings.Flags.Remove(key);
+                    settings.Preset = -1;
+                    settings.Save();
+                    RefreshFlagList();
+                    RefreshGraphicsControls();
+                    RefreshHome();
+                });
+
+                row.Controls.Add(wrap);
+                row.Controls.Add(del);
+                flagList.Controls.Add(row);
+            }
+            flagList.ResumeLayout();
+        }
+
+        // ====================================================================
+        //  TEXT & FONT PAGE
+        // ====================================================================
+        void BuildFontPage()
+        {
+            var page = NewPage("Font", "Text & Font", "Change the font Roblox uses for in-game text.", out int y);
+
+            var card = NewCard(page, y, D(250));
+            card.Controls.Add(At(Lbl("CURRENT FONT", 8.5f, Theme.SubText, semibold: true), D(22), D(16)));
+
+            fontName.AutoSize = true;
+            fontName.Font = new Font("Segoe UI", 15f, FontStyle.Bold);
+            fontName.ForeColor = Theme.Gold;
+            fontName.BackColor = Color.Transparent;
+            fontName.Location = new Point(D(20), D(36));
+
+            var previewWrap = new Card
+            {
+                BackColor = Theme.Input,
+                Radius = 12,
+                Location = new Point(D(22), D(76)),
+                Size = new Size(card.Width - D(44), D(94)),
+            };
+            fontPreview.AutoSize = false;
+            fontPreview.Location = new Point(D(16), D(10));
+            fontPreview.Size = new Size(previewWrap.Width - D(32), D(76));
+            fontPreview.ForeColor = Theme.Text;
+            fontPreview.BackColor = Color.Transparent;
+            fontPreview.Text = "The quick brown fox jumps over the lazy dog\n0123456789  !?  Hello from GuideStrap";
+            previewWrap.Controls.Add(fontPreview);
+
+            var choose = new RoundButton { Text = "Choose font file", Icon = "", Size = new Size(D(200), D(40)), Location = new Point(D(22), D(188)) };
+            choose.Click += (_, _) => ChooseFont();
+            var reset = GhostButton("Use default font", "", D(180));
+            reset.Location = new Point(D(234), D(188));
+            reset.Click += (_, _) =>
+            {
+                settings.FontFile = null;
+                settings.FontDisplayName = null;
+                settings.Save();
+                RefreshFontPreview();
+                RefreshHome();
+            };
+
+            card.Controls.AddRange(new Control[] { fontName, previewWrap, choose, reset });
+            y += D(266);
+
+            var tip = Lbl("Works with .ttf and .otf files (free fonts: fonts.google.com). Emoji keep their normal look. Applies next time you press Play.", 9f, Theme.SubText);
+            tip.AutoSize = false;
+            tip.Size = new Size(CW, D(40));
+            tip.Location = new Point(0, y);
+            page.Controls.Add(tip);
+        }
+
+        void ChooseFont()
+        {
+            using var dlg = new OpenFileDialog { Filter = "Font files (*.ttf;*.otf)|*.ttf;*.otf", Title = "Pick a font" };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+
+            try
+            {
+                // let go of the preview font so the old file isn't locked
+                fontPreview.Font = new Font("Segoe UI", 16f);
+                previewFonts?.Dispose();
+                previewFonts = null;
+
+                Directory.CreateDirectory(Paths.Base);
+                foreach (var old in Directory.GetFiles(Paths.Base, "CustomFont.*"))
+                    try { File.Delete(old); } catch { }
+
+                string dest = Path.Combine(Paths.Base, "CustomFont" + Path.GetExtension(dlg.FileName).ToLowerInvariant());
+                File.Copy(dlg.FileName, dest, true);
+                settings.FontFile = dest;
+                settings.FontDisplayName = Path.GetFileNameWithoutExtension(dlg.FileName);
+                settings.Save();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "Couldn't use that font:\n" + ex.Message, "GuideStrap", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+            RefreshFontPreview();
+            RefreshHome();
+        }
+
+        void RefreshFontPreview()
+        {
+            fontPreview.Font = new Font("Segoe UI", 16f);
+            previewFonts?.Dispose();
+            previewFonts = null;
+
+            if (settings.FontFile == null || !File.Exists(settings.FontFile))
+            {
+                fontName.Text = "Roblox default";
+                return;
+            }
+
+            fontName.Text = settings.FontDisplayName ?? "Custom font";
+            try
+            {
+                previewFonts = new PrivateFontCollection();
+                previewFonts.AddFontFile(settings.FontFile);
+                var fam = previewFonts.Families[0];
+                var style = fam.IsStyleAvailable(FontStyle.Regular) ? FontStyle.Regular : FontStyle.Bold;
+                fontPreview.Font = new Font(fam, 16f, style);
+            }
+            catch
+            {
+                fontName.Text += "  (no preview, still works in-game)";
+            }
+        }
+
+        // ====================================================================
+        //  SETTINGS PAGE
+        // ====================================================================
+        void BuildSettingsPage()
+        {
+            var page = NewPage("Settings", "Settings", "How GuideStrap behaves.", out int y);
+
+            websiteAccountToggle.Size = new Size(D(46), D(24));
+            closeAfterToggle.Size = new Size(D(46), D(24));
+            websiteAccountToggle.Checked = settings.UseAccountForWebsite;
+            closeAfterToggle.Checked = settings.CloseAfterLaunch;
+
+            var card = NewCard(page, y, 0);
+            int ry = D(6);
+            AddRow(card, ref ry, "Use my selected account for website joins", "Pressing Play on roblox.com joins as the account picked here.", websiteAccountToggle);
+            AddRow(card, ref ry, "Close after Roblox opens", "Hides GuideStrap once the game starts.", closeAfterToggle, last: true);
+            card.Height = ry + D(6);
+            y += card.Height + D(24);
+
+            websiteAccountToggle.CheckedChanged += (_, _) => { settings.UseAccountForWebsite = websiteAccountToggle.Checked; settings.Save(); };
+            closeAfterToggle.CheckedChanged += (_, _) => { settings.CloseAfterLaunch = closeAfterToggle.Checked; settings.Save(); };
+
+            page.Controls.Add(At(Lbl("Tools", 12f, semibold: true), 0, y));
+            y += D(34);
+            var tools = NewCard(page, y, D(150));
+
+            var reg = new RoundButton { Text = "Set as Roblox launcher", Icon = "", Size = new Size(D(240), D(40)), Location = new Point(D(22), D(22)), BorderColor = Theme.Gold };
+            var regNote = Lbl("Makes Play on the Roblox website open GuideStrap. Press it again if you move GuideStrap.", 9f, Theme.SubText);
+            regNote.AutoSize = false;
+            regNote.Size = new Size(tools.Width - D(298), D(40));
+            regNote.Location = new Point(D(278), D(24));
+            reg.Click += (_, _) => RegisterAsLauncher();
+
+            var folder = GhostButton("Open GuideStrap folder", "", D(240));
+            folder.Location = new Point(D(22), D(86));
+            folder.Click += (_, _) =>
+            {
+                Directory.CreateDirectory(Paths.Base);
+                Process.Start(new ProcessStartInfo(Paths.Base) { UseShellExecute = true });
+            };
+
+            var reinstall = GhostButton("Reinstall Roblox", "", D(200));
+            reinstall.Location = new Point(D(278), D(86));
+            reinstall.Click += (_, _) =>
+            {
+                if (busy) return;
+                if (MessageBox.Show(this, "Delete GuideStrap's copy of Roblox? It downloads fresh next time you press Play.", "Reinstall Roblox",
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                try
+                {
+                    if (Directory.Exists(Paths.Versions)) Directory.Delete(Paths.Versions, true);
+                    SetStatus("Roblox will re-download next time you press Play.", 0);
+                }
+                catch (Exception ex) { MessageBox.Show(this, "Close Roblox first.\n\n" + ex.Message, "GuideStrap"); }
+            };
+
+            tools.Controls.AddRange(new Control[] { reg, regNote, folder, reinstall });
+        }
+
+        void RegisterAsLauncher()
+        {
+            string exePath = Environment.ProcessPath!;
+            foreach (string protocol in new[] { "roblox-player", "roblox" })
+            {
+                using var key = Registry.CurrentUser.CreateSubKey($@"Software\Classes\{protocol}");
+                key.SetValue("", "URL: Roblox Protocol");
+                key.SetValue("URL Protocol", "");
+                using var cmd = key.CreateSubKey(@"shell\open\command");
+                cmd.SetValue("", $"\"{exePath}\" \"%1\"");
+            }
+            MessageBox.Show(this, "Done! Pressing Play on the Roblox website now opens GuideStrap.", "GuideStrap", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+
+    // ========================================================================
+    //  THEME
+    // ========================================================================
+    static class Theme
+    {
+        public static readonly Color Bg = Color.FromArgb(16, 11, 28);
+        public static readonly Color Sidebar = Color.FromArgb(22, 15, 38);
+        public static readonly Color Card = Color.FromArgb(30, 21, 52);
+        public static readonly Color CardHover = Color.FromArgb(50, 36, 84);
+        public static readonly Color Input = Color.FromArgb(40, 29, 68);
+        public static readonly Color Border = Color.FromArgb(60, 45, 96);
+        public static readonly Color Track = Color.FromArgb(58, 44, 92);
+        public static readonly Color Purple = Color.FromArgb(124, 58, 237);
+        public static readonly Color PurpleHover = Color.FromArgb(145, 92, 246);
+        public static readonly Color Gold = Color.FromArgb(245, 197, 66);
+        public static readonly Color Text = Color.FromArgb(240, 236, 250);
+        public static readonly Color SubText = Color.FromArgb(163, 152, 190);
+        public static readonly Color NavHover = Color.FromArgb(34, 24, 58);
+        public static readonly Color NavSelected = Color.FromArgb(48, 34, 82);
+        public static readonly Color Danger = Color.FromArgb(214, 58, 82);
+
+        public static Color Mix(Color a, Color b, float t) => Color.FromArgb(
+            (int)(a.R + (b.R - a.R) * t), (int)(a.G + (b.G - a.G) * t), (int)(a.B + (b.B - a.B) * t));
+
+        public static GraphicsPath Round(RectangleF r, float radius)
+        {
+            var p = new GraphicsPath();
+            float d = Math.Min(radius * 2, Math.Min(r.Width, r.Height));
+            if (d <= 0.5f) { p.AddRectangle(r); return p; }
+            p.AddArc(r.X, r.Y, d, d, 180, 90);
+            p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+            p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+            p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+            p.CloseFigure();
+            return p;
+        }
+
+        public const ControlStyles PaintStyles = ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer |
+                                                 ControlStyles.UserPaint | ControlStyles.ResizeRedraw | ControlStyles.SupportsTransparentBackColor;
+    }
+
+    // ========================================================================
+    //  CUSTOM CONTROLS
+    // ========================================================================
+    class Card : Panel
+    {
+        public Color BorderColor { get; set; } = Theme.Border;
+        public int Radius { get; set; } = 14;
+
+        public Card()
+        {
+            SetStyle(ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.UserPaint | ControlStyles.ResizeRedraw, true);
+            BackColor = Theme.Card;
+        }
+
+        protected override void OnPaintBackground(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), Radius);
+            using var b = new SolidBrush(BackColor);
+            g.FillPath(b, path);
+            using var p = new Pen(BorderColor);
+            g.DrawPath(p, path);
+        }
+    }
+
+    class RoundButton : Control
+    {
+        bool hover, down;
+        public Color BaseColor { get; set; } = Theme.Purple;
+        public Color HoverColor { get; set; } = Theme.PurpleHover;
+        public Color BorderColor { get; set; } = Color.Empty;
+        public int Radius { get; set; } = 10;
+        public string Icon { get; set; } = "";
+
+        public RoundButton()
+        {
+            SetStyle(Theme.PaintStyles, true);
+            ForeColor = Color.White;
+            Cursor = Cursors.Hand;
+            Font = new Font("Segoe UI Semibold", 10f);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = down = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
+        protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+        protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            Color fill = !Enabled ? Theme.Mix(BaseColor, Theme.Bg, 0.55f)
+                       : down ? Theme.Mix(HoverColor, Color.Black, 0.15f)
+                       : hover ? HoverColor : BaseColor;
+            using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), Radius);
+            if (fill.A > 0) { using var b = new SolidBrush(fill); g.FillPath(b, path); }
+            if (!BorderColor.IsEmpty) { using var p = new Pen(Enabled ? BorderColor : Theme.Border); g.DrawPath(p, path); }
+
+            Color fc = Enabled ? ForeColor : Theme.Mix(ForeColor, Theme.Bg, 0.5f);
+            const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            using var iconFont = new Font("Segoe MDL2 Assets", Font.Size);
+            Size iconSize = Icon.Length > 0 ? TextRenderer.MeasureText(g, Icon, iconFont, Size.Empty, flags) : Size.Empty;
+            Size textSize = Text.Length > 0 ? TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags) : Size.Empty;
+            int gap = Icon.Length > 0 && Text.Length > 0 ? LogicalToDeviceUnits(8) : 0;
+            int x = (Width - iconSize.Width - gap - textSize.Width) / 2;
+            if (Icon.Length > 0)
+            {
+                TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(x, 0, iconSize.Width + 2, Height), fc, flags);
+                x += iconSize.Width + gap;
+            }
+            if (Text.Length > 0)
+                TextRenderer.DrawText(g, Text, Font, new Rectangle(x, 0, textSize.Width + 4, Height), fc, flags);
+        }
+    }
+
+    class NavButton : Control
+    {
+        bool hover, selected;
+        public string Icon { get; set; } = "";
+        public bool Selected { get => selected; set { selected = value; Invalidate(); } }
+
+        public NavButton()
+        {
+            SetStyle(Theme.PaintStyles, true);
+            Cursor = Cursors.Hand;
+            Font = new Font("Segoe UI Semibold", 10.5f);
+        }
+
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Sidebar);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            if (selected || hover)
+            {
+                using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 10);
+                using var b = new SolidBrush(selected ? Theme.NavSelected : Theme.NavHover);
+                g.FillPath(b, path);
+            }
+            if (selected)
+            {
+                using var bar = Theme.Round(new RectangleF(0, Height * 0.25f, LogicalToDeviceUnits(4), Height * 0.5f), 2);
+                using var gb = new SolidBrush(Theme.Gold);
+                g.FillPath(gb, bar);
+            }
+
+            const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            using var iconFont = new Font("Segoe MDL2 Assets", 12f);
+            TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(LogicalToDeviceUnits(18), 0, LogicalToDeviceUnits(30), Height),
+                selected ? Theme.Gold : Theme.SubText, flags);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(LogicalToDeviceUnits(52), 0, Width - LogicalToDeviceUnits(56), Height),
+                selected || hover ? Theme.Text : Theme.SubText, flags);
+        }
+    }
+
+    class ToggleSwitch : Control
+    {
+        bool isChecked;
+        public event EventHandler? CheckedChanged;
+
+        public bool Checked
+        {
+            get => isChecked;
+            set
+            {
+                if (isChecked == value) return;
+                isChecked = value;
+                Invalidate();
+                CheckedChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public ToggleSwitch()
+        {
+            SetStyle(Theme.PaintStyles, true);
+            Cursor = Cursors.Hand;
+            Size = new Size(46, 24);
+        }
+
+        protected override void OnClick(EventArgs e) { Checked = !Checked; base.OnClick(e); }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Card);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+            using var path = Theme.Round(r, r.Height / 2);
+            using var b = new SolidBrush(isChecked ? Theme.Purple : Theme.Track);
+            g.FillPath(b, path);
+            if (isChecked) { using var p = new Pen(Theme.Gold); g.DrawPath(p, path); }
+
+            float pad = Height * 0.17f;
+            float k = Height - pad * 2;
+            float x = isChecked ? Width - k - pad - 1 : pad;
+            using var kb = new SolidBrush(isChecked ? Theme.Gold : Theme.SubText);
+            g.FillEllipse(kb, x, pad - 0.5f, k, k);
+        }
+    }
+
+    class ModernSlider : Control
+    {
+        int min, max = 10, val;
+        bool dragging;
+        public event EventHandler? ValueChanged;
+        public event EventHandler? Released;
+        public bool ShowTicks { get; set; }
+
+        public int Minimum { get => min; set { min = value; Invalidate(); } }
+        public int Maximum { get => max; set { max = value; Invalidate(); } }
+        public int Value
+        {
+            get => val;
+            set
+            {
+                int v = Math.Clamp(value, min, max);
+                if (v == val) return;
+                val = v;
+                Invalidate();
+                ValueChanged?.Invoke(this, EventArgs.Empty);
+            }
+        }
+
+        public ModernSlider()
+        {
+            SetStyle(Theme.PaintStyles, true);
+            Cursor = Cursors.Hand;
+            Height = 32;
+        }
+
+        float ThumbR => Math.Min(Height * 0.3f, 11f * DeviceDpi / 96f);
+        float TrackLeft => ThumbR + 2;
+        float TrackRight => Width - ThumbR - 2;
+        float XFor(int v) => max == min ? TrackLeft : TrackLeft + (TrackRight - TrackLeft) * (v - min) / (max - min);
+
+        void SetFromX(int x)
+        {
+            float t = (x - TrackLeft) / Math.Max(1f, TrackRight - TrackLeft);
+            Value = min + (int)Math.Round(Math.Clamp(t, 0f, 1f) * (max - min));
+        }
+
+        protected override void OnMouseDown(MouseEventArgs e) { dragging = true; SetFromX(e.X); base.OnMouseDown(e); }
+        protected override void OnMouseMove(MouseEventArgs e) { if (dragging) SetFromX(e.X); base.OnMouseMove(e); }
+        protected override void OnMouseUp(MouseEventArgs e)
+        {
+            if (dragging) { dragging = false; Released?.Invoke(this, EventArgs.Empty); }
+            base.OnMouseUp(e);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Card);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+
+            float cy = Height / 2f;
+            float th = Math.Max(4f, Height * 0.17f);
+            float w = Math.Max(1f, TrackRight - TrackLeft);
+
+            using (var track = Theme.Round(new RectangleF(TrackLeft, cy - th / 2, w, th), th / 2))
+            using (var tb = new SolidBrush(Theme.Track))
+                g.FillPath(tb, track);
+
+            if (ShowTicks)
+            {
+                using var tick = new SolidBrush(Theme.SubText);
+                for (int v = min; v <= max; v++)
+                {
+                    float tx = XFor(v);
+                    g.FillEllipse(tick, tx - 2, cy - 2, 4, 4);
+                }
+            }
+
+            float x = XFor(val);
+            if (x - TrackLeft > 1)
+            {
+                using var fill = Theme.Round(new RectangleF(TrackLeft, cy - th / 2, x - TrackLeft, th), th / 2);
+                using var lg = new LinearGradientBrush(new RectangleF(TrackLeft - 1, 0, w + 2, Height), Theme.Purple, Theme.Gold, 0f);
+                g.FillPath(lg, fill);
+            }
+
+            float r = ThumbR;
+            using var thumb = new SolidBrush(Theme.Gold);
+            g.FillEllipse(thumb, x - r, cy - r, r * 2, r * 2);
+            using var ring = new Pen(Parent?.BackColor ?? Theme.Card, 2f);
+            g.DrawEllipse(ring, x - r + 1, cy - r + 1, r * 2 - 2, r * 2 - 2);
+        }
+    }
+
+    class ProgressLine : Control
+    {
+        float v;
+        public float Value { get => v; set { v = Math.Clamp(value, 0f, 1f); Invalidate(); } }
+
+        public ProgressLine() => SetStyle(Theme.PaintStyles, true);
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            var r = new RectangleF(0, 0, Width - 1, Height - 1);
+            using (var track = Theme.Round(r, Height / 2f))
+            using (var tb = new SolidBrush(Theme.Card))
+                g.FillPath(tb, track);
+            if (v > 0.003f)
+            {
+                using var fill = Theme.Round(new RectangleF(0, 0, Math.Max(Height, (Width - 1) * v), Height - 1), Height / 2f);
+                using var lg = new LinearGradientBrush(new RectangleF(-1, 0, Width + 2, Height), Theme.Purple, Theme.Gold, 0f);
+                g.FillPath(lg, fill);
+            }
+        }
+    }
+
+    class DarkCombo : ComboBox
+    {
+        public DarkCombo()
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList;
+            FlatStyle = FlatStyle.Flat;
+            DrawMode = DrawMode.OwnerDrawFixed;
+            BackColor = Theme.Input;
+            ForeColor = Theme.Text;
+            Font = new Font("Segoe UI", 10f);
+            Cursor = Cursors.Hand;
+        }
+
+        protected override void OnDrawItem(DrawItemEventArgs e)
+        {
+            if (e.Index < 0) return;
+            bool sel = (e.State & DrawItemState.Selected) != 0 && (e.State & DrawItemState.ComboBoxEdit) == 0;
+            using var b = new SolidBrush(sel ? Theme.Purple : Theme.Input);
+            e.Graphics.FillRectangle(b, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, GetItemText(Items[e.Index]), Font,
+                new Rectangle(e.Bounds.X + 6, e.Bounds.Y, e.Bounds.Width - 6, e.Bounds.Height), Theme.Text,
+                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+        }
+    }
+
+    class AvatarBox : Control
+    {
+        Image? img;
+        public Image? Image { get => img; set { img = value; Invalidate(); } }
+        public string Fallback { get; set; } = "?";
+        public Color Ring { get; set; } = Color.Empty;
+
+        public AvatarBox() => SetStyle(Theme.PaintStyles, true);
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            var g = e.Graphics;
+            g.Clear(Parent?.BackColor ?? Theme.Card);
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            var r = new RectangleF(1.5f, 1.5f, Width - 4, Height - 4);
+
+            if (img != null)
+            {
+                using var bg = new SolidBrush(Theme.Input);
+                g.FillEllipse(bg, r);
+                using var clip = new GraphicsPath();
+                clip.AddEllipse(r);
+                g.SetClip(clip);
+                g.DrawImage(img, r);
+                g.ResetClip();
+            }
+            else
+            {
+                using var lg = new LinearGradientBrush(r, Theme.Purple, Theme.PurpleHover, 45f);
+                g.FillEllipse(lg, r);
+                using var f = new Font("Segoe UI", Math.Max(8f, Height / 3.2f * 72f / DeviceDpi), FontStyle.Bold);
+                TextRenderer.DrawText(g, Fallback, f, Rectangle.Round(r), Color.White,
+                    TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            }
+
+            if (!Ring.IsEmpty)
+            {
+                using var p = new Pen(Ring, 2f);
+                g.DrawEllipse(p, r);
+            }
+        }
+    }
+
+    // ========================================================================
+    //  LOGIN WINDOW (the real Roblox login page inside WebView2)
+    // ========================================================================
+    class LoginForm : Form
+    {
+        readonly WebView2 web = new();
+        readonly System.Windows.Forms.Timer poll = new() { Interval = 1000 };
+        readonly string dataDir = Path.Combine(Path.GetTempPath(), "GuideStrapLogin_" + Guid.NewGuid().ToString("N"));
+        bool done;
+        public string? Cookie { get; private set; }
+
+        public LoginForm()
+        {
+            Text = "Log in to Roblox - GuideStrap";
+            StartPosition = FormStartPosition.CenterParent;
+            Size = new Size(LogicalToDeviceUnits(520), LogicalToDeviceUnits(760));
+            BackColor = Theme.Bg;
+            web.Dock = DockStyle.Fill;
+            Controls.Add(web);
+
+            Load += async (_, _) => await InitAsync();
+            poll.Tick += async (_, _) => await CheckCookieAsync();
+            FormClosed += (_, _) =>
+            {
+                poll.Stop();
+                web.Dispose();
+                try { Directory.Delete(dataDir, true); } catch { }
+            };
+        }
+
+        async Task InitAsync()
+        {
+            try
+            {
+                var env = await CoreWebView2Environment.CreateAsync(null, dataDir);
+                await web.EnsureCoreWebView2Async(env);
+                web.CoreWebView2.Navigate("https://www.roblox.com/login");
+                poll.Start();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(this, "The login window needs Microsoft Edge WebView2.\n\n" + ex.Message, "GuideStrap");
+                Close();
+            }
+        }
+
+        async Task CheckCookieAsync()
+        {
+            if (done || web.CoreWebView2 == null) return;
+            var cookies = await web.CoreWebView2.CookieManager.GetCookiesAsync("https://www.roblox.com");
+            var c = cookies.FirstOrDefault(x => x.Name == ".ROBLOSECURITY");
+            if (c == null || string.IsNullOrEmpty(c.Value)) return;
+            done = true;
+            Cookie = c.Value;
+            DialogResult = DialogResult.OK;
+            Close();
+        }
+    }
+
+    // ========================================================================
+    //  DATA: settings, accounts, paths, encryption
+    // ========================================================================
+    static class Paths
+    {
+        public static readonly string Base = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "GuideStrap");
+        public static readonly string Versions = Path.Combine(Base, "Versions");
+        public static readonly string Avatars = Path.Combine(Base, "Avatars");
+    }
+
+    class AppSettings
+    {
+        public int Preset { get; set; } = 2;     // 0-4 = preset, -1 = custom
+        public Dictionary<string, string> Flags { get; set; } = new();
+        public string? FontFile { get; set; }
+        public string? FontDisplayName { get; set; }
+        public long? ActiveAccountId { get; set; }
+        public bool UseAccountForWebsite { get; set; } = true;
+        public bool CloseAfterLaunch { get; set; } = true;
+
+        static string FilePath => Path.Combine(Paths.Base, "settings.json");
+
+        public static AppSettings Load()
+        {
+            try { return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new(); }
+            catch { return new(); }
+        }
+
+        public void Save()
+        {
+            Directory.CreateDirectory(Paths.Base);
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }
+
+    class Account
+    {
+        public long UserId { get; set; }
+        public string Username { get; set; } = "";
+        public string DisplayName { get; set; } = "";
+        public string Cookie { get; set; } = "";
+    }
+
+    static class AccountStore
+    {
+        static string FilePath => Path.Combine(Paths.Base, "accounts.dat");
+
+        public static List<Account> Load()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return new();
+                string json = Encoding.UTF8.GetString(Dpapi.Unprotect(File.ReadAllBytes(FilePath)));
+                return JsonSerializer.Deserialize<List<Account>>(json) ?? new();
+            }
+            catch { return new(); }
+        }
+
+        public static void Save(List<Account> list)
+        {
+            Directory.CreateDirectory(Paths.Base);
+            byte[] json = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(list));
+            File.WriteAllBytes(FilePath, Dpapi.Protect(json));
+        }
+    }
+
+    // Windows DPAPI: only your Windows user on this PC can decrypt the accounts file
+    static class Dpapi
+    {
+        [StructLayout(LayoutKind.Sequential)]
+        struct DataBlob { public int cbData; public IntPtr pbData; }
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern bool CryptProtectData(ref DataBlob dataIn, string? description, IntPtr entropy, IntPtr reserved, IntPtr prompt, int flags, ref DataBlob dataOut);
+
+        [DllImport("crypt32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+        static extern bool CryptUnprotectData(ref DataBlob dataIn, IntPtr description, IntPtr entropy, IntPtr reserved, IntPtr prompt, int flags, ref DataBlob dataOut);
+
+        [DllImport("kernel32.dll")]
+        static extern IntPtr LocalFree(IntPtr mem);
+
+        public static byte[] Protect(byte[] data) => Run(data, true);
+        public static byte[] Unprotect(byte[] data) => Run(data, false);
+
+        static byte[] Run(byte[] input, bool protect)
+        {
+            var inBlob = new DataBlob { cbData = input.Length, pbData = Marshal.AllocHGlobal(Math.Max(1, input.Length)) };
+            var outBlob = new DataBlob();
+            try
+            {
+                Marshal.Copy(input, 0, inBlob.pbData, input.Length);
+                bool ok = protect
+                    ? CryptProtectData(ref inBlob, "GuideStrap", IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 1, ref outBlob)
+                    : CryptUnprotectData(ref inBlob, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, IntPtr.Zero, 1, ref outBlob);
+                if (!ok) throw new Win32Exception(Marshal.GetLastWin32Error());
+                var result = new byte[outBlob.cbData];
+                Marshal.Copy(outBlob.pbData, result, 0, outBlob.cbData);
+                return result;
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(inBlob.pbData);
+                if (outBlob.pbData != IntPtr.Zero) LocalFree(outBlob.pbData);
+            }
+        }
+    }
+
+    static class NativeMethods
+    {
+        [DllImport("user32.dll")] public static extern bool ReleaseCapture();
+        [DllImport("user32.dll")] public static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
+        [DllImport("dwmapi.dll")] public static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+    }
+
+    // ========================================================================
+    //  FASTFLAGS (Roblox's allowlist only)
+    // ========================================================================
+    static class FF
+    {
+        public const string Quality = "DFIntDebugFRMQualityLevelOverride";
+        public const string TexEnabled = "DFFlagTextureQualityOverrideEnabled";
+        public const string Texture = "DFIntTextureQualityOverride";
+        public const string Msaa = "FIntDebugForceMSAASamples";
+        public const string D3D11 = "FFlagDebugGraphicsPreferD3D11";
+        public const string Vulkan = "FFlagDebugGraphicsPreferVulkan";
+        public const string OpenGL = "FFlagDebugGraphicsPreferOpenGL";
+        public const string GrassMin = "FIntFRMMinGrassDistance";
+        public const string GrassMax = "FIntFRMMaxGrassDistance";
+        public const string GraySky = "FFlagDebugSkyGray";
+        public const string PauseVoxelizer = "DFFlagDebugPauseVoxelizer";
+        public const string GrassMotion = "FIntGrassMovementReducedMotionFactor";
+        public const string DisableDpi = "DFFlagDisableDPIScale";
+        public const string AltEnter = "FFlagHandleAltEnterFullscreenManually";
+        public static readonly string[] Lod =
+        {
+            "DFIntCSGLevelOfDetailSwitchingDistance",
+            "DFIntCSGLevelOfDetailSwitchingDistanceL12",
+            "DFIntCSGLevelOfDetailSwitchingDistanceL23",
+            "DFIntCSGLevelOfDetailSwitchingDistanceL34",
+        };
+
+        // Roblox's official allowlist. If Roblox adds more later, add them here.
+        public static readonly (string Name, string Desc)[] Allowed =
+        {
+            (Quality, "Graphics quality level, 1 (lowest) to 21 (highest)"),
+            (TexEnabled, "True = use the texture quality flag"),
+            (Texture, "Texture quality: 0 lowest, 1 low, 2 medium, 3 high"),
+            (Msaa, "Anti-aliasing samples: 1, 2, 4 or 8"),
+            (D3D11, "True = render with Direct3D 11"),
+            (Vulkan, "True = render with Vulkan"),
+            (OpenGL, "True = render with OpenGL"),
+            (GrassMin, "Grass draw distance (min). 0 with max = no grass"),
+            (GrassMax, "Grass draw distance (max). 0 = no grass"),
+            (GraySky, "True = gray sky instead of the skybox"),
+            (PauseVoxelizer, "True = freeze lighting updates (faster)"),
+            (GrassMotion, "Grass movement. 0 = still grass"),
+            (DisableDpi, "True = turn off DPI scaling"),
+            (AltEnter, "False = Alt+Enter uses exclusive fullscreen"),
+            (Lod[0], "Mesh detail switching distance"),
+            (Lod[1], "Mesh detail distance, level 1 to 2"),
+            (Lod[2], "Mesh detail distance, level 2 to 3"),
+            (Lod[3], "Mesh detail distance, level 3 to 4"),
+        };
+
+        public static bool IsAllowed(string name) => Allowed.Any(a => a.Name == name);
+        public static string Describe(string? name) => Allowed.FirstOrDefault(a => a.Name == name).Desc ?? "";
+    }
+
+    // ========================================================================
+    //  MODS: write FastFlags + custom font into the Roblox install
+    // ========================================================================
+    static class Mods
+    {
+        public static void Apply(string versionDir, AppSettings settings)
+        {
+            // FastFlags
+            string csDir = Path.Combine(versionDir, "ClientSettings");
+            Directory.CreateDirectory(csDir);
+            var flags = settings.Flags.Where(kv => FF.IsAllowed(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            File.WriteAllText(Path.Combine(csDir, "ClientAppSettings.json"),
+                JsonSerializer.Serialize(flags, new JsonSerializerOptions { WriteIndented = true }));
+
+            // Font
+            string fontsDir = Path.Combine(versionDir, "content", "fonts");
+            string familiesDir = Path.Combine(fontsDir, "families");
+            if (!Directory.Exists(familiesDir)) return;
+
+            // back up the original font settings once, then always start from them
+            string backupDir = Path.Combine(fontsDir, "families_original");
+            if (!Directory.Exists(backupDir))
+            {
+                Directory.CreateDirectory(backupDir);
+                foreach (var f in Directory.GetFiles(familiesDir, "*.json"))
+                    File.Copy(f, Path.Combine(backupDir, Path.GetFileName(f)));
+            }
+            else
+            {
+                foreach (var f in Directory.GetFiles(backupDir, "*.json"))
+                    File.Copy(f, Path.Combine(familiesDir, Path.GetFileName(f)), true);
+            }
+            foreach (var old in Directory.GetFiles(fontsDir, "CustomFont.*"))
+                File.Delete(old);
+
+            if (settings.FontFile == null || !File.Exists(settings.FontFile)) return;
+
+            string destName = "CustomFont" + Path.GetExtension(settings.FontFile).ToLowerInvariant();
+            File.Copy(settings.FontFile, Path.Combine(fontsDir, destName), true);
+
+            foreach (var file in Directory.GetFiles(familiesDir, "*.json"))
+            {
+                if (Path.GetFileName(file).Contains("emoji", StringComparison.OrdinalIgnoreCase)) continue;
+                var root = JsonNode.Parse(File.ReadAllText(file));
+                if (root?["faces"] is not JsonArray faces) continue;
+                foreach (var face in faces)
+                    if (face is JsonObject o) o["assetId"] = "rbxasset://fonts/" + destName;
+                File.WriteAllText(file, root.ToJsonString());
+            }
+        }
+    }
+
+    // ========================================================================
+    //  ROBLOX WEB API
+    // ========================================================================
+    static class RobloxApi
+    {
+        public static readonly HttpClient Http = new();
+        static readonly HttpClient AuthHttp = new(new HttpClientHandler { UseCookies = false });
+
+        public static async Task<string> GetLatestVersionAsync()
+        {
+            string json = await Http.GetStringAsync("https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer");
+            using var doc = JsonDocument.Parse(json);
+            return doc.RootElement.GetProperty("clientVersionUpload").GetString()
+                   ?? throw new Exception("Roblox didn't return a version.");
+        }
+
+        public static async Task<Account> GetAccountAsync(string cookie)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "https://users.roblox.com/v1/users/authenticated");
+            req.Headers.Add("Cookie", ".ROBLOSECURITY=" + cookie);
+            using var resp = await AuthHttp.SendAsync(req);
+            if (!resp.IsSuccessStatusCode) throw new Exception($"Roblox said no (HTTP {(int)resp.StatusCode}).");
+            using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+            var r = doc.RootElement;
+            return new Account
+            {
+                UserId = r.GetProperty("id").GetInt64(),
+                Username = r.GetProperty("name").GetString() ?? "",
+                DisplayName = r.GetProperty("displayName").GetString() ?? "",
+                Cookie = cookie,
+            };
+        }
+
+        public static async Task<Image?> GetAvatarAsync(long userId)
+        {
+            string path = Path.Combine(Paths.Avatars, userId + ".png");
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    string json = await Http.GetStringAsync(
+                        $"https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds={userId}&size=150x150&format=Png&isCircular=false");
+                    using var doc = JsonDocument.Parse(json);
+                    string? url = doc.RootElement.GetProperty("data")[0].GetProperty("imageUrl").GetString();
+                    if (string.IsNullOrEmpty(url)) return null;
+                    Directory.CreateDirectory(Paths.Avatars);
+                    await File.WriteAllBytesAsync(path, await Http.GetByteArrayAsync(url));
+                }
+                using var fs = File.OpenRead(path);
+                using var img = Image.FromStream(fs);
+                return new Bitmap(img);
+            }
+            catch { return null; }
+        }
+
+        // A one-time ticket that lets the Roblox client log in as a saved account
+        public static async Task<string> GetAuthTicketAsync(string cookie)
+        {
+            string? csrf = null;
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Post, "https://auth.roblox.com/v1/authentication-ticket");
+                req.Headers.Add("Cookie", ".ROBLOSECURITY=" + cookie);
+                req.Headers.Referrer = new Uri("https://www.roblox.com/");
+                req.Headers.Add("Origin", "https://www.roblox.com");
+                req.Headers.Add("RBXAuthenticationNegotiation", "1");
+                if (csrf != null) req.Headers.Add("X-CSRF-TOKEN", csrf);
+                req.Content = new StringContent("{}", Encoding.UTF8, "application/json");
+
+                using var resp = await AuthHttp.SendAsync(req);
+                if (resp.Headers.TryGetValues("rbx-authentication-ticket", out var ticket)) return ticket.First();
+                if (resp.Headers.TryGetValues("x-csrf-token", out var token)) { csrf = token.First(); continue; }
+                if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new Exception("This account's saved login expired. Remove it and add it again.");
+                throw new Exception($"Couldn't log in this account (HTTP {(int)resp.StatusCode}).");
+            }
+            throw new Exception("Couldn't log in this account. Try again.");
+        }
+
+        public static string BuildLaunchUri(string ticket, long? placeId)
+        {
+            long time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            string tracker = Random.Shared.NextInt64(100_000_000_000, 999_999_999_999).ToString();
+            if (placeId == null)
+                return $"roblox-player:1+launchmode:app+gameinfo:{ticket}+launchtime:{time}+browsertrackerid:{tracker}" +
+                       "+robloxLocale:en_us+gameLocale:en_us+channel:+LaunchExp:InApp";
+
+            string placeUrl = Uri.EscapeDataString(
+                $"https://www.roblox.com/Game/PlaceLauncher.ashx?request=RequestGame&browserTrackerId={tracker}" +
+                $"&placeId={placeId}&isPlayTogetherGame=false&joinAttemptId={Guid.NewGuid()}&joinAttemptOrigin=PlayButton");
+            return $"roblox-player:1+launchmode:play+gameinfo:{ticket}+launchtime:{time}+placelauncherurl:{placeUrl}" +
+                   $"+browsertrackerid:{tracker}+robloxLocale:en_us+gameLocale:en_us+channel:+LaunchExp:InApp";
+        }
+    }
+
+    // ========================================================================
+    //  INSTALLER: downloads Roblox straight from Roblox's servers
+    // ========================================================================
+    static class Installer
+    {
+        static readonly Dictionary<string, string> PackageMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["RobloxApp.zip"] = "",
+            ["redist.zip"] = "",
+            ["WebView2.zip"] = "",
+            ["shaders.zip"] = "shaders/",
+            ["ssl.zip"] = "ssl/",
+            ["WebView2RuntimeInstaller.zip"] = "WebView2RuntimeInstaller/",
+            ["content-avatar.zip"] = "content/avatar/",
+            ["content-configs.zip"] = "content/configs/",
+            ["content-fonts.zip"] = "content/fonts/",
+            ["content-sky.zip"] = "content/sky/",
+            ["content-sounds.zip"] = "content/sounds/",
+            ["content-textures2.zip"] = "content/textures/",
+            ["content-models.zip"] = "content/models/",
+            ["content-platform-fonts.zip"] = "PlatformContent/pc/fonts/",
+            ["content-platform-dictionaries.zip"] = "PlatformContent/pc/shared_compression_dictionaries/",
+            ["content-terrain.zip"] = "PlatformContent/pc/terrain/",
+            ["content-textures3.zip"] = "PlatformContent/pc/textures/",
+            ["extracontent-luapackages.zip"] = "ExtraContent/LuaPackages/",
+            ["extracontent-translations.zip"] = "ExtraContent/translations/",
+            ["extracontent-models.zip"] = "ExtraContent/models/",
+            ["extracontent-textures.zip"] = "ExtraContent/textures/",
+            ["extracontent-places.zip"] = "ExtraContent/places/",
+        };
+
+        public static async Task InstallAsync(string versionGuid, string versionDir, Action<string, float> report)
+        {
+            string tempDir = versionDir + "_installing";
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+            Directory.CreateDirectory(tempDir);
+
+            string cdn = $"https://setup.rbxcdn.com/{versionGuid}-";
+            report("Reading Roblox's package list...", 0);
+            string manifest = await RobloxApi.Http.GetStringAsync(cdn + "rbxPkgManifest.txt");
+            string[] lines = manifest.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            // "v0", then groups of 4 lines: file name, MD5, download size, unpacked size
+            var packages = new List<(string Name, string Md5, long Size)>();
+            for (int i = 1; i + 2 < lines.Length; i += 4)
+            {
+                if (!lines[i].EndsWith(".zip", StringComparison.OrdinalIgnoreCase)) continue;
+                packages.Add((lines[i], lines[i + 1].ToLowerInvariant(), long.Parse(lines[i + 2])));
+            }
+
+            long total = Math.Max(1, packages.Sum(p => p.Size));
+            long done = 0;
+            int lastPct = -1;
+
+            foreach (var pkg in packages)
+            {
+                using var resp = await RobloxApi.Http.GetAsync(cdn + pkg.Name, HttpCompletionOption.ResponseHeadersRead);
+                resp.EnsureSuccessStatusCode();
+                await using var stream = await resp.Content.ReadAsStreamAsync();
+                using var ms = new MemoryStream();
+                byte[] buffer = new byte[81920];
+                int read;
+                while ((read = await stream.ReadAsync(buffer)) > 0)
+                {
+                    ms.Write(buffer, 0, read);
+                    done += read;
+                    int pct = (int)(done * 100 / total);
+                    if (pct != lastPct)
+                    {
+                        lastPct = pct;
+                        report($"Downloading Roblox... {Math.Min(pct, 100)}%", done / (float)total);
+                    }
+                }
+
+                byte[] data = ms.ToArray();
+                if (Convert.ToHexString(MD5.HashData(data)).ToLowerInvariant() != pkg.Md5)
+                    throw new Exception($"{pkg.Name} downloaded corrupted. Try again.");
+
+                string target = PackageMap.TryGetValue(pkg.Name, out var sub) ? Path.Combine(tempDir, sub) : tempDir;
+                await Task.Run(() => ExtractZip(data, target));
+            }
+
+            File.WriteAllText(Path.Combine(tempDir, "AppSettings.xml"),
+                "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n<Settings>\r\n" +
+                "\t<ContentFolder>content</ContentFolder>\r\n" +
+                "\t<BaseUrl>http://www.roblox.com</BaseUrl>\r\n</Settings>\r\n");
+
+            if (Directory.Exists(versionDir)) Directory.Delete(versionDir, true);
+            Directory.Move(tempDir, versionDir);
+        }
+
+        static void ExtractZip(byte[] data, string targetDir)
+        {
+            string root = Path.GetFullPath(targetDir);
+            using var zip = new ZipArchive(new MemoryStream(data));
+            foreach (var entry in zip.Entries)
+            {
+                if (entry.FullName.EndsWith('/') || entry.FullName.EndsWith('\\')) continue;
+                string dest = Path.GetFullPath(Path.Combine(root, entry.FullName.Replace('\\', '/')));
+                if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                entry.ExtractToFile(dest, true);
+            }
+        }
+
+        public static void CleanupOldVersions(string keep)
+        {
+            if (!Directory.Exists(Paths.Versions)) return;
+            foreach (var dir in Directory.GetDirectories(Paths.Versions))
+            {
+                if (Path.GetFileName(dir) == keep) continue;
+                try { Directory.Delete(dir, true); } catch { }
+            }
+        }
+    }
+}
