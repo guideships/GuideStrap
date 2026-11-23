@@ -72,12 +72,35 @@ namespace GuideStrap
 
         // ---------- settings ----------
         readonly ToggleSwitch websiteAccountToggle = new(), closeAfterToggle = new(), discordToggle = new(),
-                              backgroundToggle = new(), locationToggle = new(), multiToggle = new(), linksToggle = new();
+                              backgroundToggle = new(), locationToggle = new(), multiToggle = new(), linksToggle = new(), crashToggle = new(),
+                              startupToggle = new();
 
         // ---------- mods ----------
         readonly Label deathStatus = new(), cursorStatus = new(), skyStatus = new();
         readonly DarkCombo cursorCombo = new();
         readonly PictureBox cursorPreview = new();
+        readonly Label crosshairStatus = new(), footstepStatus = new(), jumpStatus = new(), packStatus = new(), setupStatus = new();
+        readonly DarkCombo crosshairCombo = new(), footstepCombo = new(), jumpCombo = new(), packCombo = new(), setupCombo = new();
+        readonly PictureBox crosshairPreview = new();
+        static readonly string[] CursorKeys = { "default", "guidestrap", "dot", "cross", "circle", "classic", "custom" };
+        static readonly string[] CrosshairKeys = { "default", "dot", "cross", "circle", "custom" };
+        static readonly string[] SoundModes = { "default", "mute", "custom" };
+
+        // ---------- potato mode + performance ----------
+        readonly ToggleSwitch potatoAll = new(), potatoBlur = new(), potatoGrass = new(), potatoMesh = new(), potatoSky = new(), potatoMsaa = new();
+        bool potatoSyncing;
+        readonly DarkCombo fpsCombo = new(), priorityCombo = new();
+        static readonly int[] FpsCaps = { 0, 60, 120, 144, 165, 240 };
+
+        // ---------- discord / friends / setups ----------
+        readonly ToggleSwitch discordGameToggle = new(), discordAccountToggle = new(), discordJoinToggle = new(),
+                              streamerToggle = new(), friendAlertToggle = new(), summaryToggle = new();
+        readonly Label autoStatus = new(), friendsStatus = new();
+        FlowLayoutPanel friendsPage = null!;
+        readonly List<Control> friendCards = new();
+        readonly Dictionary<long, string> friendNames = new();
+        DateTime friendsLoaded = DateTime.MinValue;
+        bool friendsBusy;
         bool modsSyncing;
 
         // ---------- recent games ----------
@@ -99,6 +122,8 @@ namespace GuideStrap
             BuildFlagsPage();
             BuildFontPage();
             BuildModsPage();
+            BuildFriendsPage();
+            BuildDiscordPage();
             BuildSettingsPage();
             BuildAboutPage();
 
@@ -168,14 +193,16 @@ namespace GuideStrap
             nav.Gap = D(2);
             nav.Add("Home", "\uE768", "Play", "launch join game home start");
             nav.Add("Accounts", "\uE716", "Accounts", "account login switch alt user profile");
-            nav.Add("Graphics", "\uE7F4", "Graphics", "fps quality performance texture grass sky preset lag");
+            nav.Add("Graphics", "\uE7F4", "Graphics", "fps quality performance texture grass sky preset lag potato blurry cap priority");
             nav.Add("Flags", "\uE7C1", "FastFlags", "fflag flag json fastflag fflags");
-            nav.Add("Font", "\uE8D2", "Text & Font", "font text letters typeface");
-            nav.Add("Mods", "\uE790", "Mods", "mods death sound oof cursor mouse sky skybox");
-            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall");
+            nav.Add("Font", "\uE8D2", "Text fonts", "font text letters typeface");
+            nav.Add("Mods", "\uE790", "Mods", "mods death sound oof cursor mouse sky skybox crosshair shift lock footsteps jump pack setup gallery");
+            nav.Add("Friends", "\uE716", "Friends", "friends online join playing alerts");
+            nav.Add("Discord", "\uE8F2", "Discord", "discord rich presence status join activity");
+            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary");
             nav.Add("About", "\uE946", "About", "about info version what help guide");
             nav.Location = new Point(D(10), D(46));
-            nav.Size = new Size(sw - D(20), 8 * (nav.ItemHeight + nav.Gap));
+            nav.Size = new Size(sw - D(20), 10 * (nav.ItemHeight + nav.Gap));
             nav.Navigate += key => ShowPage(key);
 
             chip.Size = new Size(sw - D(24), D(50));
@@ -317,6 +344,7 @@ namespace GuideStrap
             currentPage = key;
             nav.Select(key, animate);
             if (key == "Home") RefreshHome();
+            if (key == "Friends" && DateTime.Now - friendsLoaded > TimeSpan.FromSeconds(30)) _ = RefreshFriendsAsync();
             if (ContainsFocus) Presence.Screen("Editing settings", nav.TextOf(key));
 
             bool canAnimate = animate && prev != null && prev.Visible && IsHandleCreated && pageHost.Width > 0 && pageHost.Height > 0;
@@ -399,6 +427,20 @@ namespace GuideStrap
             playButton.Click += (_, _) => StartLaunch();
             Add(page, playButton, 8);
 
+            var serverRow = new Panel { Size = new Size(CW, D(32)), BackColor = Theme.Bg };
+            int third = (CW - D(12)) / 3;
+            var rejoinBtn = Secondary("Rejoin last server", "\uE72C", third, D(32));
+            var hopBtn = Secondary("Server hop", "\uE8AB", third, D(32));
+            var smallBtn = Secondary("Small server", "\uE716", third, D(32));
+            rejoinBtn.Location = new Point(0, 0);
+            hopBtn.Location = new Point(third + D(6), 0);
+            smallBtn.Location = new Point((third + D(6)) * 2, 0);
+            rejoinBtn.Click += (_, _) => StartServerLaunch(ServerPick.None, rejoin: true);
+            hopBtn.Click += (_, _) => StartServerLaunch(ServerPick.Hop, rejoin: false);
+            smallBtn.Click += (_, _) => StartServerLaunch(ServerPick.Small, rejoin: false);
+            serverRow.Controls.AddRange(new Control[] { rejoinBtn, hopBtn, smallBtn });
+            Add(page, serverRow, 8);
+
             statGraphics.AutoSize = false;
             statGraphics.Size = new Size(CW, D(20));
             statGraphics.Font = Theme.F("Segoe UI", 8.75f);
@@ -468,7 +510,18 @@ namespace GuideStrap
         void RefreshHome()
         {
             var acc = ActiveAccount;
-            if (acc != null)
+            if (settings.StreamerMode)
+            {
+                homeGreeting.Text = L.T("Streamer mode is on");
+                homeSub.Text = L.T("Account names are hidden.");
+                homeAvatar.Fallback = "G";
+                homeAvatar.Image = null;
+                chipName.Text = L.T("Streamer mode");
+                chipSub.Text = L.T("Names hidden");
+                chipAvatar.Fallback = "G";
+                chipAvatar.Image = null;
+            }
+            else if (acc != null)
             {
                 homeGreeting.Text = acc.DisplayName;
                 homeSub.Text = $"@{acc.Username}";
@@ -493,6 +546,42 @@ namespace GuideStrap
             string font = settings.FontFile != null ? settings.FontDisplayName ?? L.T("custom font") : L.T("default font");
             statGraphics.Text = L.F("{0} graphics  ·  {1}  ·  {2} FastFlag{3}",
                 L.T(PresetInfo(settings.Preset).Title), font, settings.Flags.Count, settings.Flags.Count == 1 ? "" : "s");
+        }
+
+        // Rejoin the last server, hop to another one, or join the emptiest one
+        void StartServerLaunch(ServerPick pick, bool rejoin)
+        {
+            var ctx = GuideStrapContext.Current;
+            if (ctx == null) return;
+            var last = LastServer.Load();
+            string place = placeBox.Text.Trim();
+            string? job = null;
+            if (rejoin)
+            {
+                if (last == null)
+                {
+                    SetStatus("Join a game first. GuideStrap remembers the last server you were in.", null, StatusKind.Error);
+                    return;
+                }
+                place = last.PlaceId.ToString();
+                job = last.JobId;
+            }
+            else if (place.Length == 0)
+            {
+                if (last == null)
+                {
+                    SetStatus("Paste a game link first, or join a game once.", null, StatusKind.Error);
+                    return;
+                }
+                place = last.PlaceId.ToString();
+            }
+            else if (RobloxLauncher.ParsePlaceId(place) == null)
+            {
+                SetStatus("That doesn't look like a game link or place ID.", null, StatusKind.Error);
+                return;
+            }
+            ctx.Open(new LoadingForm(ctx, settings, accounts, null, place, job, rejoin ? ServerPick.None : pick));
+            if (settings.CloseAfterLaunch) Close();
         }
 
         void StartLaunch()
@@ -674,6 +763,34 @@ namespace GuideStrap
             presetCard.Controls.AddRange(new Control[] { presetTitle, presetDesc, presetSlider, left, mid, right });
             Add(page, presetCard, 8);
 
+            // --- potato mode: every low setting at once, or one by one ---
+            var potato = new Expander("Potato mode", "Everything low for the most FPS, or turn on parts one by one.", CW, D(58), D(4) + 7 * D(54) + D(4));
+            var pc = potato.Content;
+            int pw = pc.Width, py = D(4);
+            var potatoParts = new[] { potatoBlur, potatoGrass, potatoMesh, potatoSky, potatoMsaa };
+            foreach (var tg in potatoParts.Append(potatoAll)) tg.Size = new Size(D(40), D(20));
+            var previewBtn = Secondary("Preview", "\uE890", D(110), D(30));
+            previewBtn.Click += (_, _) => { using var pf = new TexturePreviewForm(); pf.ShowDialog(this); };
+            AddRow(pc, pw, ref py, "Turn on everything", "All of the switches below at once.", potatoAll);
+            AddRow(pc, pw, ref py, "Blurry textures", "Lowest texture quality. Works on every game's textures.", potatoBlur);
+            AddRow(pc, pw, ref py, "No grass", "Hides terrain grass.", potatoGrass);
+            AddRow(pc, pw, ref py, "Low-detail meshes", "Always uses the simplest version of models.", potatoMesh);
+            AddRow(pc, pw, ref py, "Gray sky", "Replaces the skybox with flat gray.", potatoSky);
+            AddRow(pc, pw, ref py, "Anti-aliasing off", "No edge smoothing. Edges look a bit jagged.", potatoMsaa);
+            AddRow(pc, pw, ref py, "Preview", "See what blurry textures look like.", previewBtn, last: true);
+            Add(page, potato, 8);
+
+            potatoAll.CheckedChanged += (_, _) =>
+            {
+                if (potatoSyncing) return;
+                potatoSyncing = true;
+                foreach (var tg in potatoParts) tg.Checked = potatoAll.Checked;
+                potatoSyncing = false;
+                ApplyPotatoToControls();
+            };
+            foreach (var tg in potatoParts)
+                tg.CheckedChanged += (_, _) => { if (!potatoSyncing) ApplyPotatoToControls(); };
+
             // --- advanced (animated expander) ---
             int rows = 11;
             var adv = new Expander("Advanced settings", "Change every graphics setting yourself.", CW, D(58), D(4) + rows * D(54) + D(4));
@@ -714,6 +831,24 @@ namespace GuideStrap
             AddRow(content, cw, ref ry, "Disable DPI scaling", "Sharper on high-res screens, UI gets smaller.", dpiToggle);
             AddRow(content, cw, ref ry, "Alt+Enter real fullscreen", "Exclusive fullscreen, can lower input lag.", fullscreenToggle, last: true);
             Add(page, adv, 0);
+
+            Section(page, "Performance");
+            SetupCombo(fpsCombo, D(170), "Roblox default", "60 FPS", "120 FPS", "144 FPS", "165 FPS", "240 FPS");
+            fpsCombo.SelectedIndex = Math.Max(0, Array.IndexOf(FpsCaps, settings.FpsCap));
+            fpsCombo.SelectedIndexChanged += (_, _) =>
+            {
+                settings.FpsCap = FpsCaps[Math.Clamp(fpsCombo.SelectedIndex, 0, FpsCaps.Length - 1)];
+                settings.Save();
+            };
+            Add(page, SettingCard("FPS cap", "Sets Roblox's own max frame rate before it opens. Normal Roblox keeps it too.", fpsCombo));
+            SetupCombo(priorityCombo, D(170), "Normal", "Above normal", "High");
+            priorityCombo.SelectedIndex = Math.Clamp(settings.Priority, 0, 2);
+            priorityCombo.SelectedIndexChanged += (_, _) =>
+            {
+                settings.Priority = Math.Clamp(priorityCombo.SelectedIndex, 0, 2);
+                settings.Save();
+            };
+            Add(page, SettingCard("Roblox priority", "Gives Roblox more CPU time. High can slow OBS while streaming.", priorityCombo), 0);
 
             presetSlider.ValueChanged += (_, _) => { if (!syncing) ApplyPreset(presetSlider.Value); };
             presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != presetSlider.Value) ApplyPreset(presetSlider.Value); };
@@ -781,6 +916,7 @@ namespace GuideStrap
             settings.Save();
             RefreshFlagSummary();
             RefreshHome();
+            SyncPotato();
         }
 
         void OnGraphicsChanged()
@@ -792,6 +928,34 @@ namespace GuideStrap
             settings.Save();
             RefreshFlagSummary();
             RefreshHome();
+            SyncPotato();
+        }
+
+        // Potato switches drive the same controls as Advanced settings, so both always agree.
+        void ApplyPotatoToControls()
+        {
+            syncing = true;
+            if (potatoBlur.Checked) textureCombo.SelectedIndex = 1;
+            else if (textureCombo.SelectedIndex == 1) textureCombo.SelectedIndex = 0;
+            grassToggle.Checked = potatoGrass.Checked;
+            meshToggle.Checked = potatoMesh.Checked;
+            skyToggle.Checked = potatoSky.Checked;
+            if (potatoMsaa.Checked) msaaCombo.SelectedIndex = 1;
+            else if (msaaCombo.SelectedIndex == 1) msaaCombo.SelectedIndex = 0;
+            syncing = false;
+            OnGraphicsChanged();
+        }
+
+        void SyncPotato()
+        {
+            potatoSyncing = true;
+            potatoBlur.Checked = textureCombo.SelectedIndex == 1;
+            potatoGrass.Checked = grassToggle.Checked;
+            potatoMesh.Checked = meshToggle.Checked;
+            potatoSky.Checked = skyToggle.Checked;
+            potatoMsaa.Checked = msaaCombo.SelectedIndex == 1;
+            potatoAll.Checked = potatoBlur.Checked && potatoGrass.Checked && potatoMesh.Checked && potatoSky.Checked && potatoMsaa.Checked;
+            potatoSyncing = false;
         }
 
         void ApplyControlsToFlags()
@@ -839,6 +1003,7 @@ namespace GuideStrap
             if (settings.Preset >= 0) presetSlider.Value = settings.Preset;
             UpdatePresetLabels();
             syncing = false;
+            SyncPotato();
         }
 
         // FASTFLAGS
@@ -901,7 +1066,7 @@ namespace GuideStrap
         // TEXT & FONT
         void BuildFontPage()
         {
-            var page = NewPage("Font", "Text & Font", "The font Roblox uses in-game.");
+            var page = NewPage("Font", "Text fonts", "The font Roblox uses in-game.");
 
             var card = new Card { Size = new Size(CW, D(206)) };
             card.Controls.Add(At(Lbl("Current font", 8.5f, Theme.SubText), D(16), D(12)));
@@ -1007,17 +1172,56 @@ namespace GuideStrap
         {
             var page = NewPage("Mods", "Mods", "Cosmetic file swaps. Only GuideStrap's copy of Roblox is changed.");
 
+            var browse = Primary("Browse", "\uE71E", D(110), D(30));
+            browse.Click += (_, _) =>
+            {
+                using var g = new GalleryForm(ChangeSettings);
+                g.ShowDialog(this);
+            };
+            Add(page, SettingCard("Mod gallery", "Skies, cursors, crosshairs and sound packs you can install in one click.", browse), 8);
+
             // death sound
             var soundButtons = ButtonPair(
                 Secondary("Choose .ogg", "\uE8E5", D(120), D(30)), ChooseDeathSound,
                 Secondary("Reset", "\uE72C", D(80), D(30)), () => { settings.DeathSoundFile = null; settings.Save(); RefreshMods(); });
             Add(page, ModCard("Death sound", deathStatus, soundButtons));
 
+            // footsteps + jump
+            SetupCombo(footstepCombo, D(170), "Default", "Muted", "Custom .mp3...");
+            footstepCombo.SelectedIndexChanged += (_, _) => { if (!modsSyncing) OnSoundPicked(footstepCombo, "footsteps"); };
+            Add(page, ModCard("Footsteps", footstepStatus, footstepCombo));
+            SetupCombo(jumpCombo, D(170), "Default", "Muted", "Custom .mp3...");
+            jumpCombo.SelectedIndexChanged += (_, _) => { if (!modsSyncing) OnSoundPicked(jumpCombo, "jump"); };
+            Add(page, ModCard("Jump sound", jumpStatus, jumpCombo));
+
+            // sound packs
+            packCombo.ItemHeight = D(22);
+            packCombo.Width = D(150);
+            var openPacks = Secondary("", "\uE8B7", D(36), D(30));
+            openPacks.Click += (_, _) =>
+            {
+                Directory.CreateDirectory(Paths.SoundPacks);
+                Process.Start(new ProcessStartInfo(Paths.SoundPacks) { UseShellExecute = true });
+            };
+            var packRight = new Panel { Size = new Size(D(150) + D(6) + D(36), D(30)), BackColor = Theme.Card };
+            packCombo.Location = new Point(0, (D(30) - packCombo.Height) / 2);
+            openPacks.Location = new Point(D(156), 0);
+            packRight.Controls.Add(packCombo);
+            packRight.Controls.Add(openPacks);
+            packCombo.SelectedIndexChanged += (_, _) =>
+            {
+                if (modsSyncing) return;
+                settings.SoundPack = packCombo.SelectedIndex <= 0 ? null : packCombo.SelectedItem?.ToString();
+                settings.Save();
+                RefreshMods();
+            };
+            Add(page, ModCard("Sound pack", packStatus, packRight));
+
             // cursor
             cursorPreview.Size = new Size(D(32), D(32));
             cursorPreview.SizeMode = PictureBoxSizeMode.Zoom;
             cursorPreview.BackColor = Theme.Input;
-            SetupCombo(cursorCombo, D(170), "Default", "GuideStrap arrow", "Small dot", "Custom image...");
+            SetupCombo(cursorCombo, D(170), "Default", "GuideStrap arrow", "Small dot", "Small cross", "Circle", "Classic arrow", "Custom image...");
             var cursorRight = new Panel { Size = new Size(D(212), D(32)), BackColor = Theme.Card };
             cursorPreview.Location = new Point(0, 0);
             cursorCombo.Location = new Point(D(42), (D(32) - cursorCombo.Height) / 2);
@@ -1025,6 +1229,19 @@ namespace GuideStrap
             cursorRight.Controls.Add(cursorCombo);
             cursorCombo.SelectedIndexChanged += (_, _) => { if (!modsSyncing) OnCursorPicked(); };
             Add(page, ModCard("Mouse cursor", cursorStatus, cursorRight));
+
+            // shift lock crosshair
+            crosshairPreview.Size = new Size(D(32), D(32));
+            crosshairPreview.SizeMode = PictureBoxSizeMode.Zoom;
+            crosshairPreview.BackColor = Theme.Input;
+            SetupCombo(crosshairCombo, D(170), "Default", "Dot", "Small cross", "Circle", "Custom image...");
+            var crosshairRight = new Panel { Size = new Size(D(212), D(32)), BackColor = Theme.Card };
+            crosshairPreview.Location = new Point(0, 0);
+            crosshairCombo.Location = new Point(D(42), (D(32) - crosshairCombo.Height) / 2);
+            crosshairRight.Controls.Add(crosshairPreview);
+            crosshairRight.Controls.Add(crosshairCombo);
+            crosshairCombo.SelectedIndexChanged += (_, _) => { if (!modsSyncing) OnCrosshairPicked(); };
+            Add(page, ModCard("Shift lock crosshair", crosshairStatus, crosshairRight));
 
             // sky
             var skyButtons = ButtonPair(
@@ -1037,6 +1254,47 @@ namespace GuideStrap
                     RefreshMods();
                 });
             Add(page, ModCard("Sky", skyStatus, skyButtons));
+
+            Section(page, "Setups");
+            setupCombo.ItemHeight = D(22);
+            setupCombo.Width = D(150);
+            var saveSetup = Secondary("Save", "\uE74E", D(80), D(30));
+            var deleteSetup = Secondary("", "\uE74D", D(36), D(30));
+            deleteSetup.HoverColor = Theme.Danger;
+            var setupRight = new Panel { Size = new Size(D(150) + D(6) + D(80) + D(6) + D(36), D(30)), BackColor = Theme.Card };
+            setupCombo.Location = new Point(0, (D(30) - setupCombo.Height) / 2);
+            saveSetup.Location = new Point(D(156), 0);
+            deleteSetup.Location = new Point(D(242), 0);
+            setupRight.Controls.Add(setupCombo);
+            setupRight.Controls.Add(saveSetup);
+            setupRight.Controls.Add(deleteSetup);
+            setupCombo.SelectedIndexChanged += (_, _) =>
+            {
+                if (modsSyncing || setupCombo.SelectedIndex <= 0) return;
+                if (setupCombo.SelectedItem?.ToString() is string name) UseSetup(name);
+            };
+            saveSetup.Click += (_, _) => SaveSetup();
+            deleteSetup.Click += (_, _) => DeleteSetup();
+            Add(page, ModCard("Saved setups", setupStatus, setupRight));
+
+            var linkGame = Secondary("Link game", "\uE71B", D(110), D(30));
+            var clearLinks = Secondary("", "\uE74D", D(36), D(30));
+            clearLinks.HoverColor = Theme.Danger;
+            var autoRight = new Panel { Size = new Size(D(110) + D(6) + D(36), D(30)), BackColor = Theme.Card };
+            linkGame.Location = new Point(0, 0);
+            clearLinks.Location = new Point(D(116), 0);
+            autoRight.Controls.Add(linkGame);
+            autoRight.Controls.Add(clearLinks);
+            linkGame.Click += (_, _) => LinkGameToSetup();
+            clearLinks.Click += (_, _) =>
+            {
+                if (settings.GameSetups.Count == 0) return;
+                if (Ask("Remove all links?", "Every game goes back to your normal settings.", "Remove", "Cancel") != 0) return;
+                settings.GameSetups.Clear();
+                settings.Save();
+                RefreshMods();
+            };
+            Add(page, ModCard("Auto setups", autoStatus, autoRight));
 
             Section(page, "Your own mods");
             var openMods = Secondary("Open mods folder", "\uE8B7", D(160), D(30));
@@ -1082,16 +1340,31 @@ namespace GuideStrap
             return p;
         }
 
+        // Used by the crash helper so its fixes land in this window's settings too
+        internal void ChangeSettings(Action<AppSettings> change)
+        {
+            change(settings);
+            settings.Save();
+            multiToggle.Checked = settings.MultiInstance;
+            RefreshGraphicsControls();
+            RefreshFlagSummary();
+            RefreshMods();
+            RefreshHome();
+        }
+
         void RefreshMods()
         {
             modsSyncing = true;
             deathStatus.Text = L.T(settings.DeathSoundFile != null && File.Exists(settings.DeathSoundFile)
                 ? "Custom sound" : "Roblox's default sound");
-            cursorCombo.SelectedIndex = settings.CursorPreset switch { "guidestrap" => 1, "dot" => 2, "custom" => 3, _ => 0 };
+            cursorCombo.SelectedIndex = Math.Max(0, Array.IndexOf(CursorKeys, settings.CursorPreset));
             cursorStatus.Text = L.T(settings.CursorPreset switch
             {
                 "guidestrap" => "Purple arrow made for GuideStrap",
                 "dot" => "A small dot, easy to aim with",
+                "cross" => "A small cross, easy to aim with",
+                "circle" => "A thin circle",
+                "classic" => "White arrow with a black outline",
                 "custom" => "Your own image",
                 _ => "Roblox's default cursor",
             });
@@ -1109,6 +1382,51 @@ namespace GuideStrap
                 }
                 catch { }
             }
+            crosshairCombo.SelectedIndex = Math.Max(0, Array.IndexOf(CrosshairKeys, settings.CrosshairPreset));
+            crosshairStatus.Text = L.T(settings.CrosshairPreset switch
+            {
+                "dot" => "A small dot in the middle of the screen",
+                "cross" => "A small cross in the middle of the screen",
+                "circle" => "A thin circle in the middle of the screen",
+                "custom" => "Your own image",
+                _ => "Roblox's default shift lock icon",
+            });
+            ShowPreview(crosshairPreview, ModAssets.CrosshairFile(settings));
+
+            footstepCombo.SelectedIndex = Math.Max(0, Array.IndexOf(SoundModes, settings.FootstepSound));
+            footstepStatus.Text = L.T(settings.FootstepSound switch { "mute" => "No footstep sound", "custom" => "Your own sound", _ => "Roblox's default footsteps" });
+            jumpCombo.SelectedIndex = Math.Max(0, Array.IndexOf(SoundModes, settings.JumpSound));
+            jumpStatus.Text = L.T(settings.JumpSound switch { "mute" => "No jump or landing sound", "custom" => "Your own sound", _ => "Roblox's default jump sound" });
+
+            var packs = ModAssets.SoundPacks();
+            packCombo.Items.Clear();
+            packCombo.Items.Add(L.T("None"));
+            foreach (var pk in packs) packCombo.Items.Add(pk);
+            int packIdx = settings.SoundPack == null ? 0 : packs.IndexOf(settings.SoundPack) + 1;
+            packCombo.SelectedIndex = Math.Max(0, packIdx);
+            packStatus.Text = packIdx > 0
+                ? L.F("Using {0}. Its files replace Roblox's sounds.", settings.SoundPack!)
+                : L.T(packs.Count == 0 ? "Open the folder and add a pack: one folder per pack, with .ogg or .mp3 files." : "No pack. Pick one, or open the folder to add more.");
+
+            setupCombo.Items.Clear();
+            setupCombo.Items.Add(L.T("Pick a setup"));
+            var setupNames = settings.Setups.Keys.OrderBy(k => k, StringComparer.OrdinalIgnoreCase).ToList();
+            foreach (var n in setupNames) setupCombo.Items.Add(n);
+            int setupIdx = settings.LastSetup == null ? 0 : setupNames.IndexOf(settings.LastSetup) + 1;
+            setupCombo.SelectedIndex = Math.Max(0, setupIdx);
+            setupStatus.Text = setupNames.Count == 0
+                ? L.T("Save your mods and graphics as a setup, like BedWars or Recording.")
+                : L.F("{0} saved. Pick one to switch to it.", setupNames.Count);
+
+            var links = settings.GameSetups.Where(kv => settings.Setups.ContainsKey(kv.Value)).ToList();
+            var recentGames = RecentGames.Load();
+            string GameName(string key) =>
+                long.TryParse(key, out var gid) ? recentGames.FirstOrDefault(r => r.PlaceId == gid)?.Name ?? key : key;
+            autoStatus.Text = links.Count == 0
+                ? L.T("Link a setup to a game and it turns on by itself when you launch that game.")
+                : string.Join(",  ", links.Take(3).Select(kv => $"{GameName(kv.Key)} \u2192 {kv.Value}"))
+                  + (links.Count > 3 ? L.F("  +{0} more", links.Count - 3) : "");
+
             int skyFiles = Directory.Exists(Paths.Sky) ? Directory.GetFiles(Paths.Sky, "*.tex").Length : 0;
             skyStatus.Text = L.T(settings.CustomSky && skyFiles > 0
                 ? $"Custom sky pack ({skyFiles} files). Games with their own sky keep it."
@@ -1142,7 +1460,7 @@ namespace GuideStrap
 
         void OnCursorPicked()
         {
-            string pick = cursorCombo.SelectedIndex switch { 1 => "guidestrap", 2 => "dot", 3 => "custom", _ => "default" };
+            string pick = CursorKeys[Math.Clamp(cursorCombo.SelectedIndex, 0, CursorKeys.Length - 1)];
             if (pick == "custom")
             {
                 using var dlg = new OpenFileDialog { Filter = "Images (*.png)|*.png", Title = L.T("Pick a cursor image") };
@@ -1155,6 +1473,188 @@ namespace GuideStrap
             settings.CursorPreset = pick;
             settings.Save();
             RefreshMods();
+        }
+
+        void OnCrosshairPicked()
+        {
+            string pick = CrosshairKeys[Math.Clamp(crosshairCombo.SelectedIndex, 0, CrosshairKeys.Length - 1)];
+            if (pick == "custom")
+            {
+                using var dlg = new OpenFileDialog { Filter = "Images (*.png)|*.png", Title = L.T("Pick a crosshair image") };
+                if (dlg.ShowDialog(this) != DialogResult.OK || !ModAssets.ImportCustomCrosshair(dlg.FileName))
+                {
+                    RefreshMods();
+                    return;
+                }
+            }
+            settings.CrosshairPreset = pick;
+            settings.Save();
+            RefreshMods();
+        }
+
+        void OnSoundPicked(DarkCombo combo, string kind)
+        {
+            string mode = SoundModes[Math.Clamp(combo.SelectedIndex, 0, SoundModes.Length - 1)];
+            if (mode == "custom")
+            {
+                using var dlg = new OpenFileDialog { Filter = "MP3 sound (*.mp3)|*.mp3", Title = L.T("Pick a sound") };
+                if (dlg.ShowDialog(this) != DialogResult.OK)
+                {
+                    RefreshMods();
+                    return;
+                }
+                try
+                {
+                    var head = new byte[3];
+                    using (var fs = File.OpenRead(dlg.FileName)) fs.ReadExactly(head);
+                    bool mp3 = (head[0] == 'I' && head[1] == 'D' && head[2] == '3') || (head[0] == 0xFF && (head[1] & 0xE0) == 0xE0);
+                    if (!mp3)
+                    {
+                        Ask("That isn't an MP3 file", "These Roblox sounds are .mp3 files. Convert your sound to .mp3 first (any free online converter works).", "OK");
+                        RefreshMods();
+                        return;
+                    }
+                    Directory.CreateDirectory(ModAssets.SoundsDir);
+                    File.Copy(dlg.FileName, Path.Combine(ModAssets.SoundsDir, kind + ".mp3"), true);
+                }
+                catch (Exception ex)
+                {
+                    Ask("Couldn't use that sound", ex.Message, "OK");
+                    RefreshMods();
+                    return;
+                }
+            }
+            if (kind == "footsteps") settings.FootstepSound = mode; else settings.JumpSound = mode;
+            settings.Save();
+            SetStatus("Sound set. It applies next time you launch Roblox.", null, StatusKind.Idle);
+            RefreshMods();
+        }
+
+        static void ShowPreview(PictureBox box, string? file)
+        {
+            var old = box.Image;
+            box.Image = null;
+            old?.Dispose();
+            if (file == null || !File.Exists(file)) return;
+            try
+            {
+                using var fs = File.OpenRead(file);
+                using var img = Image.FromStream(fs);
+                box.Image = new Bitmap(img);
+            }
+            catch { }
+        }
+
+        // SETUPS: saved combos of mods + graphics, switched in one click
+        SavedSetup CaptureSetup() => new()
+        {
+            Preset = settings.Preset,
+            Flags = new Dictionary<string, string>(settings.Flags),
+            CursorPreset = settings.CursorPreset,
+            CrosshairPreset = settings.CrosshairPreset,
+            DeathSoundFile = settings.DeathSoundFile,
+            FootstepSound = settings.FootstepSound,
+            JumpSound = settings.JumpSound,
+            SoundPack = settings.SoundPack,
+            CustomSky = settings.CustomSky,
+            FpsCap = settings.FpsCap,
+            Priority = settings.Priority,
+        };
+
+        void SaveSetup()
+        {
+            string? name = AskText("Save setup", "Name this setup. Saving with an existing name replaces it.", "BedWars", "Save");
+            if (name == null) return;
+            if (name.Length > 40) name = name[..40];
+            settings.Setups[name] = CaptureSetup();
+            settings.LastSetup = name;
+            settings.Save();
+            RefreshMods();
+            SetStatus(L.F("Saved {0}.", name), null, StatusKind.Idle);
+        }
+
+        void UseSetup(string name)
+        {
+            if (!settings.Setups.TryGetValue(name, out var s)) return;
+            s.ApplyTo(settings);
+            settings.LastSetup = name;
+            settings.Save();
+            fpsCombo.SelectedIndex = Math.Max(0, Array.IndexOf(FpsCaps, settings.FpsCap));
+            priorityCombo.SelectedIndex = Math.Clamp(settings.Priority, 0, 2);
+            RefreshGraphicsControls();
+            RefreshFlagSummary();
+            RefreshMods();
+            RefreshHome();
+            SetStatus(L.F("Switched to {0}. It applies next time you launch Roblox.", name), null, StatusKind.Idle);
+        }
+
+        void DeleteSetup()
+        {
+            if (setupCombo.SelectedIndex <= 0 || setupCombo.SelectedItem?.ToString() is not string name)
+            {
+                Ask("Pick a setup first", "Choose the setup you want to delete from the list.", "OK");
+                return;
+            }
+            if (Ask("Delete setup?", L.F("Delete {0}? Your current settings stay the same.", name), "Delete", "Cancel") != 0) return;
+            settings.Setups.Remove(name);
+            foreach (var k in settings.GameSetups.Where(kv => kv.Value == name).Select(kv => kv.Key).ToList())
+                settings.GameSetups.Remove(k);
+            if (settings.LastSetup == name) settings.LastSetup = null;
+            settings.Save();
+            RefreshMods();
+        }
+
+        void LinkGameToSetup()
+        {
+            if (setupCombo.SelectedIndex <= 0 || setupCombo.SelectedItem?.ToString() is not string name)
+            {
+                Ask("Pick a setup first", "Choose a saved setup in the list above, then link it to a game.", "OK");
+                return;
+            }
+            string? text = AskText(L.F("Link {0} to a game", name),
+                "Paste the game link or place ID. GuideStrap switches to this setup whenever you launch that game.",
+                "https://www.roblox.com/games/...", "Link");
+            if (text == null) return;
+            long? id = RobloxLauncher.ParsePlaceId(text);
+            if (id == null)
+            {
+                Ask("That doesn't look like a game link", "Paste a link like roblox.com/games/123456, or just the number.", "OK");
+                return;
+            }
+            settings.GameSetups[id.Value.ToString()] = name;
+            settings.Save();
+            RefreshMods();
+            SetStatus(L.F("Linked {0}.", name), null, StatusKind.Idle);
+        }
+
+        string? AskText(string title, string message, string placeholder, string ok)
+        {
+            using var d = new ThemedDialog(title, message, new[] { ok, "Cancel" }, null, placeholder);
+            d.ShowDialog(this);
+            return d.Choice == 0 && d.Input.Length > 0 ? d.Input : null;
+        }
+
+        void ChooseLauncherBackground()
+        {
+            using var dlg = new OpenFileDialog { Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp)|*.png;*.jpg;*.jpeg;*.bmp", Title = L.T("Pick a picture") };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                using (var fs = File.OpenRead(dlg.FileName))
+                using (var test = Image.FromStream(fs))
+                {
+                    if (test.Width < 16 || test.Height < 16) throw new Exception(L.T("That picture is too small."));
+                }
+                Directory.CreateDirectory(Paths.Base);
+                foreach (var old in Directory.GetFiles(Paths.Base, "launcher-background.*"))
+                    try { File.Delete(old); } catch { }
+                string dest = Path.Combine(Paths.Base, "launcher-background" + Path.GetExtension(dlg.FileName).ToLowerInvariant());
+                File.Copy(dlg.FileName, dest, true);
+                settings.LauncherBackground = dest;
+                settings.Save();
+                SetStatus("Background set. It shows on the start screen.", null, StatusKind.Idle);
+            }
+            catch (Exception ex) { Ask("Couldn't use that picture", ex.Message, "OK"); }
         }
 
         void ChooseSky()
@@ -1179,6 +1679,131 @@ namespace GuideStrap
             RefreshMods();
         }
 
+        ToggleSwitch Tg(ToggleSwitch t, bool value, Action<bool> changed)
+        {
+            t.Size = new Size(D(40), D(20));
+            t.Checked = value;
+            t.CheckedChanged += (_, _) => changed(t.Checked);
+            return t;
+        }
+
+        // FRIENDS
+        void BuildFriendsPage()
+        {
+            friendsPage = NewPage("Friends", "Friends", "See who's online and join them.");
+            var refresh = Secondary("Refresh", "\uE72C", D(110), D(30));
+            refresh.Click += async (_, _) => await RefreshFriendsAsync();
+            Add(friendsPage, ModCard("Online friends", friendsStatus, refresh));
+            Add(friendsPage, SettingCard("Friend alerts", "A small popup when a friend starts playing a game.",
+                Tg(friendAlertToggle, settings.FriendAlerts, v => { settings.FriendAlerts = v; settings.Save(); })), 8);
+            friendsStatus.Text = L.T("Open this page to load your friends.");
+        }
+
+        async Task RefreshFriendsAsync()
+        {
+            if (friendsBusy) return;
+            friendsBusy = true;
+            try
+            {
+                foreach (var c in friendCards) c.Dispose();
+                friendCards.Clear();
+                var acc = ActiveAccount;
+                if (acc == null)
+                {
+                    friendsStatus.Text = L.T("Pick a saved account in Accounts to see your friends.");
+                    return;
+                }
+                friendsStatus.Text = L.T("Loading...");
+                var ids = await RobloxApi.GetFriendIdsAsync(acc.UserId, acc.Cookie);
+                var presence = ids.Count == 0 ? new List<FriendPresence>() : await RobloxApi.GetPresenceAsync(acc.Cookie, ids);
+                var online = presence.Where(x => x.Type > 0).OrderByDescending(x => x.Type == 2).ThenBy(x => x.UserId).ToList();
+                await RobloxApi.FillNamesAsync(online.Select(x => x.UserId), friendNames);
+                if (IsDisposed) return;
+                friendsLoaded = DateTime.Now;
+                friendsStatus.Text = online.Count == 0
+                    ? L.F("None of your {0} friends are online right now.", ids.Count)
+                    : L.F("{0} of {1} friends online.", online.Count, ids.Count);
+                friendsPage.SuspendLayout();
+                foreach (var f in online.Take(60))
+                {
+                    var card = FriendCard(f);
+                    friendCards.Add(card);
+                    Add(friendsPage, card, 6);
+                }
+                friendsPage.ResumeLayout();
+            }
+            catch (Exception ex)
+            {
+                if (!IsDisposed) friendsStatus.Text = L.F("Couldn't load friends. {0}", ex.Message);
+            }
+            finally { friendsBusy = false; }
+        }
+
+        Card FriendCard(FriendPresence f)
+        {
+            var card = new Card { Size = new Size(CW, D(58)) };
+            string name = friendNames.GetValueOrDefault(f.UserId, f.UserId.ToString());
+            string where = f.Type switch
+            {
+                2 => L.F("Playing {0}", string.IsNullOrWhiteSpace(f.Location) ? L.T("a game") : f.Location!),
+                3 => L.T("In Roblox Studio"),
+                _ => L.T("Online"),
+            };
+            var title = At(Lbl(name, 9.75f, semibold: true), D(16), D(9));
+            title.UseMnemonic = false;
+            var sub = Lbl(where, 8.5f, f.Type == 2 ? Theme.AccentLight : Theme.SubText);
+            sub.AutoSize = false;
+            sub.AutoEllipsis = true;
+            sub.Size = new Size(CW - D(160), D(18));
+            sub.Location = new Point(D(16), D(31));
+            card.Controls.Add(title);
+            card.Controls.Add(sub);
+            long? place = f.PlaceId ?? f.RootPlaceId;
+            if (f.Type == 2 && place != null)
+            {
+                var join = Secondary(f.GameId != null ? "Join" : "Join game", "\uE768", D(110), D(30));
+                join.Location = new Point(CW - D(126), D(14));
+                join.Click += (_, _) =>
+                {
+                    var ctx = GuideStrapContext.Current;
+                    if (ctx == null) return;
+                    ctx.Open(new LoadingForm(ctx, settings, accounts, null, place.Value.ToString(), f.GameId));
+                    if (settings.CloseAfterLaunch) Close();
+                };
+                card.Controls.Add(join);
+            }
+            return card;
+        }
+
+        // DISCORD
+        void BuildDiscordPage()
+        {
+            var page = NewPage("Discord", "Discord", "What your Discord profile shows while you use GuideStrap.");
+            Add(page, SettingCard("Discord status", "Shows GuideStrap and what you're doing on your Discord profile.",
+                Tg(discordToggle, settings.DiscordPresence, v =>
+                {
+                    settings.DiscordPresence = v;
+                    settings.Save();
+                    Presence.Configure(settings);
+                    Presence.Enable(v);
+                    if (v) Presence.Screen("Editing settings", "Discord");
+                })), 8);
+
+            Section(page, "What to show");
+            Add(page, SettingCard("Show the game you're in", "The game's name, picture and a View game button.",
+                Tg(discordGameToggle, settings.DiscordShowGame, v => { settings.DiscordShowGame = v; settings.Save(); Presence.Configure(settings); })));
+            Add(page, SettingCard("Show the account you're using", "Adds \"Playing as\" with your display name.",
+                Tg(discordAccountToggle, settings.DiscordShowAccount, v => { settings.DiscordShowAccount = v; settings.Save(); Presence.Configure(settings); })));
+            Add(page, SettingCard("Let friends join you", "Adds a Join server button that puts friends in your server.",
+                Tg(discordJoinToggle, settings.DiscordAllowJoin, v => { settings.DiscordAllowJoin = v; settings.Save(); Presence.Configure(settings); })));
+
+            var note = Lbl("Discord has to be open on this PC. Streamer mode (in Settings) hides your account, server location and the Join button.", 8.5f, Theme.SubText);
+            note.AutoSize = false;
+            note.Size = new Size(CW, D(34));
+            note.Margin = new Padding(D(2), D(6), 0, 0);
+            page.Controls.Add(note);
+        }
+
         void BuildSettingsPage()
         {
             var page = NewPage("Settings", "Settings", "Launcher options.");
@@ -1198,6 +1823,40 @@ namespace GuideStrap
                 T(closeAfterToggle, settings.CloseAfterLaunch, v => { settings.CloseAfterLaunch = v; settings.Save(); })));
             Add(page, SettingCard("Stay in the tray while Roblox is open", "Needed for Discord status, server location and recent games.",
                 T(backgroundToggle, settings.RunInBackground, v => { settings.RunInBackground = v; settings.Save(); })));
+            var crashTest = Secondary("Preview", "\uE890", D(100), D(30));
+            crashTest.Click += (_, _) =>
+            {
+                using var f = new CrashForm(new CrashInfo { Code = 0xC0000005 });
+                f.ShowDialog(this);
+            };
+            var crashRight = new Panel { Size = new Size(D(100) + D(12) + D(40), D(30)), BackColor = Theme.Card };
+            crashTest.Location = new Point(0, 0);
+            T(crashToggle, settings.CrashHelper, v => { settings.CrashHelper = v; settings.Save(); });
+            crashToggle.Location = new Point(D(112), (D(30) - crashToggle.Height) / 2);
+            crashRight.Controls.Add(crashTest);
+            crashRight.Controls.Add(crashToggle);
+            Add(page, SettingCard("Crash helper", "If Roblox crashes, shows what went wrong and how to fix it.", crashRight));
+            Add(page, SettingCard("Start with Windows", "Opens quietly in the tray when your PC starts, so friend alerts work.",
+                T(startupToggle, Setup.StartsWithWindows, v =>
+                {
+                    if (v && !File.Exists(Setup.InstallExe))
+                    {
+                        Ask("Install GuideStrap first", "This only works for the installed GuideStrap, not a copy you're running from somewhere else.", "OK");
+                        startupToggle.Checked = false;
+                        return;
+                    }
+                    Setup.SetStartup(v);
+                })));
+            Add(page, SettingCard("Streamer mode", "Hides account names and server location in GuideStrap and on Discord.",
+                T(streamerToggle, settings.StreamerMode, v =>
+                {
+                    settings.StreamerMode = v;
+                    settings.Save();
+                    RefreshHome();
+                    Presence.Configure(settings);
+                })));
+            Add(page, SettingCard("Session summary", "After you close Roblox, a small popup shows how long you played.",
+                T(summaryToggle, settings.SessionSummary, v => { settings.SessionSummary = v; settings.Save(); })));
             Add(page, SettingCard("Show server location", "Pops up where the server you joined is, like \"Dallas, Texas, US\".",
                 T(locationToggle, settings.ShowServerLocation, v => { settings.ShowServerLocation = v; settings.Save(); })));
             Add(page, SettingCard("Allow multiple Roblox windows", "Run more than one account at once. Roblox sometimes blocks this.",
@@ -1212,16 +1871,6 @@ namespace GuideStrap
                         SetStatus(v ? "Play buttons on roblox.com now open GuideStrap." : "Play buttons on roblox.com open normal Roblox again.", null, StatusKind.Idle);
                     }
                     catch (Exception ex) { Ask("Couldn't change that", ex.Message, "OK"); }
-                })));
-
-            Section(page, "Discord");
-            Add(page, SettingCard("Discord status", "Shows on your profile what you're doing in GuideStrap and which game you're in.",
-                T(discordToggle, settings.DiscordPresence, v =>
-                {
-                    settings.DiscordPresence = v;
-                    settings.Save();
-                    Presence.Enable(v);
-                    if (v) Presence.Screen("Editing settings", "Settings");
                 })));
 
             Section(page, "Appearance");
@@ -1249,6 +1898,16 @@ namespace GuideStrap
             Add(page, SettingCard("Theme", "Purple, or plain black with no color.", themeCombo));
             Add(page, SettingCard("Accent color", "Used by the Purple theme for buttons, switches and highlights.", picker));
 
+            var bgButtons = ButtonPair(
+                Secondary("Choose image", "\uE8B9", D(130), D(30)), ChooseLauncherBackground,
+                Secondary("Reset", "\uE72C", D(80), D(30)), () =>
+                {
+                    settings.LauncherBackground = null;
+                    settings.Save();
+                    SetStatus("The start screen is back to plain.", null, StatusKind.Idle);
+                });
+            Add(page, SettingCard("Start screen background", "Your own picture behind the start screen. It's darkened so text stays readable.", bgButtons));
+
             var langCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
             foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
             langCombo.SelectedIndex = Math.Max(0, Array.FindIndex(L.Languages, x => x.Code == L.Lang));
@@ -1260,7 +1919,7 @@ namespace GuideStrap
                 if (code != L.Lang && Ask("Restart to apply", "The new language shows after GuideStrap restarts.", "Restart now", "Later") == 0)
                     Application.Restart();
             };
-            Add(page, SettingCard("Language", "English, Español or Português.", langCombo));
+            Add(page, SettingCard("Language", "The language GuideStrap uses.", langCombo));
 
             Section(page, "Profiles");
             var profileButtons = ButtonPair(
@@ -1300,6 +1959,23 @@ namespace GuideStrap
                 catch (Exception ex) { Ask("Close Roblox first", ex.Message, "OK"); }
             };
             Add(page, SettingCard("Repair Roblox", "Fixes crashes or a broken install by downloading Roblox again.", reinstall));
+
+            var uninstall = Secondary("Uninstall", "\uE74D", D(120), D(30));
+            uninstall.HoverColor = Theme.Danger;
+            uninstall.Click += (_, _) =>
+            {
+                if (!File.Exists(Setup.InstallExe))
+                {
+                    Ask("GuideStrap isn't installed", "This copy isn't installed, so there's nothing to remove.", "OK");
+                    return;
+                }
+                if (Setup.Uninstall(this))
+                {
+                    Presence.Shutdown();
+                    Application.Exit();
+                }
+            };
+            Add(page, SettingCard("Uninstall GuideStrap", "Removes GuideStrap, its settings and its copy of Roblox. Normal Roblox stays.", uninstall));
 
             var update = Secondary("Check now", "\uE895", D(120), D(30));
             update.Click += async (_, _) => await CheckForUpdatesAsync(manual: true);
@@ -1354,7 +2030,7 @@ namespace GuideStrap
 
             settings.Preset = p.Preset;
             settings.Flags = p.Flags.Where(kv => FF.IsAllowed(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-            settings.CursorPreset = p.CursorPreset is "guidestrap" or "dot" ? p.CursorPreset : "default";
+            settings.CursorPreset = p.CursorPreset is "guidestrap" or "dot" or "cross" or "circle" or "classic" ? p.CursorPreset : "default";
             bool colorChanged = p.Accent != settings.Accent && Theme.Accents.Any(a => a.Name == p.Accent);
             if (colorChanged) settings.Accent = p.Accent;
             settings.Save();
@@ -1741,10 +2417,12 @@ namespace GuideStrap
     public class ThemedDialog : ThemedForm
     {
         readonly ToggleSwitch? check;
+        readonly TextBox? input;
         public int Choice { get; private set; } = -1;
         public bool Checked => check?.Checked ?? false;
+        public string Input => input?.Text.Trim() ?? "";
 
-        public ThemedDialog(string title, string message, string[] buttons, string? checkText = null)
+        public ThemedDialog(string title, string message, string[] buttons, string? checkText = null, string? inputPlaceholder = null)
         {
             title = L.T(title);
             message = L.T(message);
@@ -1775,6 +2453,24 @@ namespace GuideStrap
             Controls.Add(t);
             Controls.Add(m);
             int y = m.Bottom + D(14);
+
+            if (inputPlaceholder != null)
+            {
+                var tb = new TextBox();
+                input = tb;
+                var box = InputBox(tb, inputPlaceholder, w - pad * 2);
+                box.Location = new Point(pad, y);
+                tb.KeyDown += (_, e) =>
+                {
+                    if (e.KeyCode != Keys.Enter) return;
+                    e.SuppressKeyPress = true;
+                    Choice = 0;
+                    DialogResult = DialogResult.OK;
+                };
+                Controls.Add(box);
+                y += D(44);
+                Shown += (_, _) => tb.Focus();
+            }
 
             if (checkText != null)
             {
@@ -2249,11 +2945,21 @@ namespace GuideStrap
         }
 
         // Give transparent labels a solid background (much cheaper to paint)
+        // Clears a custom control to its parent's color, or to the matching piece of the parent's background picture
+        public static void ClearToParent(Control c, Graphics g, Color fallback)
+        {
+            var parent = c.Parent;
+            g.Clear(parent?.BackColor ?? fallback);
+            if (parent?.BackgroundImage is Image img && parent.BackgroundImageLayout == ImageLayout.None)
+                g.DrawImage(img, new Rectangle(-c.Left, -c.Top, img.Width, img.Height));
+        }
+
         public static void Solidify(Control root)
         {
             foreach (Control c in root.Controls)
             {
-                if (c is Label l && l.BackColor == Color.Transparent && root.BackColor.A == 255) l.BackColor = root.BackColor;
+                // labels over a background picture stay see-through
+                if (c is Label l && l.BackColor == Color.Transparent && root.BackColor.A == 255 && root.BackgroundImage == null) l.BackColor = root.BackColor;
                 if (c.HasChildren) Solidify(c);
             }
         }
@@ -2303,7 +3009,7 @@ namespace GuideStrap
         protected override void OnPaintBackground(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), LogicalToDeviceUnits(Radius));
             using var b = new SolidBrush(BackColor);
@@ -2430,7 +3136,7 @@ namespace GuideStrap
             var g = e.Graphics;
             g.CompositingMode = CompositingMode.SourceCopy;
             g.InterpolationMode = InterpolationMode.NearestNeighbor;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             int off = (int)Math.Round(Height * t) * dir;
             if (from != null) g.DrawImageUnscaled(from, 0, -off);
             if (to != null) g.DrawImageUnscaled(to, 0, dir * Height - off);
@@ -2627,7 +3333,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float r = LogicalToDeviceUnits(4);
 
@@ -2824,7 +3530,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bar);
+            Theme.ClearToParent(this, g, Theme.Bar);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float rad = ShowTrack ? Height / 2f : 0;
             if (ShowTrack)
@@ -2878,7 +3584,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Card);
+            Theme.ClearToParent(this, g, Theme.Card);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             var r = new RectangleF(1.5f, 1.5f, Width - 4, Height - 4);
@@ -2918,7 +3624,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             Theme.DrawLogo(g, new RectangleF(0, 0, Width, Height));
         }
     }
@@ -2997,6 +3703,9 @@ namespace GuideStrap
         public static readonly string Mods = Path.Combine(Base, "Mods");
         public static readonly string Managed = Path.Combine(Base, "ManagedMods");
         public static readonly string Sky = Path.Combine(Managed, "sky");
+        public static readonly string SoundPacks = Path.Combine(Base, "SoundPacks");
+        public static readonly string SkipModsMarker = Path.Combine(Base, "skip-mods-once");
+        public static readonly string Downloads = Path.Combine(Base, "Downloads");
     }
 
     class AppSettings
@@ -3008,15 +3717,34 @@ namespace GuideStrap
         public long? ActiveAccountId { get; set; }
         public bool UseAccountForWebsite { get; set; } = true;
         public bool CloseAfterLaunch { get; set; } = true;
-        public bool DiscordPresence { get; set; } = true;
+        public bool DiscordPresence { get; set; }
+        public bool DiscordShowGame { get; set; } = true;
+        public bool DiscordShowAccount { get; set; }
+        public bool DiscordAllowJoin { get; set; }
+        public bool StreamerMode { get; set; }
+        public bool FriendAlerts { get; set; } = true;
+        public bool SessionSummary { get; set; } = true;
+        public Dictionary<string, string> GameSetups { get; set; } = new();
+        public int SettingsVersion { get; set; }
         public bool RunInBackground { get; set; } = true;
         public bool ShowServerLocation { get; set; } = true;
         public bool MultiInstance { get; set; }
+        public bool CrashHelper { get; set; } = true;
         public string? DeathSoundFile { get; set; }
         public string CursorPreset { get; set; } = "default";
+        public string CrosshairPreset { get; set; } = "default";
+        public string FootstepSound { get; set; } = "default";
+        public string JumpSound { get; set; } = "default";
+        public string? SoundPack { get; set; }
+        public int FpsCap { get; set; }
+        public int Priority { get; set; }
+        public Dictionary<string, SavedSetup> Setups { get; set; } = new();
+        public string? LastSetup { get; set; }
         public bool CustomSky { get; set; }
         public string Accent { get; set; } = "Purple";
         public string ThemeName { get; set; } = "Purple";
+        public string? LauncherBackground { get; set; }
+        public string LastSeenVersion { get; set; } = "";
         public string Language { get; set; } = "";
         public Dictionary<string, string> PreviousLinkHandlers { get; set; } = new();
         public DateTime LastUpdateCheck { get; set; }
@@ -3025,14 +3753,55 @@ namespace GuideStrap
 
         public static AppSettings Load()
         {
-            try { return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new(); }
-            catch { return new(); }
+            AppSettings s;
+            try { s = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new(); }
+            catch { s = new(); }
+            if (s.SettingsVersion < 2)
+            {
+                // 4.5: Discord status is now off until you turn it on in the Discord tab
+                s.DiscordPresence = false;
+                s.SettingsVersion = 2;
+                try { s.Save(); } catch { }
+            }
+            return s;
         }
+
+        public AppSettings Clone() => JsonSerializer.Deserialize<AppSettings>(JsonSerializer.Serialize(this)) ?? new();
 
         public void Save()
         {
             Directory.CreateDirectory(Paths.Base);
             File.WriteAllText(FilePath, JsonSerializer.Serialize(this, new JsonSerializerOptions { WriteIndented = true }));
+        }
+    }
+
+    class SavedSetup
+    {
+        public int Preset { get; set; } = 2;
+        public Dictionary<string, string> Flags { get; set; } = new();
+        public string CursorPreset { get; set; } = "default";
+        public string CrosshairPreset { get; set; } = "default";
+        public string? DeathSoundFile { get; set; }
+        public string FootstepSound { get; set; } = "default";
+        public string JumpSound { get; set; } = "default";
+        public string? SoundPack { get; set; }
+        public bool CustomSky { get; set; }
+        public int FpsCap { get; set; }
+        public int Priority { get; set; }
+
+        public void ApplyTo(AppSettings s)
+        {
+            s.Preset = Preset;
+            s.Flags = Flags.Where(kv => FF.IsAllowed(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            s.CursorPreset = CursorPreset;
+            s.CrosshairPreset = CrosshairPreset;
+            s.DeathSoundFile = DeathSoundFile;
+            s.FootstepSound = FootstepSound;
+            s.JumpSound = JumpSound;
+            s.SoundPack = SoundPack;
+            s.CustomSky = CustomSky;
+            s.FpsCap = FpsCap;
+            s.Priority = Priority;
         }
     }
 
@@ -3230,8 +3999,22 @@ namespace GuideStrap
             if (Directory.Exists(Paths.Mods))
                 foreach (var f in Directory.GetFiles(Paths.Mods, "*", SearchOption.AllDirectories))
                     overlay[Path.GetRelativePath(Paths.Mods, f)] = f;
+            string? pack = ModAssets.SoundPackDir(settings);
+            if (pack != null)
+                foreach (var f in Directory.GetFiles(pack, "*", SearchOption.AllDirectories))
+                    overlay[Path.Combine("content", "sounds", Path.GetRelativePath(pack, f))] = f;
             if (settings.DeathSoundFile != null && File.Exists(settings.DeathSoundFile))
                 overlay[@"content\sounds\ouch.ogg"] = settings.DeathSoundFile;
+            string? steps = ModAssets.SoundFile(settings.FootstepSound, "footsteps");
+            if (steps != null) overlay[@"content\sounds\action_footsteps_plastic.mp3"] = steps;
+            string? jump = ModAssets.SoundFile(settings.JumpSound, "jump");
+            if (jump != null)
+            {
+                overlay[@"content\sounds\action_jump.mp3"] = jump;
+                if (settings.JumpSound == "mute") overlay[@"content\sounds\action_jump_land.mp3"] = jump;
+            }
+            string? crosshair = ModAssets.CrosshairFile(settings);
+            if (crosshair != null) overlay[@"content\textures\MouseLockedCursor.png"] = crosshair;
             string? cursorDir = ModAssets.CursorDir(settings);
             if (cursorDir != null)
                 foreach (var name in new[] { "ArrowCursor.png", "ArrowFarCursor.png" })
@@ -3239,7 +4022,10 @@ namespace GuideStrap
             if (settings.CustomSky && Directory.Exists(Paths.Sky))
                 foreach (var f in Directory.GetFiles(Paths.Sky, "*.tex"))
                     overlay[$@"PlatformContent\pc\textures\sky\{Path.GetFileName(f)}"] = f;
+            bool skipMods = File.Exists(Paths.SkipModsMarker);   // set by the crash helper, for one launch
+            if (skipMods) overlay.Clear();
             ApplyOverlay(versionDir, overlay);
+            if (skipMods) try { File.Delete(Paths.SkipModsMarker); } catch { }
 
             string fontsDir = Path.Combine(versionDir, "content", "fonts");
             string familiesDir = Path.Combine(fontsDir, "families");
@@ -3260,7 +4046,7 @@ namespace GuideStrap
             foreach (var old in Directory.GetFiles(fontsDir, "CustomFont.*"))
                 File.Delete(old);
 
-            if (settings.FontFile == null || !File.Exists(settings.FontFile)) return;
+            if (skipMods || settings.FontFile == null || !File.Exists(settings.FontFile)) return;
 
             string destName = "CustomFont" + Path.GetExtension(settings.FontFile).ToLowerInvariant();
             File.Copy(settings.FontFile, Path.Combine(fontsDir, destName), true);
@@ -3330,6 +4116,147 @@ namespace GuideStrap
             catch { return null; }
         }
 
+        // Public server list. smallest = fewest players first, otherwise a random open server.
+        public static async Task<string?> FindServerAsync(long placeId, bool smallest, string? exclude, CancellationToken ct)
+        {
+            string url = $"https://games.roblox.com/v1/games/{placeId}/servers/Public?sortOrder={(smallest ? "Asc" : "Desc")}&limit=100&excludeFullGames=true";
+            using var doc = JsonDocument.Parse(await Http.GetStringAsync(url, ct));
+            var open = new List<(string Id, int Playing)>();
+            if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var sv in data.EnumerateArray())
+                {
+                    string? id = sv.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null;
+                    int playing = sv.TryGetProperty("playing", out var pl) && pl.ValueKind == JsonValueKind.Number ? pl.GetInt32() : 0;
+                    int max = sv.TryGetProperty("maxPlayers", out var mx) && mx.ValueKind == JsonValueKind.Number ? mx.GetInt32() : 0;
+                    if (id == null || id == exclude || (max > 0 && playing >= max)) continue;
+                    open.Add((id, playing));
+                }
+            }
+            if (open.Count == 0) return null;
+            return smallest ? open.OrderBy(x => x.Playing).First().Id : open[Random.Shared.Next(open.Count)].Id;
+        }
+
+        static bool TryProp(JsonElement e, string name, out JsonElement value)
+        {
+            value = default;
+            if (e.ValueKind != JsonValueKind.Object) return false;
+            foreach (var prop in e.EnumerateObject())
+                if (string.Equals(prop.Name, name, StringComparison.OrdinalIgnoreCase)) { value = prop.Value; return true; }
+            return false;
+        }
+
+        static long? Num(JsonElement e, string name) =>
+            TryProp(e, name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt64(out var n) ? n : null;
+
+        static string? Str(JsonElement e, string name) =>
+            TryProp(e, name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+        // Signed-in POST that handles Roblox's CSRF token handshake
+        static async Task<string> PostAuthedAsync(string url, string cookie, string json)
+        {
+            string? csrf = null;
+            for (int attempt = 0; attempt < 2; attempt++)
+            {
+                using var req = new HttpRequestMessage(HttpMethod.Post, url);
+                req.Headers.Add("Cookie", ".ROBLOSECURITY=" + cookie);
+                if (csrf != null) req.Headers.Add("X-CSRF-TOKEN", csrf);
+                req.Content = new StringContent(json, Encoding.UTF8, "application/json");
+                using var resp = await AuthHttp.SendAsync(req);
+                if (csrf == null && resp.Headers.TryGetValues("x-csrf-token", out var token) && !resp.IsSuccessStatusCode)
+                {
+                    csrf = token.First();
+                    continue;
+                }
+                if (resp.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+                    throw new Exception("This account's saved login expired. Remove it and add it again.");
+                resp.EnsureSuccessStatusCode();
+                return await resp.Content.ReadAsStringAsync();
+            }
+            throw new Exception("Roblox didn't accept the request. Try again.");
+        }
+
+        public static async Task<List<long>> GetFriendIdsAsync(long userId, string cookie)
+        {
+            var ids = new List<long>();
+            string? cursor = null;
+            for (int page = 0; page < 4; page++)
+            {
+                string url = $"https://friends.roblox.com/v1/users/{userId}/friends/find?limit=50" +
+                             (cursor != null ? "&cursor=" + Uri.EscapeDataString(cursor) : "");
+                using var req = new HttpRequestMessage(HttpMethod.Get, url);
+                req.Headers.Add("Cookie", ".ROBLOSECURITY=" + cookie);
+                using var resp = await AuthHttp.SendAsync(req);
+                if (!resp.IsSuccessStatusCode) break;
+                using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                if (TryProp(doc.RootElement, "PageItems", out var items) && items.ValueKind == JsonValueKind.Array)
+                    foreach (var it in items.EnumerateArray())
+                        if (Num(it, "id") is long id) ids.Add(id);
+                cursor = Str(doc.RootElement, "NextCursor");
+                if (string.IsNullOrEmpty(cursor)) break;
+            }
+            if (ids.Count == 0)
+            {
+                // older endpoint, kept as a fallback
+                using var req = new HttpRequestMessage(HttpMethod.Get, $"https://friends.roblox.com/v1/users/{userId}/friends");
+                req.Headers.Add("Cookie", ".ROBLOSECURITY=" + cookie);
+                using var resp = await AuthHttp.SendAsync(req);
+                if (resp.IsSuccessStatusCode)
+                {
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                    if (TryProp(doc.RootElement, "data", out var data) && data.ValueKind == JsonValueKind.Array)
+                        foreach (var it in data.EnumerateArray())
+                            if (Num(it, "id") is long id) ids.Add(id);
+                }
+            }
+            return ids.Distinct().ToList();
+        }
+
+        public static async Task<List<FriendPresence>> GetPresenceAsync(string cookie, List<long> userIds)
+        {
+            var list = new List<FriendPresence>();
+            foreach (var chunk in userIds.Chunk(50))
+            {
+                string json = JsonSerializer.Serialize(new { userIds = chunk });
+                using var doc = JsonDocument.Parse(await PostAuthedAsync("https://presence.roblox.com/v1/presence/users", cookie, json));
+                if (!TryProp(doc.RootElement, "userPresences", out var arr) || arr.ValueKind != JsonValueKind.Array) continue;
+                foreach (var e in arr.EnumerateArray())
+                {
+                    if (Num(e, "userId") is not long uid) continue;
+                    list.Add(new FriendPresence
+                    {
+                        UserId = uid,
+                        Type = (int)(Num(e, "userPresenceType") ?? 0),
+                        Location = Str(e, "lastLocation"),
+                        PlaceId = Num(e, "placeId"),
+                        RootPlaceId = Num(e, "rootPlaceId"),
+                        GameId = Str(e, "gameId") is string g && Guid.TryParse(g, out _) ? g : null,
+                    });
+                }
+            }
+            return list;
+        }
+
+        // Display names for user IDs (cached in the given dictionary)
+        public static async Task FillNamesAsync(IEnumerable<long> userIds, Dictionary<long, string> cache)
+        {
+            var missing = userIds.Where(id => !cache.ContainsKey(id)).Distinct().ToList();
+            foreach (var chunk in missing.Chunk(100))
+            {
+                try
+                {
+                    string json = JsonSerializer.Serialize(new { userIds = chunk, excludeBannedUsers = false });
+                    using var resp = await Http.PostAsync("https://users.roblox.com/v1/users", new StringContent(json, Encoding.UTF8, "application/json"));
+                    if (!resp.IsSuccessStatusCode) continue;
+                    using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
+                    if (!TryProp(doc.RootElement, "data", out var data) || data.ValueKind != JsonValueKind.Array) continue;
+                    foreach (var u in data.EnumerateArray())
+                        if (Num(u, "id") is long id) cache[id] = Str(u, "displayName") ?? Str(u, "name") ?? id.ToString();
+                }
+                catch { }
+            }
+        }
+
         // A one-time ticket that lets the Roblox client log in as a saved account
         public static async Task<string> GetAuthTicketAsync(string cookie)
         {
@@ -3354,7 +4281,7 @@ namespace GuideStrap
             throw new Exception("Couldn't log in this account. Try again.");
         }
 
-        public static string BuildLaunchUri(string ticket, long? placeId)
+        public static string BuildLaunchUri(string ticket, long? placeId, string? jobId = null)
         {
             long time = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             string tracker = Random.Shared.NextInt64(100_000_000_000, 999_999_999_999).ToString();
@@ -3362,9 +4289,11 @@ namespace GuideStrap
                 return $"roblox-player:1+launchmode:app+gameinfo:{ticket}+launchtime:{time}+browsertrackerid:{tracker}" +
                        "+robloxLocale:en_us+gameLocale:en_us+channel:+LaunchExp:InApp";
 
-            string placeUrl = Uri.EscapeDataString(
-                $"https://www.roblox.com/Game/PlaceLauncher.ashx?request=RequestGame&browserTrackerId={tracker}" +
-                $"&placeId={placeId}&isPlayTogetherGame=false&joinAttemptId={Guid.NewGuid()}&joinAttemptOrigin=PlayButton");
+            string placeUrl = Uri.EscapeDataString(jobId != null
+                ? $"https://www.roblox.com/Game/PlaceLauncher.ashx?request=RequestGameJob&browserTrackerId={tracker}" +
+                  $"&placeId={placeId}&gameId={jobId}&isPlayTogetherGame=false&joinAttemptId={Guid.NewGuid()}&joinAttemptOrigin=publicServerListJoin"
+                : $"https://www.roblox.com/Game/PlaceLauncher.ashx?request=RequestGame&browserTrackerId={tracker}" +
+                  $"&placeId={placeId}&isPlayTogetherGame=false&joinAttemptId={Guid.NewGuid()}&joinAttemptOrigin=PlayButton");
             return $"roblox-player:1+launchmode:play+gameinfo:{ticket}+launchtime:{time}+placelauncherurl:{placeUrl}" +
                    $"+browsertrackerid:{tracker}+robloxLocale:en_us+gameLocale:en_us+channel:+LaunchExp:InApp";
         }
@@ -3421,9 +4350,26 @@ namespace GuideStrap
             long total = Math.Max(1, packages.Sum(p => p.Size));
             long done = 0;
             int lastPct = -1;
+            Directory.CreateDirectory(Paths.Downloads);
 
             foreach (var pkg in packages)
             {
+                // packages that didn't change since the last Roblox update are reused instead of downloaded again
+                string cached = Path.Combine(Paths.Downloads, pkg.Md5 + ".zip");
+                if (File.Exists(cached))
+                {
+                    byte[] old = await File.ReadAllBytesAsync(cached, ct);
+                    if (Convert.ToHexString(MD5.HashData(old)).ToLowerInvariant() == pkg.Md5)
+                    {
+                        done += pkg.Size;
+                        report($"Installing Roblox... {Math.Min((int)(done * 100 / total), 100)}%", (float)done / total);
+                        string dest = PackageMap.TryGetValue(pkg.Name, out var oldSub) ? Path.Combine(tempDir, oldSub) : tempDir;
+                        await Task.Run(() => ExtractZip(old, dest), ct);
+                        continue;
+                    }
+                    try { File.Delete(cached); } catch { }
+                }
+
                 using var resp = await RobloxApi.Http.GetAsync(cdn + pkg.Name, HttpCompletionOption.ResponseHeadersRead, ct);
                 resp.EnsureSuccessStatusCode();
                 await using var stream = await resp.Content.ReadAsStreamAsync(ct);
@@ -3445,6 +4391,7 @@ namespace GuideStrap
                 byte[] data = ms.ToArray();
                 if (Convert.ToHexString(MD5.HashData(data)).ToLowerInvariant() != pkg.Md5)
                     throw new Exception($"{pkg.Name} downloaded corrupted. Try again.");
+                try { await File.WriteAllBytesAsync(cached, data, ct); } catch { }
 
                 string target = PackageMap.TryGetValue(pkg.Name, out var sub) ? Path.Combine(tempDir, sub) : tempDir;
                 await Task.Run(() => ExtractZip(data, target), ct);
@@ -3457,6 +4404,11 @@ namespace GuideStrap
 
             if (Directory.Exists(versionDir)) Directory.Delete(versionDir, true);
             Directory.Move(tempDir, versionDir);
+
+            // keep only the packages this version uses
+            var keep = packages.Select(p => p.Md5 + ".zip").ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var f in Directory.GetFiles(Paths.Downloads))
+                if (!keep.Contains(Path.GetFileName(f))) try { File.Delete(f); } catch { }
         }
 
         static void ExtractZip(byte[] data, string targetDir)
@@ -3487,10 +4439,23 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.2";
+        public const string Version = "4.6.1";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
+        public const string SiteUrl = "https://guideships.github.io/GuideStrap";
+        // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
+        // Shown once after GuideStrap updates itself
+        public const string WhatsNew =
+            "\u2022 GuideStrap checks if Roblox is down before launching\n" +
+            "\u2022 Pick your own picture for the start screen (Settings > Appearance)\n" +
+            "\u2022 Start GuideStrap with Windows, quietly in the tray (Settings)\n" +
+            "\u2022 Uninstall GuideStrap from Settings > Tools\n" +
+            "\u2022 New languages: Fran\u00e7ais, Deutsch, T\u00fcrk\u00e7e and Filipino\n" +
+            "\u2022 This window, after every update";
+
+        public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo.png";
+        public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";
 
         public const string AboutText =
             "GuideStrap is a Roblox launcher made by Guide. It downloads Roblox from Roblox's own servers, " +
@@ -3519,6 +4484,7 @@ namespace GuideStrap
     {
         int open;
         NotifyIcon? tray;
+        bool trayMode;   // started with Windows: lives in the tray until you exit
         public static GuideStrapContext? Current { get; private set; }
         public int OpenCount => open;
 
@@ -3533,8 +4499,9 @@ namespace GuideStrap
             {
                 bool repair = Setup.IsInstalled;
                 var current = AppSettings.Load();
-                L.Lang = repair && current.Language.Length > 0 ? current.Language : L.SystemLanguage();
-                if (repair) Theme.Apply(current.ThemeName, current.Accent);
+                // settings kept from an earlier install are reused (language and theme)
+                L.Lang = current.Language.Length > 0 ? current.Language : L.SystemLanguage();
+                Theme.Apply(current.ThemeName, current.Accent);
                 Open(new SetupForm(this, repair));
                 return;
             }
@@ -3544,15 +4511,46 @@ namespace GuideStrap
             Theme.Apply(settings.ThemeName, settings.Accent);
             Setup.RefreshEntry();
             Updater.CleanupOld();
+            Presence.Configure(settings);
             Presence.Enable(settings.DiscordPresence);
             Presence.WatchEnded += OnWatchEnded;
+            Presence.SessionEnded += sum =>
+            {
+                var st = AppSettings.Load();
+                if (!st.SessionSummary || sum.Length < TimeSpan.FromMinutes(1)) return;
+                var lines = new List<string> { L.F("You played for {0}.", FormatLength(sum.Length)) };
+                if (sum.Games.Count > 0) lines.Add(L.F("Games: {0}", string.Join(", ", sum.Games.Take(4))));
+                if (sum.Location != null && !st.StreamerMode) lines.Add(L.F("Last server: {0}", sum.Location));
+                ShowToast(L.T("Session over"), string.Join("\n", lines));
+            };
+            FriendWatcher.FriendStartedPlaying += (f, name) =>
+            {
+                var st = AppSettings.Load();
+                if (st.StreamerMode) name = L.T("A friend");
+                string game = string.IsNullOrWhiteSpace(f.Location) ? L.T("a game") : f.Location!;
+                long? place = f.PlaceId ?? f.RootPlaceId;
+                if (place == null)
+                    ShowToast(L.T("Friend started playing"), L.F("{0} is playing {1}.", name, game));
+                else
+                    ShowToast(L.T("Friend started playing"), L.F("{0} is playing {1}.", name, game), "Join",
+                        () => Open(new LoadingForm(this, AppSettings.Load(), AccountStore.Load(), null, place.Value.ToString(), f.GameId)));
+            };
+            FriendWatcher.Start();
+            Presence.RobloxCrashed += info => { if (AppSettings.Load().CrashHelper) ShowCrash(info); };
             Presence.ServerLocated += location =>
             {
-                if (tray != null && AppSettings.Load().ShowServerLocation)
+                var st = AppSettings.Load();
+                if (tray != null && st.ShowServerLocation && !st.StreamerMode)
                     tray.ShowBalloonTip(4000, "GuideStrap", L.F("Connected to a server in {0}", location), ToolTipIcon.None);
             };
             if (launchUri != null)
                 Open(new LoadingForm(this, settings, AccountStore.Load(), launchUri, ""));
+            else if (args.Contains("--tray"))
+            {
+                trayMode = true;
+                EnsureTray();
+                MemoryTrim.Now();
+            }
             else
                 Open(new LauncherForm(this));
         }
@@ -3563,16 +4561,35 @@ namespace GuideStrap
             form.FormClosed += (_, _) =>
             {
                 open--;
-                if (open <= 0 && !Presence.Watching) ExitThread();
+                if (open <= 0 && !Presence.Watching && !trayMode) ExitThread();
+                else if (open <= 0) MemoryTrim.Now();   // only the tray is left, so give memory back
             };
             form.Show();
         }
+
+        public void ShowCrash(CrashInfo info) => Open(new CrashForm(info));
+
+        ToastForm? toast;
+        public void ShowToast(string title, string message, string? button = null, Action? onButton = null)
+        {
+            try { if (toast != null && !toast.IsDisposed) toast.Close(); } catch { }
+            toast = new ToastForm(title, message, button, onButton);
+            Open(toast);
+        }
+
+        static string FormatLength(TimeSpan t) =>
+            t.TotalHours >= 1 ? $"{(int)t.TotalHours}h {t.Minutes}m" : $"{Math.Max(1, (int)t.TotalMinutes)} min";
 
         // Keeps GuideStrap running quietly (tray icon) while Roblox is open, for the Discord status.
         public void WatchRoblox()
         {
             if (Presence.Watching) return;
             Presence.WatchRoblox();
+            EnsureTray();
+        }
+
+        void EnsureTray()
+        {
             if (tray != null) return;
             var menu = new ContextMenuStrip { ShowImageMargin = false, ShowCheckMargin = true, Renderer = new ToolStripProfessionalRenderer(new DarkMenuColors()) };
             menu.ForeColor = Theme.Text;
@@ -3619,12 +4636,14 @@ namespace GuideStrap
 
         void OnWatchEnded()
         {
+            if (trayMode) return;   // stays in the tray
             if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
             if (open <= 0) ExitThread();
         }
 
         protected override void ExitThreadCore()
         {
+            FriendWatcher.Stop();
             Presence.Shutdown();
             if (tray != null) { tray.Visible = false; tray.Dispose(); tray = null; }
             base.ExitThreadCore();
@@ -3648,6 +4667,24 @@ namespace GuideStrap
 
         public static bool Watching { get; private set; }
         public static event Action? WatchEnded;
+        public static event Action<CrashInfo>? RobloxCrashed;
+        public static event Action<SessionSummary>? SessionEnded;
+        static bool showGame = true, showAccount, allowJoin, streamer;
+        static volatile string? account;
+        static string? jobId, sessionLocation;
+        static readonly List<string> sessionGames = new();
+
+        public static void Configure(AppSettings s)
+        {
+            showGame = s.DiscordShowGame;
+            showAccount = s.DiscordShowAccount;
+            allowJoin = s.DiscordAllowJoin;
+            streamer = s.StreamerMode;
+            Push();
+        }
+
+        // The saved account being launched (null = Roblox login). Only shown if the user turns it on.
+        public static void SetAccount(string? name) => account = name;
 
         static string LogPath => Path.Combine(Paths.Base, "discord.log");
 
@@ -3706,33 +4743,40 @@ namespace GuideStrap
             try
             {
                 var p = new DiscordRPC.RichPresence();
-                if (inRoblox && placeId != 0)
+                string? who = account;
+                string? playingAs = showAccount && !streamer && who != null ? Cut("Playing as " + who) : null;
+                if (inRoblox && placeId != 0 && showGame)
                 {
                     string name = gameName ?? "a game";
                     p.Details = Cut("In " + name);
-                    p.State = gameCreator != null ? Cut("by " + gameCreator) : null;
+                    p.State = playingAs ?? (gameCreator != null ? Cut("by " + gameCreator) : null);
                     p.Timestamps = new Timestamps(gameStart);
                     p.Assets = new Assets
                     {
-                        LargeImageKey = gameIcon is { Length: > 0 and <= 256 } ? gameIcon : "guidestrap",
+                        LargeImageKey = gameIcon is { Length: > 0 and <= 256 } ? gameIcon : AppInfo.LogoUrl,
                         LargeImageText = Cut(name),
-                        SmallImageKey = "guidestrap",
-                        SmallImageText = serverLocation != null ? Cut("Server: " + serverLocation) : "GuideStrap",
+                        SmallImageKey = AppInfo.LogoUrl,
+                        SmallImageText = serverLocation != null && !streamer ? Cut("Server: " + serverLocation) : "GuideStrap",
                     };
-                    p.Buttons = new[] { new DiscordRPC.Button { Label = "View game", Url = $"https://www.roblox.com/games/{placeId}" } };
+                    var buttons = new List<DiscordRPC.Button>();
+                    if (allowJoin && !streamer && jobId != null)
+                        buttons.Add(new DiscordRPC.Button { Label = "Join server", Url = $"{AppInfo.SiteUrl}/join.html?placeId={placeId}&gameInstanceId={jobId}" });
+                    buttons.Add(new DiscordRPC.Button { Label = "View game", Url = $"https://www.roblox.com/games/{placeId}" });
+                    p.Buttons = buttons.ToArray();
                 }
                 else if (inRoblox)
                 {
-                    p.Details = "In the Roblox app";
-                    p.Timestamps = new Timestamps(robloxStart);
-                    p.Assets = new Assets { LargeImageKey = "guidestrap", LargeImageText = "GuideStrap" };
+                    p.Details = placeId != 0 ? "Playing Roblox" : "In the Roblox app";
+                    p.State = playingAs;
+                    p.Timestamps = new Timestamps(placeId != 0 ? gameStart : robloxStart);
+                    p.Assets = new Assets { LargeImageKey = AppInfo.LogoUrl, LargeImageText = "GuideStrap" };
                 }
                 else
                 {
                     p.Details = screen;
                     p.State = screenDetail;
                     p.Timestamps = new Timestamps(appStart);
-                    p.Assets = new Assets { LargeImageKey = "guidestrap", LargeImageText = "GuideStrap" };
+                    p.Assets = new Assets { LargeImageKey = AppInfo.LogoUrl, LargeImageText = "GuideStrap" };
                 }
                 client.SetPresence(p);
             }
@@ -3745,6 +4789,9 @@ namespace GuideStrap
             Watching = true;
             inRoblox = true;
             placeId = 0;
+            jobId = null;
+            sessionLocation = null;
+            sessionGames.Clear();
             robloxStart = DateTime.UtcNow;
             Push();
             watchCts = new CancellationTokenSource();
@@ -3763,6 +4810,7 @@ namespace GuideStrap
         static async Task WatchAsync(CancellationToken ct)
         {
             var started = DateTime.Now;
+            CrashWatch.Begin();
             StreamReader? reader = null;
             try
             {
@@ -3773,8 +4821,11 @@ namespace GuideStrap
                     // find Roblox's new log file (it appears a moment after Roblox starts)
                     if (reader == null && Directory.Exists(logDir))
                     {
+                        // Roblox writes several logs (crash handler, installer...). The game one has "Player" in its name.
                         var file = new DirectoryInfo(logDir).GetFiles("*.log")
-                            .Where(f => f.CreationTime >= started.AddSeconds(-15))
+                            .Where(f => f.Name.Contains("Player", StringComparison.OrdinalIgnoreCase)
+                                        && !f.Name.Contains("Crash", StringComparison.OrdinalIgnoreCase)
+                                        && f.CreationTime >= started.AddSeconds(-90))
                             .OrderByDescending(f => f.CreationTime)
                             .FirstOrDefault();
                         if (file != null)
@@ -3788,10 +4839,14 @@ namespace GuideStrap
                     {
                         string? line;
                         while ((line = await reader.ReadLineAsync(ct)) != null)
+                        {
+                            CrashWatch.Line(line);
                             await HandleLineAsync(line);
+                        }
                     }
 
                     // Roblox can restart itself, so only stop after it's been gone for a few seconds
+                    CrashWatch.Poll();
                     if (RobloxRunning()) missed = 0;
                     else if (++missed >= 4) break;
 
@@ -3806,9 +4861,22 @@ namespace GuideStrap
                 Watching = false;
                 inRoblox = false;
                 placeId = 0;
+                jobId = null;
                 gameName = gameCreator = gameIcon = serverLocation = lastServerIp = null;
                 Log("Roblox closed");
                 Push();
+                var crash = CrashWatch.End(report: !ct.IsCancellationRequested);
+                if (crash != null)
+                {
+                    Log($"Roblox crashed: 0x{crash.Code:X8}");
+                    try { RobloxCrashed?.Invoke(crash); }
+                    catch (Exception ex) { Log("crash helper error: " + ex.Message); }
+                }
+                else if (!ct.IsCancellationRequested)
+                {
+                    try { SessionEnded?.Invoke(new SessionSummary(DateTime.UtcNow - robloxStart, sessionGames.ToList(), sessionLocation)); }
+                    catch (Exception ex) { Log("summary error: " + ex.Message); }
+                }
                 WatchEnded?.Invoke();
             }
         }
@@ -3818,6 +4886,13 @@ namespace GuideStrap
             if (line.Contains("! Joining game") || line.Contains("Joining game"))
             {
                 var m = System.Text.RegularExpressions.Regex.Match(line, @"place (\d+)");
+                var jm = System.Text.RegularExpressions.Regex.Match(line, @"Joining game '([0-9a-fA-F-]{36})'");
+                if (m.Success && jm.Success && long.TryParse(m.Groups[1].Value, out long joined))
+                {
+                    jobId = jm.Groups[1].Value;
+                    LastServer.Save(joined, jobId);
+                    if (joined == placeId) Push();
+                }
                 if (m.Success && long.TryParse(m.Groups[1].Value, out long id) && id != placeId)
                 {
                     Log("joining place " + id);
@@ -3841,6 +4916,7 @@ namespace GuideStrap
             {
                 if (placeId != 0) Log("left game");
                 placeId = 0;
+                jobId = null;
                 gameName = gameCreator = gameIcon = serverLocation = lastServerIp = null;
                 Push();
             }
@@ -3855,6 +4931,7 @@ namespace GuideStrap
                 var parts = new[] { Get("city"), Get("region"), Get("country") }.Where(s => s.Length > 0).Distinct().ToList();
                 if (parts.Count == 0 || ip != lastServerIp) return;
                 serverLocation = string.Join(", ", parts);
+                sessionLocation = serverLocation;
                 Log("server in " + serverLocation);
                 Push();
                 ServerLocated?.Invoke(serverLocation);
@@ -3877,6 +4954,7 @@ namespace GuideStrap
                 string? icon = t.RootElement.GetProperty("data")[0].GetProperty("imageUrl").GetString();
                 if (id != placeId) return;   // left or teleported meanwhile
                 gameName = name; gameCreator = creator; gameIcon = icon;
+                if (name != null && !sessionGames.Contains(name)) sessionGames.Add(name);
                 Log($"in game: {name}");
                 Push();
                 RecentGames.Add(new RecentGame { PlaceId = id, Name = name ?? "Game", Creator = creator ?? "", IconUrl = icon ?? "", LastPlayed = DateTime.Now });
@@ -3891,7 +4969,7 @@ namespace GuideStrap
         // report(text, progress): progress from 0 to 1 fills the bar, a negative value means "busy, unknown length".
         // Returns the Roblox process, or null if the game page was opened in the browser instead.
         public static async Task<Process?> LaunchAsync(AppSettings settings, List<Account> accounts, string? launchUri, string placeText,
-            Action<string, float> report, CancellationToken ct)
+            Action<string, float> report, CancellationToken ct, string? jobId = null, ServerPick pick = ServerPick.None)
         {
             report("Connecting to Roblox...", -1f);
             string versionGuid = await RobloxApi.GetLatestVersionAsync(ct);
@@ -3910,49 +4988,84 @@ namespace GuideStrap
             ct.ThrowIfCancellationRequested();
             Installer.CleanupOldVersions(versionGuid);
 
-            report("Applying your settings...", -1f);
-            Mods.Apply(versionDir, settings);
+            long? placeId = launchUri != null ? ParsePlaceIdFromLink(launchUri) : ParsePlaceId(placeText);
+            if (launchUri == null && placeText.Trim().Length > 0 && placeId == null)
+                throw new Exception("That doesn't look like a game link or place ID.");
+
+            // a setup linked to this game is used for this launch only
+            var effective = settings;
+            if (placeId != null && settings.GameSetups.TryGetValue(placeId.Value.ToString(), out var setupName)
+                && settings.Setups.TryGetValue(setupName, out var setup))
+            {
+                effective = settings.Clone();
+                setup.ApplyTo(effective);
+                report($"Applying your {setupName} setup...", -1f);
+            }
+            else report("Applying your settings...", -1f);
+            Mods.Apply(versionDir, effective);
 
             var acc = accounts.FirstOrDefault(a => a.UserId == settings.ActiveAccountId);
+            Presence.SetAccount(acc?.DisplayName);
+            string signingIn = settings.StreamerMode || acc == null ? "Signing in..." : $"Signing in as {acc.DisplayName}...";
+
+            if (launchUri == null && pick != ServerPick.None)
+            {
+                if (placeId == null) throw new Exception("Paste a game link first, or join a game once.");
+                report(pick == ServerPick.Small ? "Finding a small server..." : "Finding another server...", -1f);
+                jobId = await RobloxApi.FindServerAsync(placeId.Value, pick == ServerPick.Small, LastServer.Load()?.JobId, ct)
+                        ?? throw new Exception("Couldn't find an open server for that game. Try again in a moment.");
+            }
+            if (jobId != null && !Guid.TryParse(jobId, out _)) jobId = null;
+
             string arg;
             if (launchUri != null)   // opened from the website's Play button
             {
                 arg = launchUri;
                 if (acc != null && settings.UseAccountForWebsite && launchUri.Contains("gameinfo:"))
                 {
-                    report($"Signing in as {acc.DisplayName}...", -1f);
+                    report(signingIn, -1f);
                     string ticket = await RobloxApi.GetAuthTicketAsync(acc.Cookie);
                     arg = Regex.Replace(launchUri, @"gameinfo:[^+]*", _ => "gameinfo:" + ticket);
                 }
             }
+            else if (acc == null)
+            {
+                if (placeId != null && jobId != null)
+                    arg = $"roblox://experiences/start?placeId={placeId}&gameInstanceId={jobId}";
+                else if (placeId != null)
+                {
+                    Process.Start(new ProcessStartInfo($"https://www.roblox.com/games/{placeId}") { UseShellExecute = true });
+                    return null;
+                }
+                else arg = "--app";
+            }
             else
             {
-                long? placeId = ParsePlaceId(placeText);
-                if (placeText.Trim().Length > 0 && placeId == null)
-                    throw new Exception("That doesn't look like a game link or place ID.");
-
-                if (acc == null)
-                {
-                    if (placeId != null)
-                    {
-                        Process.Start(new ProcessStartInfo($"https://www.roblox.com/games/{placeId}") { UseShellExecute = true });
-                        return null;
-                    }
-                    arg = "--app";
-                }
-                else
-                {
-                    report($"Signing in as {acc.DisplayName}...", -1f);
-                    string ticket = await RobloxApi.GetAuthTicketAsync(acc.Cookie);
-                    arg = RobloxApi.BuildLaunchUri(ticket, placeId);
-                }
+                report(signingIn, -1f);
+                string ticket = await RobloxApi.GetAuthTicketAsync(acc.Cookie);
+                arg = RobloxApi.BuildLaunchUri(ticket, placeId, jobId);
             }
             ct.ThrowIfCancellationRequested();
 
             report("Starting Roblox...", -1f);
+            if (effective.FpsCap > 0) RobloxTweaks.SetFpsCap(effective.FpsCap);
             var psi = new ProcessStartInfo(exe) { WorkingDirectory = versionDir, UseShellExecute = false };
             psi.ArgumentList.Add(arg);
-            return Process.Start(psi);
+            var proc = Process.Start(psi);
+            if (effective.Priority > 0)
+                RobloxTweaks.BoostPriority(effective.Priority == 2 ? ProcessPriorityClass.High : ProcessPriorityClass.AboveNormal);
+            return proc;
+        }
+
+        // Place ID inside a roblox-player: or roblox:// link (the website's Play button)
+        public static long? ParsePlaceIdFromLink(string link)
+        {
+            try
+            {
+                var m = Regex.Match(Uri.UnescapeDataString(link), @"placeId=(\d+)", RegexOptions.IgnoreCase);
+                return m.Success && long.TryParse(m.Groups[1].Value, out var id) ? id : null;
+            }
+            catch { return null; }
         }
 
         public static long? ParsePlaceId(string text)
@@ -4020,7 +5133,55 @@ namespace GuideStrap
             configBtn.Click += (_, _) => OpenSettings("Home");
             accountsBtn.Click += (_, _) => OpenSettings("Accounts");
             Activated += (_, _) => Presence.Screen("In the main menu");
-            Shown += async (_, _) => await AutoUpdateCheckAsync(settings);
+            Shown += async (_, _) =>
+            {
+                ShowWhatsNew(settings);
+                await AutoUpdateCheckAsync(settings);
+            };
+            if (settings.LauncherBackground is string bgPath && File.Exists(bgPath)) ApplyBackground(bgPath);
+        }
+
+        Bitmap? background;
+
+        // The user's picture, cropped to fill the window and darkened so text stays readable
+        void ApplyBackground(string path)
+        {
+            try
+            {
+                using var fs = File.OpenRead(path);
+                using var src = Image.FromStream(fs);
+                int w = ClientSize.Width, h = ClientSize.Height;
+                var bmp = new Bitmap(w, h);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    float scale = Math.Max((float)w / src.Width, (float)h / src.Height);
+                    float dw = src.Width * scale, dh = src.Height * scale;
+                    g.DrawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
+                    using var shade = new SolidBrush(Color.FromArgb(170, Theme.Bg));
+                    g.FillRectangle(shade, 0, 0, w, h);
+                }
+                background = bmp;
+                BackgroundImageLayout = ImageLayout.None;
+                BackgroundImage = bmp;
+            }
+            catch { }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) background?.Dispose();
+            base.Dispose(disposing);
+        }
+
+        void ShowWhatsNew(AppSettings settings)
+        {
+            if (settings.LastSeenVersion == AppInfo.Version) return;
+            // someone who used GuideStrap before (not a fresh install) gets the list of changes
+            bool updated = settings.LastSeenVersion.Length > 0 || settings.LastUpdateCheck != default;
+            settings.LastSeenVersion = AppInfo.Version;
+            settings.Save();
+            if (updated) Ask(L.F("What's new in GuideStrap {0}", AppInfo.Version), AppInfo.WhatsNew, "Nice");
         }
 
         async Task AutoUpdateCheckAsync(AppSettings settings)
@@ -4052,6 +5213,8 @@ namespace GuideStrap
         readonly List<Account> accounts;
         readonly string? launchUri;
         readonly string placeText;
+        readonly string? jobId;
+        readonly ServerPick pick;
         readonly SpinningLogo logo = new();
         readonly Label status = new();
         readonly LoadingBar bar = new();
@@ -4059,9 +5222,12 @@ namespace GuideStrap
         readonly CancellationTokenSource cts = new();
         bool finished;
 
-        public LoadingForm(GuideStrapContext context, AppSettings settings, List<Account> accounts, string? launchUri, string placeText)
+        public LoadingForm(GuideStrapContext context, AppSettings settings, List<Account> accounts, string? launchUri, string placeText,
+            string? jobId = null, ServerPick pick = ServerPick.None)
         {
             this.context = context;
+            this.jobId = jobId;
+            this.pick = pick;
             this.settings = settings;
             this.accounts = accounts;
             this.launchUri = launchUri;
@@ -4072,7 +5238,8 @@ namespace GuideStrap
             int W = ClientSize.Width;
 
             var acc = accounts.FirstOrDefault(a => a.UserId == settings.ActiveAccountId);
-            var left = At(Lbl(L.F("Account: {0}", acc != null ? acc.Username : L.T("Roblox login")), 8.25f, Theme.SubText), D(12), D(10));
+            string who = settings.StreamerMode ? L.T("hidden") : acc != null ? acc.Username : L.T("Roblox login");
+            var left = At(Lbl(L.F("Account: {0}", who), 8.25f, Theme.SubText), D(12), D(10));
             var right = new Label
             {
                 Text = $"GuideStrap {AppInfo.Version}", AutoSize = false, TextAlign = ContentAlignment.TopRight,
@@ -4133,6 +5300,27 @@ namespace GuideStrap
             bar.Indeterminate = true;
             try
             {
+                Report("Checking Roblox's servers...", -1f);
+                while (true)
+                {
+                    var health = await RobloxStatus.CheckAsync();
+                    if (finished || IsDisposed) return;
+                    if (health == RobloxStatus.Result.Offline)
+                    {
+                        if (Ask("You're offline", "GuideStrap can't reach the internet. Check your Wi-Fi or cable, then try again.", "Try again", "Cancel") == 0) continue;
+                        Finish(false);
+                        return;
+                    }
+                    if (health == RobloxStatus.Result.Down)
+                    {
+                        int choice = Ask("Roblox looks down", "Roblox's servers aren't answering right now, so games might not load. This is on Roblox's side, not your PC.",
+                            "Try anyway", "Status page", "Cancel");
+                        if (choice == 1) Process.Start(new ProcessStartInfo("https://status.roblox.com") { UseShellExecute = true });
+                        if (choice != 0) { Finish(false); return; }
+                    }
+                    break;
+                }
+
                 // run the heavy work (download, unzip, file writes) off the UI thread so the animation stays smooth
                 void SafeReport(string t, float p)
                 {
@@ -4140,7 +5328,7 @@ namespace GuideStrap
                 }
                 var token = cts.Token;
                 if (settings.MultiInstance) MultiInstance.Hold();
-                var proc = await Task.Run(() => RobloxLauncher.LaunchAsync(settings, accounts, launchUri, placeText, SafeReport, token));
+                var proc = await Task.Run(() => RobloxLauncher.LaunchAsync(settings, accounts, launchUri, placeText, SafeReport, token, jobId, pick));
                 cancel.Enabled = false;
                 if (proc == null)
                 {
@@ -4160,7 +5348,14 @@ namespace GuideStrap
                         }
                         catch { break; }
                     }
-                    if (settings.RunInBackground || settings.MultiInstance)
+                    CrashInfo? early = null;
+                    try { if (proc.HasExited) early = CrashWatch.FromExitCode(unchecked((uint)proc.ExitCode)); }
+                    catch { }
+                    if (early != null)
+                    {
+                        if (settings.CrashHelper) context.ShowCrash(early);
+                    }
+                    else if (settings.RunInBackground || settings.MultiInstance)
                         context.WatchRoblox();
                 }
                 Finish(proc != null);
@@ -4256,7 +5451,7 @@ namespace GuideStrap
                 Theme.DrawLogo(cg, new RectangleF(0, 0, Width, Height), 0f, 0.66f);
             }
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             g.InterpolationMode = InterpolationMode.HighQualityBilinear;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.TranslateTransform(Width / 2f, Height / 2f);
@@ -4312,7 +5507,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float h = Height - 1, rad = h / 2;
             var track = new RectangleF(0, 0, Width - 1, h);
@@ -4364,7 +5559,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
             Color fill = Theme.Mix(Theme.Card, Theme.ButtonBg, hoverT);
@@ -4413,7 +5608,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Bg);
+            Theme.ClearToParent(this, g, Theme.Bg);
             Color c = hover ? Theme.Text : Theme.AccentLight;
             const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, 9.5f);
@@ -4484,11 +5679,1008 @@ namespace GuideStrap
     }
 
     // Cursor files: built-in presets are drawn in code, custom images are resized to 64x64
+    enum ServerPick { None, Hop, Small }
+
+    // Quick check before launching: are Roblox's servers answering, and is the internet working at all?
+    static class RobloxStatus
+    {
+        public enum Result { Up, Down, Offline }
+
+        static readonly HttpClient probe = new() { Timeout = TimeSpan.FromSeconds(5) };
+
+        static async Task<bool> Ok(string url)
+        {
+            try
+            {
+                using var r = await probe.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+                return (int)r.StatusCode < 500;
+            }
+            catch { return false; }
+        }
+
+        public static async Task<Result> CheckAsync()
+        {
+            var roblox = await Task.WhenAll(
+                Ok("https://clientsettingscdn.roblox.com/v2/client-version/WindowsPlayer"),
+                Ok("https://users.roblox.com/v1/users/1"),
+                Ok("https://www.roblox.com/"));
+            if (roblox.Count(x => !x) < 2) return Result.Up;
+            var internet = await Task.WhenAll(Ok("https://www.google.com/generate_204"), Ok("https://www.cloudflare.com/cdn-cgi/trace"));
+            return internet.Any(x => x) ? Result.Down : Result.Offline;
+        }
+    }
+
+    record SessionSummary(TimeSpan Length, List<string> Games, string? Location);
+
+    class FriendPresence
+    {
+        public long UserId { get; init; }
+        public int Type { get; init; }          // 0 offline, 1 online, 2 in a game, 3 in Studio
+        public string? Location { get; init; }
+        public long? PlaceId { get; init; }
+        public long? RootPlaceId { get; init; }
+        public string? GameId { get; init; }    // the server, when the friend's privacy allows joining
+    }
+
+    class ServerInfo
+    {
+        public long PlaceId { get; set; }
+        public string JobId { get; set; } = "";
+        public DateTime Time { get; set; }
+    }
+
+    // The last server you were in (read from Roblox's log), for Rejoin and the crash helper
+    static class LastServer
+    {
+        static string FilePath => Path.Combine(Paths.Base, "lastserver.json");
+
+        public static void Save(long placeId, string jobId)
+        {
+            try
+            {
+                Directory.CreateDirectory(Paths.Base);
+                File.WriteAllText(FilePath, JsonSerializer.Serialize(new ServerInfo { PlaceId = placeId, JobId = jobId, Time = DateTime.Now }));
+            }
+            catch { }
+        }
+
+        public static ServerInfo? Load()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return null;
+                var s = JsonSerializer.Deserialize<ServerInfo>(File.ReadAllText(FilePath));
+                return s != null && s.PlaceId > 0 && Guid.TryParse(s.JobId, out _) ? s : null;
+            }
+            catch { return null; }
+        }
+    }
+
+    // Checks friends every 90 seconds (one small request) and tells the app when one starts playing
+    static class FriendWatcher
+    {
+        static System.Windows.Forms.Timer? timer;
+        static List<long> friendIds = new();
+        static DateTime idsLoaded;
+        static long idsFor;
+        static readonly Dictionary<long, string> names = new();
+        static Dictionary<long, (int Type, long Place)> last = new();
+        static bool first = true, busy;
+        public static event Action<FriendPresence, string>? FriendStartedPlaying;
+
+        static Mutex? owner;
+
+        public static void Start()
+        {
+            if (timer != null) return;
+            try
+            {
+                owner = new Mutex(true, @"Local\GuideStrapFriendWatcher", out bool mine);
+                if (!mine) { owner.Dispose(); owner = null; return; }
+            }
+            catch { owner = null; }
+            // first check after 15 seconds, then every 90 (ticks run on the UI thread)
+            timer = new System.Windows.Forms.Timer { Interval = 15_000 };
+            timer.Tick += async (_, _) =>
+            {
+                if (timer != null) timer.Interval = 90_000;
+                await PollAsync();
+            };
+            timer.Start();
+        }
+
+        public static void Stop()
+        {
+            timer?.Stop();
+            timer?.Dispose();
+            timer = null;
+            try { owner?.ReleaseMutex(); } catch { }
+            owner?.Dispose();
+            owner = null;
+        }
+
+        static async Task PollAsync()
+        {
+            if (busy) return;
+            busy = true;
+            try
+            {
+                var s = AppSettings.Load();
+                var acc = s.FriendAlerts && s.ActiveAccountId != null
+                    ? AccountStore.Load().FirstOrDefault(a => a.UserId == s.ActiveAccountId) : null;
+                if (acc == null)
+                {
+                    last.Clear();
+                    first = true;
+                    return;
+                }
+                if (idsFor != acc.UserId)
+                {
+                    idsFor = acc.UserId;
+                    friendIds.Clear();
+                    last.Clear();
+                    first = true;
+                }
+                if (friendIds.Count == 0 || DateTime.Now - idsLoaded > TimeSpan.FromMinutes(10))
+                {
+                    friendIds = await RobloxApi.GetFriendIdsAsync(acc.UserId, acc.Cookie);
+                    idsLoaded = DateTime.Now;
+                }
+                if (friendIds.Count == 0) return;
+
+                var presence = await RobloxApi.GetPresenceAsync(acc.Cookie, friendIds);
+                var now = new Dictionary<long, (int Type, long Place)>();
+                var started = new List<FriendPresence>();
+                foreach (var f in presence)
+                {
+                    long place = f.RootPlaceId ?? f.PlaceId ?? 0;
+                    now[f.UserId] = (f.Type, place);
+                    if (first || f.Type != 2) continue;
+                    bool same = last.TryGetValue(f.UserId, out var before) && before.Type == 2 && before.Place == place;
+                    if (!same) started.Add(f);
+                }
+                last = now;
+                first = false;
+                if (started.Count == 0) return;
+                await RobloxApi.FillNamesAsync(started.Select(f => f.UserId), names);
+                var pick = started[0];
+                FriendStartedPlaying?.Invoke(pick, names.GetValueOrDefault(pick.UserId, L.T("A friend")));
+            }
+            catch { }
+            finally { busy = false; }
+        }
+    }
+
+    // Gives memory back to Windows when GuideStrap is only sitting in the tray
+    static class MemoryTrim
+    {
+        [DllImport("psapi.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool EmptyWorkingSet(IntPtr process);
+
+        public static void Now()
+        {
+            try
+            {
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+                GC.Collect();
+                using var me = Process.GetCurrentProcess();
+                EmptyWorkingSet(me.Handle);
+            }
+            catch { }
+        }
+    }
+
+    // Small popup in the bottom-right corner that doesn't steal focus
+    class ToastForm : ThemedForm
+    {
+        readonly System.Windows.Forms.Timer life = new() { Interval = 9000 };
+
+        public ToastForm(string title, string message, string? button, Action? onButton)
+        {
+            ShowInTaskbar = false;
+            TopMost = true;
+            StartPosition = FormStartPosition.Manual;
+            Text = "GuideStrap";
+
+            int w = D(340), pad = D(16);
+            var t = Lbl(title, 10f, semibold: true);
+            t.Location = new Point(pad, D(12));
+            var m = Lbl(message, 8.75f, Theme.SubText);
+            m.AutoSize = false;
+            int textW = w - pad * 2 - D(16);
+            var size = TextRenderer.MeasureText(m.Text, m.Font, new Size(textW, 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            m.Size = new Size(textW, size.Height + D(2));
+            m.Location = new Point(pad, D(36));
+            var x = new RoundButton
+            {
+                Icon = "\uE8BB", Size = new Size(D(26), D(26)), Location = new Point(w - D(34), D(8)), Radius = 6,
+                BaseColor = Color.Transparent, HoverColor = Theme.NavHover, ForeColor = Theme.SubText, Font = new Font("Segoe UI", 7f),
+            };
+            x.Click += (_, _) => Close();
+            Controls.Add(t);
+            Controls.Add(m);
+            Controls.Add(x);
+            int y = m.Bottom + D(12);
+            if (button != null && onButton != null)
+            {
+                var b = Primary(button, "", D(110), D(28));
+                b.Location = new Point(pad, y);
+                b.Click += (_, _) => { onButton(); Close(); };
+                Controls.Add(b);
+                y += D(28) + D(14);
+            }
+            ClientSize = new Size(w, y);
+            var area = System.Windows.Forms.Screen.PrimaryScreen?.WorkingArea ?? new Rectangle(0, 0, 1280, 720);
+            Location = new Point(area.Right - w - D(16), area.Bottom - y - D(16));
+            life.Tick += (_, _) => { life.Stop(); Close(); };
+            Shown += (_, _) => life.Start();
+        }
+
+        protected override bool ShowWithoutActivation => true;
+
+        protected override CreateParams CreateParams
+        {
+            get
+            {
+                var cp = base.CreateParams;
+                cp.ExStyle |= 0x08000000 | 0x80;   // no activate, tool window (no taskbar button, no Alt+Tab)
+                return cp;
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) life.Dispose();
+            base.Dispose(disposing);
+        }
+    }
+
+    class GalleryItem
+    {
+        public string Name { get; set; } = "";
+        public string Type { get; set; } = "";
+        public string Author { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Url { get; set; } = "";
+        public string? Preview { get; set; }
+    }
+
+    class GalleryIndex
+    {
+        public List<GalleryItem> Items { get; set; } = new();
+    }
+
+    // MOD GALLERY: a list kept in GuideStrap's GitHub repo, installed with one click
+    class GalleryForm : ThemedForm
+    {
+        const long MaxBytes = 60_000_000;
+        readonly Action<Action<AppSettings>> apply;
+        readonly Label status;
+        readonly Panel list;
+        readonly List<Image> images = new();
+
+        public GalleryForm(Action<Action<AppSettings>> apply)
+        {
+            this.apply = apply;
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            CloseOnEscape = true;
+            Text = L.T("Mod gallery");
+
+            int w = D(580), pad = D(20);
+            var bar = BuildTitleBar("Mod gallery", false);
+            int y = D(36) + D(8);
+            Controls.Add(At(Lbl("Mod gallery", 13f, semibold: true), pad, y));
+            y += D(30);
+            status = Lbl("Loading the gallery...", 9f, Theme.SubText);
+            status.Location = new Point(pad, y);
+            Controls.Add(status);
+            y += D(28);
+            list = new Panel { Location = new Point(pad, y), Size = new Size(w - pad * 2, D(390)), AutoScroll = true, BackColor = Theme.Bg };
+            Controls.Add(list);
+            y += list.Height + D(10);
+            var note = Lbl("Only cosmetic files: images, skies and sounds. Everything installs into GuideStrap's copy of Roblox.", 8.5f, Theme.SubText);
+            note.AutoSize = false;
+            note.Size = new Size(w - pad * 2, D(34));
+            note.Location = new Point(pad, y);
+            Controls.Add(note);
+            y += D(34);
+            Controls.Add(bar);
+            ClientSize = new Size(w, y + pad);
+            Shown += async (_, _) => await LoadAsync();
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) foreach (var i in images) i.Dispose();
+            base.Dispose(disposing);
+        }
+
+        static string TypeName(string type) => type switch
+        {
+            "sky" => "Sky",
+            "cursor" => "Cursor",
+            "crosshair" => "Crosshair",
+            _ => "Sound pack",
+        };
+
+        async Task LoadAsync()
+        {
+            try
+            {
+                string json = await RobloxApi.Http.GetStringAsync(AppInfo.GalleryUrl);
+                var index = JsonSerializer.Deserialize<GalleryIndex>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var items = (index?.Items ?? new())
+                    .Where(i => i.Url.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                    .Where(i => i.Type.ToLowerInvariant() is "sky" or "cursor" or "crosshair" or "soundpack")
+                    .ToList();
+                if (IsDisposed) return;
+                status.Text = items.Count == 0 ? L.T("The gallery is empty right now.") : L.F("{0} mods", items.Count);
+                int cardW = list.Width - SystemInformation.VerticalScrollBarWidth - D(4);
+                int ly = 0;
+                foreach (var item in items)
+                {
+                    var card = ItemCard(item, cardW);
+                    card.Location = new Point(0, ly);
+                    list.Controls.Add(card);
+                    ly += card.Height + D(8);
+                }
+            }
+            catch
+            {
+                if (!IsDisposed) status.Text = L.T("Couldn't load the gallery. Check your internet and try again.");
+            }
+        }
+
+        Card ItemCard(GalleryItem item, int width)
+        {
+            string type = item.Type.ToLowerInvariant();
+            var card = new Card { Size = new Size(width, D(80)) };
+            var pic = new PictureBox
+            {
+                Size = new Size(D(52), D(52)), Location = new Point(D(14), D(14)),
+                SizeMode = PictureBoxSizeMode.Zoom, BackColor = Theme.Input,
+            };
+            var name = At(Lbl(item.Name, 10f, semibold: true), D(80), D(10));
+            name.UseMnemonic = false;
+            var sub = At(Lbl(L.T(TypeName(type)) + (item.Author.Length > 0 ? "  \u00B7  " + L.F("by {0}", item.Author) : ""), 8.5f, Theme.AccentLight), D(80), D(33));
+            var desc = Lbl(item.Description, 8.5f, Theme.SubText);
+            desc.AutoSize = false;
+            desc.AutoEllipsis = true;
+            desc.Size = new Size(width - D(80) - D(140), D(18));
+            desc.Location = new Point(D(80), D(53));
+            var install = Primary("Install", "\uE896", D(110), D(30));
+            install.Location = new Point(width - D(126), D(25));
+            install.Click += async (_, _) =>
+            {
+                install.Enabled = false;
+                install.Text = L.T("Installing...");
+                try
+                {
+                    await InstallAsync(item, type);
+                    install.Text = L.T("Installed");
+                }
+                catch (Exception ex)
+                {
+                    install.Text = L.T("Install");
+                    install.Enabled = true;
+                    Ask("Couldn't install that", ex.Message, "OK");
+                }
+            };
+            card.Controls.AddRange(new Control[] { pic, name, sub, desc, install });
+
+            string? previewUrl = item.Preview ?? (type is "cursor" or "crosshair" ? item.Url : null);
+            if (previewUrl != null && previewUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+                _ = LoadPreviewAsync(pic, previewUrl);
+            return card;
+        }
+
+        async Task LoadPreviewAsync(PictureBox pic, string url)
+        {
+            try
+            {
+                byte[] data = await RobloxApi.Http.GetByteArrayAsync(url);
+                if (data.Length > 4_000_000) return;
+                using var ms = new MemoryStream(data);
+                using var img = Image.FromStream(ms);
+                var copy = new Bitmap(img);
+                if (pic.IsDisposed) { copy.Dispose(); return; }
+                images.Add(copy);
+                pic.Image = copy;
+            }
+            catch { }
+        }
+
+        static async Task<byte[]> DownloadAsync(string url)
+        {
+            using var resp = await RobloxApi.Http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+            resp.EnsureSuccessStatusCode();
+            if (resp.Content.Headers.ContentLength > MaxBytes) throw new Exception(L.T("That mod is too big."));
+            byte[] data = await resp.Content.ReadAsByteArrayAsync();
+            if (data.Length > MaxBytes) throw new Exception(L.T("That mod is too big."));
+            return data;
+        }
+
+        // Files in a zip with the given extensions. A single top folder is removed, so "Pack/ouch.ogg" becomes "ouch.ogg".
+        static List<(string Path, byte[] Data)> ReadZip(byte[] zipData, params string[] extensions)
+        {
+            var files = new List<(string Path, byte[] Data)>();
+            using (var zip = new ZipArchive(new MemoryStream(zipData)))
+            {
+                foreach (var entry in zip.Entries)
+                {
+                    string rel = entry.FullName.Replace('\\', '/').TrimStart('/');
+                    if (rel.Length == 0 || rel.EndsWith('/') || rel.Contains("..")) continue;
+                    if (!extensions.Any(e => rel.EndsWith(e, StringComparison.OrdinalIgnoreCase))) continue;
+                    if (entry.Length > 30_000_000) continue;
+                    using var es = entry.Open();
+                    using var ms = new MemoryStream();
+                    es.CopyTo(ms);
+                    files.Add((rel, ms.ToArray()));
+                }
+            }
+            if (files.Count > 0 && files.All(f => f.Path.Contains('/')))
+            {
+                string top = files[0].Path[..files[0].Path.IndexOf('/')];
+                if (files.All(f => f.Path.StartsWith(top + "/", StringComparison.OrdinalIgnoreCase)))
+                    files = files.Select(f => (f.Path[(top.Length + 1)..], f.Data)).ToList();
+            }
+            return files;
+        }
+
+        static string SafeName(string name)
+        {
+            var bad = Path.GetInvalidFileNameChars();
+            string clean = new string(name.Where(c => !bad.Contains(c)).ToArray()).Trim().TrimEnd('.');
+            if (clean.Length > 40) clean = clean[..40];
+            return clean.Length == 0 ? "Pack" : clean;
+        }
+
+        async Task InstallAsync(GalleryItem item, string type)
+        {
+            byte[] data = await DownloadAsync(item.Url);
+            switch (type)
+            {
+                case "cursor":
+                case "crosshair":
+                {
+                    string tmp = Path.Combine(Path.GetTempPath(), "guidestrap-" + Guid.NewGuid().ToString("N") + ".png");
+                    await File.WriteAllBytesAsync(tmp, data);
+                    try
+                    {
+                        bool ok = type == "cursor" ? ModAssets.ImportCustomCursor(tmp) : ModAssets.ImportCustomCrosshair(tmp);
+                        if (!ok) throw new Exception(L.T("That image couldn't be read."));
+                    }
+                    finally { try { File.Delete(tmp); } catch { } }
+                    if (type == "cursor") apply(s => s.CursorPreset = "custom");
+                    else apply(s => s.CrosshairPreset = "custom");
+                    break;
+                }
+                case "sky":
+                {
+                    var tex = ReadZip(data, ".tex");
+                    if (tex.Count == 0) throw new Exception(L.T("That sky pack has no .tex files."));
+                    if (Directory.Exists(Paths.Sky)) Directory.Delete(Paths.Sky, true);
+                    Directory.CreateDirectory(Paths.Sky);
+                    foreach (var (path, bytes) in tex)
+                        await File.WriteAllBytesAsync(Path.Combine(Paths.Sky, Path.GetFileName(path)), bytes);
+                    apply(s => s.CustomSky = true);
+                    break;
+                }
+                default:
+                {
+                    var sounds = ReadZip(data, ".ogg", ".mp3");
+                    if (sounds.Count == 0) throw new Exception(L.T("That sound pack has no .ogg or .mp3 files."));
+                    string name = SafeName(item.Name);
+                    string dir = Path.Combine(Paths.SoundPacks, name);
+                    string root = Path.GetFullPath(dir) + Path.DirectorySeparatorChar;
+                    if (Directory.Exists(dir)) Directory.Delete(dir, true);
+                    foreach (var (path, bytes) in sounds)
+                    {
+                        string dest = Path.GetFullPath(Path.Combine(dir, path));
+                        if (!dest.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+                        Directory.CreateDirectory(Path.GetDirectoryName(dest)!);
+                        await File.WriteAllBytesAsync(dest, bytes);
+                    }
+                    apply(s => s.SoundPack = name);
+                    break;
+                }
+            }
+        }
+    }
+
+    class CrashInfo
+    {
+        public uint Code { get; init; }
+        public bool WhileStarting { get; init; }
+        public string? Clue { get; init; }   // "gpu" or "memory", read from Roblox's log
+    }
+
+    // Notices when Roblox closes with an error code instead of closing normally.
+    // Keeps a lightweight handle to each Roblox process so the exit code can be read after it closes.
+    static class CrashWatch
+    {
+        const uint QueryLimited = 0x1000, StillActive = 259;
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool GetExitCodeProcess(IntPtr process, out uint code);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool CloseHandle(IntPtr handle);
+
+        static readonly Dictionary<int, (IntPtr Handle, DateTime Seen)> tracked = new();
+        static readonly List<(uint Code, bool Early)> exits = new();
+        static readonly Queue<string> lines = new();
+
+        // Normal closes, leaving a game and Task Manager use small codes. Real crashes use Windows error codes.
+        // 0xFFFFFFFF (-1) is what tools use when they force-close a program, so it doesn't count.
+        public static bool IsCrash(uint code) => code >= 0x80000000 && code != 0xFFFFFFFF;
+
+        public static void Begin()
+        {
+            CloseAll();
+            exits.Clear();
+            lines.Clear();
+        }
+
+        public static void Line(string line)
+        {
+            lines.Enqueue(line);
+            while (lines.Count > 80) lines.Dequeue();
+        }
+
+        public static void Poll()
+        {
+            try
+            {
+                foreach (var p in Process.GetProcessesByName("RobloxPlayerBeta"))
+                {
+                    using (p)
+                    {
+                        if (tracked.ContainsKey(p.Id)) continue;
+                        IntPtr h = OpenProcess(QueryLimited, false, p.Id);
+                        if (h != IntPtr.Zero) tracked[p.Id] = (h, DateTime.Now);
+                    }
+                }
+                foreach (var kv in tracked.ToList())
+                {
+                    var (handle, seen) = kv.Value;
+                    bool ok = GetExitCodeProcess(handle, out uint code);
+                    if (ok && code == StillActive) continue;
+                    if (ok) exits.Add((code, DateTime.Now - seen < TimeSpan.FromSeconds(25)));
+                    CloseHandle(handle);
+                    tracked.Remove(kv.Key);
+                }
+            }
+            catch { }
+        }
+
+        public static CrashInfo? End(bool report)
+        {
+            if (report) Poll();
+            CloseAll();
+            if (!report) return null;
+            var crashes = exits.Where(e => IsCrash(e.Code)).ToList();
+            if (crashes.Count == 0) return null;
+            var last = crashes[^1];
+            return new CrashInfo { Code = last.Code, WhileStarting = last.Early, Clue = Clue() };
+        }
+
+        // For a crash right after launch, before the watcher started
+        public static CrashInfo? FromExitCode(uint code) =>
+            IsCrash(code) ? new CrashInfo { Code = code, WhileStarting = true } : null;
+
+        static void CloseAll()
+        {
+            foreach (var t in tracked.Values) CloseHandle(t.Handle);
+            tracked.Clear();
+        }
+
+        static string? Clue()
+        {
+            string text = string.Join("\n", lines).ToLowerInvariant();
+            if (text.Contains("device_removed") || text.Contains("device removed") || text.Contains("device lost") || text.Contains("device_lost"))
+                return "gpu";
+            if (text.Contains("out of memory") || text.Contains("outofmemory"))
+                return "memory";
+            return null;
+        }
+    }
+
+    // "Roblox crashed" window: the error, then fixes in order, with one-click buttons where possible
+    class CrashForm : ThemedForm
+    {
+        sealed record Fix(string Title, string Desc, string? Button, Func<string?>? Run);
+
+        public CrashForm(CrashInfo info)
+        {
+            StartPosition = FormStartPosition.CenterScreen;
+            CloseOnEscape = true;
+            Text = L.T("Roblox crashed");
+
+            int w = D(480), pad = D(20);
+            var bar = BuildTitleBar("Roblox crashed", false);
+            int y = D(36) + D(8);
+            Controls.Add(At(Lbl(info.WhileStarting ? "Roblox crashed while starting" : "Roblox crashed", 13f, semibold: true), pad, y));
+            y += D(32);
+            Controls.Add(At(Lbl(L.F("Error {0}: {1}", $"0x{info.Code:X8}", L.T(CodeName(info.Code))), 9f, Theme.SubText), pad, y));
+            y += D(22);
+            Controls.Add(At(Lbl("Try these fixes, starting with the first one.", 9f, Theme.SubText), pad, y));
+            y += D(30);
+
+            var fixes = BuildFixes(info);
+            var list = new Panel { Location = new Point(pad, y), Width = w - pad * 2, AutoScroll = true, BackColor = Theme.Bg };
+            int total = fixes.Sum(f => { using var probe = FixCard(f, list.Width); return probe.Height + D(8); });
+            int cardW = total > D(400) ? list.Width - SystemInformation.VerticalScrollBarWidth - D(4) : list.Width;
+            int ly = 0;
+            foreach (var fix in fixes)
+            {
+                var card = FixCard(fix, cardW);
+                card.Location = new Point(0, ly);
+                list.Controls.Add(card);
+                ly += card.Height + D(8);
+            }
+            list.Height = Math.Min(ly, D(400));
+            Controls.Add(list);
+            y += list.Height + D(8);
+
+            var logs = Secondary("Open Roblox logs", "\uE8B7", D(160), D(30));
+            logs.Location = new Point(pad, y);
+            logs.Click += (_, _) =>
+            {
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Roblox", "logs");
+                if (Directory.Exists(dir)) Process.Start(new ProcessStartInfo(dir) { UseShellExecute = true });
+            };
+            var close = Primary("Close", "", D(96), D(30));
+            close.Location = new Point(w - pad - D(96), y);
+            close.Click += (_, _) => Close();
+            Controls.Add(logs);
+            Controls.Add(close);
+            y += D(30) + pad;
+
+            Controls.Add(bar);
+            ClientSize = new Size(w, y);
+        }
+
+        protected override void OnShown(EventArgs e)
+        {
+            base.OnShown(e);
+            Activate();
+        }
+
+        static string CodeName(uint code) => code switch
+        {
+            0xC0000005 => "memory access error",
+            0xC0000409 => "Roblox stopped itself (security check)",
+            0xC00000FD => "stack overflow",
+            0xC0000374 => "memory corruption",
+            0xC0000017 or 0xC000012D => "out of memory",
+            0xE06D7363 => "unhandled error",
+            0x887A0005 or 0x887A0006 or 0x887A0007 => "the graphics driver stopped responding",
+            0x80000003 => "internal error",
+            _ => "unknown error",
+        };
+
+        Card FixCard(Fix fix, int width)
+        {
+            var card = new Card { Size = new Size(width, D(60)) };
+            int btnW = 0;
+            if (fix.Button != null)
+                btnW = Math.Max(D(96), TextRenderer.MeasureText(L.T(fix.Button), Theme.F("Segoe UI Semibold", 9f)).Width + D(30));
+            int textW = width - D(32) - (btnW > 0 ? btnW + D(12) : 0);
+
+            var title = Lbl(fix.Title, 9.75f, semibold: true);
+            title.Location = new Point(D(16), D(10));
+            var desc = Lbl(fix.Desc, 8.75f, Theme.SubText);
+            desc.AutoSize = false;
+            var size = TextRenderer.MeasureText(desc.Text, desc.Font, new Size(textW, 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            desc.Size = new Size(textW, size.Height + D(2));
+            desc.Location = new Point(D(16), D(32));
+            card.Height = Math.Max(D(60), desc.Bottom + D(12));
+            card.Controls.Add(title);
+            card.Controls.Add(desc);
+
+            if (fix.Button != null && fix.Run != null)
+            {
+                var b = Secondary(fix.Button, "", btnW, D(30));
+                b.Location = new Point(width - D(16) - btnW, (card.Height - D(30)) / 2);
+                b.Click += (_, _) =>
+                {
+                    string? result = fix.Run();
+                    if (result == null) return;
+                    b.Text = L.T(result);
+                    b.Enabled = false;
+                };
+                card.Controls.Add(b);
+            }
+            return card;
+        }
+
+        static void ChangeSettings(Action<AppSettings> change)
+        {
+            var open = Application.OpenForms.OfType<Form1>().FirstOrDefault();
+            if (open != null) { open.ChangeSettings(change); return; }
+            var s = AppSettings.Load();
+            change(s);
+            s.Save();
+        }
+
+        static bool HasMods(AppSettings s)
+        {
+            if (s.DeathSoundFile != null || s.FontFile != null || s.CustomSky || s.SoundPack != null ||
+                s.CursorPreset != "default" || s.CrosshairPreset != "default" || s.FootstepSound != "default" || s.JumpSound != "default")
+                return true;
+            try { return Directory.Exists(Paths.Mods) && Directory.EnumerateFiles(Paths.Mods, "*", SearchOption.AllDirectories).Any(); }
+            catch { return false; }
+        }
+
+        List<Fix> BuildFixes(CrashInfo info)
+        {
+            var s = AppSettings.Load();
+            var fixes = new List<Fix>();
+            uint c = info.Code;
+            bool gpu = info.Clue == "gpu" || c is 0x887A0005 or 0x887A0006 or 0x887A0007;
+            bool memory = info.Clue == "memory" || c is 0xC0000017 or 0xC000012D;
+            bool security = c == 0xC0000409;
+            var last = LastServer.Load();
+            if (last != null && DateTime.Now - last.Time < TimeSpan.FromMinutes(20) && GuideStrapContext.Current is GuideStrapContext ctx)
+                fixes.Add(new Fix("Rejoin your server", "Jump straight back into the server you were in, if it's still running.", "Rejoin", () =>
+                {
+                    ctx.Open(new LoadingForm(ctx, AppSettings.Load(), AccountStore.Load(), null, last.PlaceId.ToString(), last.JobId));
+                    Close();
+                    return null;
+                }));
+            var overlays = new Fix("Close overlays and macro tools",
+                "Roblox closes itself when another program hooks into it, like FPS unlockers, macros, cheats or some recording overlays.", null, null);
+
+            if (gpu || c == 0xC0000005)
+            {
+                bool onD3D = s.Flags.TryGetValue(FF.D3D11, out var v) && v.Equals("True", StringComparison.OrdinalIgnoreCase);
+                fixes.Add(new Fix("Switch the rendering API",
+                    onD3D ? "Your graphics driver may not like Direct3D 11. Try Vulkan next time." : "Your graphics driver may not like the current one. Try Direct3D 11 next time.",
+                    onD3D ? "Use Vulkan" : "Use D3D11", () =>
+                    {
+                        ChangeSettings(x =>
+                        {
+                            x.Flags.Remove(FF.D3D11);
+                            x.Flags.Remove(FF.Vulkan);
+                            x.Flags.Remove(FF.OpenGL);
+                            x.Flags[onD3D ? FF.Vulkan : FF.D3D11] = "True";
+                            x.Preset = -1;
+                        });
+                        return "Done";
+                    }));
+            }
+            if (memory)
+                fixes.Add(new Fix("Free up memory", "Close browser tabs and other games, and turn on Potato mode in Graphics.", null, null));
+            if (security)
+                fixes.Add(overlays);
+            if (HasMods(s))
+                fixes.Add(new Fix("Launch once without mods",
+                    "A mod or custom font can break after a Roblox update. Your mods stay saved and come back the launch after.", "Skip mods", () =>
+                    {
+                        try
+                        {
+                            Directory.CreateDirectory(Paths.Base);
+                            File.WriteAllText(Paths.SkipModsMarker, "");
+                            return "Done";
+                        }
+                        catch { return null; }
+                    }));
+            if (s.Flags.Count > 0)
+                fixes.Add(new Fix("Reset FastFlags",
+                    "A flag can stop working after a Roblox update. This clears your flags and sets Graphics back to Balanced.", "Reset flags", () =>
+                    {
+                        ChangeSettings(x => { x.Flags.Clear(); x.Preset = 2; });
+                        return "Done";
+                    }));
+            if (s.MultiInstance)
+                fixes.Add(new Fix("Turn off multiple Roblox windows", "Running more than one Roblox at once can make it crash.", "Turn off", () =>
+                {
+                    ChangeSettings(x => x.MultiInstance = false);
+                    return "Done";
+                }));
+            fixes.Add(new Fix("Update your graphics driver",
+                "Get the newest driver from NVIDIA, AMD or Intel. Old drivers are the most common cause of crashes.", null, null));
+            fixes.Add(new Fix("Repair Roblox",
+                "Downloads a fresh copy of Roblox next time you launch. Fixes broken or half-updated files.", "Repair", () =>
+                {
+                    try
+                    {
+                        if (Directory.Exists(Paths.Versions)) Directory.Delete(Paths.Versions, true);
+                        return "Done";
+                    }
+                    catch
+                    {
+                        Ask("Close Roblox first", "Roblox is still using its files. Close every Roblox window, then press Repair again.", "OK");
+                        return null;
+                    }
+                }));
+            if (!security)
+                fixes.Add(overlays);
+            return fixes;
+        }
+    }
+
+    // Windows-side and Roblox-settings tweaks used at launch
+    static class RobloxTweaks
+    {
+        static bool RobloxRunning()
+        {
+            var procs = Process.GetProcessesByName("RobloxPlayerBeta");
+            foreach (var p in procs) p.Dispose();
+            return procs.Length > 0;
+        }
+
+        // Roblox's own max frame rate setting (the same one as in its menu). Only written while Roblox is
+        // closed, because Roblox saves this file when it exits and would overwrite the change.
+        public static void SetFpsCap(int fps)
+        {
+            try
+            {
+                if (RobloxRunning()) return;
+                string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Roblox");
+                if (!Directory.Exists(dir)) return;
+                string? file = Directory.GetFiles(dir, "GlobalBasicSettings_*.xml")
+                    .Where(f => !Path.GetFileName(f).Contains("Studio", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(f => File.GetLastWriteTimeUtc(f))
+                    .FirstOrDefault();
+                if (file == null) return;
+                string xml = File.ReadAllText(file);
+                var re = new Regex(@"(<int name=""FramerateCap"">)-?\d+(</int>)");
+                if (!re.IsMatch(xml)) return;
+                string updated = re.Replace(xml, m => m.Groups[1].Value + fps + m.Groups[2].Value, 1);
+                if (updated != xml) File.WriteAllText(file, updated);
+            }
+            catch { }
+        }
+
+        // Gives Roblox more CPU time. Checks for a little while because Roblox can take a moment to start.
+        public static void BoostPriority(ProcessPriorityClass level)
+        {
+            _ = Task.Run(async () =>
+            {
+                for (int i = 0; i < 15; i++)
+                {
+                    await Task.Delay(2000);
+                    foreach (var p in Process.GetProcessesByName("RobloxPlayerBeta"))
+                    {
+                        using (p)
+                        {
+                            try { if (!p.HasExited && p.PriorityClass != level) p.PriorityClass = level; }
+                            catch { }
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    // Shows a made-up brick wall and grass tile, normal vs blurry textures
+    class TexturePreviewForm : ThemedForm
+    {
+        readonly List<Bitmap> images = new();
+
+        public TexturePreviewForm()
+        {
+            StartPosition = FormStartPosition.CenterParent;
+            ShowInTaskbar = false;
+            CloseOnEscape = true;
+            Text = L.T("Texture preview");
+
+            int tile = D(150), pad = D(20), gap = D(12);
+            var bar = BuildTitleBar("Texture preview", false);
+            int y = D(36) + D(8);
+            string[] cols = { "Normal", "Blurry textures" };
+            for (int c = 0; c < 2; c++)
+                Controls.Add(At(Lbl(cols[c], 9f, Theme.SubText), pad + c * (tile + gap), y));
+            y += D(22);
+
+            using var brick = MakeBrick(256);
+            using var grass = MakeGrass(256);
+            foreach (var src in new[] { brick, grass })
+            {
+                for (int c = 0; c < 2; c++)
+                {
+                    Bitmap img;
+                    if (c == 0) img = ScaleTo(src, tile);
+                    else
+                    {
+                        using var small = ScaleTo(src, 12);
+                        img = ScaleTo(small, tile);
+                    }
+                    images.Add(img);
+                    Controls.Add(new PictureBox
+                    {
+                        Image = img, Size = new Size(tile, tile), Location = new Point(pad + c * (tile + gap), y),
+                        SizeMode = PictureBoxSizeMode.Normal, BackColor = Theme.Card,
+                    });
+                }
+                y += tile + gap;
+            }
+
+            var note = Lbl("Made-up example. In real games the blur looks the same, the textures just differ.", 8.5f, Theme.SubText);
+            note.AutoSize = false;
+            note.Size = new Size(tile * 2 + gap, D(34));
+            note.Location = new Point(pad, y);
+            Controls.Add(note);
+            y += D(34);
+
+            Controls.Add(bar);
+            ClientSize = new Size(pad * 2 + tile * 2 + gap, y + pad);
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) foreach (var b in images) b.Dispose();
+            base.Dispose(disposing);
+        }
+
+        static Bitmap ScaleTo(Bitmap src, int size)
+        {
+            var bmp = new Bitmap(size, size);
+            using var g = Graphics.FromImage(bmp);
+            using var attr = new System.Drawing.Imaging.ImageAttributes();
+            attr.SetWrapMode(WrapMode.TileFlipXY);
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.DrawImage(src, new Rectangle(0, 0, size, size), 0, 0, src.Width, src.Height, GraphicsUnit.Pixel, attr);
+            return bmp;
+        }
+
+        static Bitmap MakeBrick(int s)
+        {
+            var bmp = new Bitmap(s, s);
+            var r = new Random(7);
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Color.FromArgb(185, 178, 166));
+            int bh = s / 8, bw = s / 4;
+            using var dot = new SolidBrush(Color.FromArgb(50, 0, 0, 0));
+            for (int y = 0; y < s; y += bh)
+            {
+                int off = (y / bh) % 2 == 1 ? bw / 2 : 0;
+                for (int x = -bw; x < s + bw; x += bw)
+                {
+                    int v = r.Next(-20, 21);
+                    using (var b = new SolidBrush(Color.FromArgb(150 + v, 68 + v / 2, 52 + v / 2)))
+                        g.FillRectangle(b, x + off + 3, y + 3, bw - 6, bh - 6);
+                    for (int i = 0; i < 40; i++)
+                        g.FillRectangle(dot, x + off + 3 + r.Next(0, bw - 8), y + 3 + r.Next(0, bh - 8), 2, 2);
+                }
+            }
+            return bmp;
+        }
+
+        static Bitmap MakeGrass(int s)
+        {
+            var bmp = new Bitmap(s, s);
+            var r = new Random(3);
+            using var g = Graphics.FromImage(bmp);
+            g.Clear(Color.FromArgb(79, 138, 46));
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            for (int i = 0; i < 1800; i++)
+            {
+                float x = (float)r.NextDouble() * s, y = (float)r.NextDouble() * s, len = 4 + (float)r.NextDouble() * 9;
+                int v = r.Next(-30, 31);
+                using var p = new Pen(Color.FromArgb(70 + v, 140 + v, 45 + v / 2), 1.5f);
+                g.DrawLine(p, x, y, x + ((float)r.NextDouble() - 0.5f) * 4, y - len);
+            }
+            return bmp;
+        }
+    }
+
     static class ModAssets
     {
         public static string? CursorDir(AppSettings s) => s.CursorPreset switch
         {
-            "guidestrap" or "dot" => EnsurePreset(s.CursorPreset),
+            "guidestrap" or "dot" or "cross" or "circle" or "classic" => EnsurePreset(s.CursorPreset),
             "custom" => File.Exists(Path.Combine(Paths.Managed, "cursor-custom", "ArrowCursor.png")) ? Path.Combine(Paths.Managed, "cursor-custom") : null,
             _ => null,
         };
@@ -4507,12 +6699,19 @@ namespace GuideStrap
                     {
                         g.Clear(Color.Transparent);
                         g.SmoothingMode = SmoothingMode.AntiAlias;
-                        if (name == "dot")
+                        if (name is "dot" or "cross" or "circle")
                         {
-                            using var outline = new SolidBrush(Color.FromArgb(220, 0, 0, 0));
-                            g.FillEllipse(outline, 32 - 5f, 32 - 5f, 10, 10);
+                            DrawMark(g, name);
+                        }
+                        else if (name == "classic")
+                        {
+                            var pts = new[] { new PointF(0, 0), new PointF(0, 19), new PointF(5, 14.5f), new PointF(8.5f, 22),
+                                              new PointF(12, 20.5f), new PointF(8.5f, 13), new PointF(14.5f, 13) };
+                            for (int i = 0; i < pts.Length; i++) pts[i] = new PointF(pts[i].X + 32, pts[i].Y + 32);
                             using var fill = new SolidBrush(Color.White);
-                            g.FillEllipse(fill, 32 - 3.5f, 32 - 3.5f, 7, 7);
+                            g.FillPolygon(fill, pts);
+                            using var pen = new Pen(Color.Black, 1.6f) { LineJoin = LineJoin.Round };
+                            g.DrawPolygon(pen, pts);
                         }
                         else
                         {
@@ -4532,6 +6731,134 @@ namespace GuideStrap
                 return dir;
             }
             catch { return null; }
+        }
+
+        // Small marks drawn white with a dark outline, centered in a 64x64 image (Roblox centers these)
+        static void DrawMark(Graphics g, string name)
+        {
+            const float c = 32f;
+            using var outline = new Pen(Color.FromArgb(220, 0, 0, 0), 3.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            using var white = new Pen(Color.White, 1.6f) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            switch (name)
+            {
+                case "dot":
+                    using (var o = new SolidBrush(Color.FromArgb(220, 0, 0, 0))) g.FillEllipse(o, c - 5f, c - 5f, 10, 10);
+                    using (var f = new SolidBrush(Color.White)) g.FillEllipse(f, c - 3.5f, c - 3.5f, 7, 7);
+                    break;
+                case "cross":
+                    foreach (var pen in new[] { outline, white })
+                    {
+                        g.DrawLine(pen, c - 9, c, c - 3, c);
+                        g.DrawLine(pen, c + 3, c, c + 9, c);
+                        g.DrawLine(pen, c, c - 9, c, c - 3);
+                        g.DrawLine(pen, c, c + 3, c, c + 9);
+                    }
+                    break;
+                case "circle":
+                    g.DrawEllipse(outline, c - 7, c - 7, 14, 14);
+                    g.DrawEllipse(white, c - 7, c - 7, 14, 14);
+                    break;
+            }
+        }
+
+        // Shift lock crosshair: content\textures\MouseLockedCursor.png
+        public static string? CrosshairFile(AppSettings s)
+        {
+            if (s.CrosshairPreset == "custom")
+            {
+                string custom = Path.Combine(Paths.Managed, "crosshair-custom", "MouseLockedCursor.png");
+                return File.Exists(custom) ? custom : null;
+            }
+            if (s.CrosshairPreset is not ("dot" or "cross" or "circle")) return null;
+            string dir = Path.Combine(Paths.Managed, "crosshair-" + s.CrosshairPreset);
+            string file = Path.Combine(dir, "MouseLockedCursor.png");
+            try
+            {
+                if (!File.Exists(file))
+                {
+                    Directory.CreateDirectory(dir);
+                    using var bmp = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                    using (var g = Graphics.FromImage(bmp))
+                    {
+                        g.Clear(Color.Transparent);
+                        g.SmoothingMode = SmoothingMode.AntiAlias;
+                        DrawMark(g, s.CrosshairPreset);
+                    }
+                    bmp.Save(file, System.Drawing.Imaging.ImageFormat.Png);
+                }
+                return file;
+            }
+            catch { return null; }
+        }
+
+        public static bool ImportCustomCrosshair(string source)
+        {
+            try
+            {
+                string dir = Path.Combine(Paths.Managed, "crosshair-custom");
+                Directory.CreateDirectory(dir);
+                using var src = Image.FromFile(source);
+                using var bmp = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+                using (var g = Graphics.FromImage(bmp))
+                {
+                    g.Clear(Color.Transparent);
+                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                    float scale = Math.Min(1f, Math.Min(64f / src.Width, 64f / src.Height));
+                    float w = src.Width * scale, h = src.Height * scale;
+                    g.DrawImage(src, (64 - w) / 2, (64 - h) / 2, w, h);
+                }
+                bmp.Save(Path.Combine(dir, "MouseLockedCursor.png"), System.Drawing.Imaging.ImageFormat.Png);
+                return true;
+            }
+            catch { return false; }
+        }
+
+        // Character sounds: muted = a tiny silent mp3, custom = the user's own file
+        public static readonly string SoundsDir = Path.Combine(Paths.Managed, "sounds");
+
+        const string SilentMp3 = "//sQxAADwAABpAAAACAAADSAAAAETEFNRTMuMTAwVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xLEKYPAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVX/+xDEU4PAAAGkAAAAIAAANIAAAARVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EsR9A8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/7EMSnA8AAAaQAAAAgAAA0gAAABFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV";
+
+        public static string? SoundFile(string mode, string kind)
+        {
+            try
+            {
+                if (mode == "mute")
+                {
+                    string silent = Path.Combine(SoundsDir, "silent.mp3");
+                    if (!File.Exists(silent))
+                    {
+                        Directory.CreateDirectory(SoundsDir);
+                        File.WriteAllBytes(silent, Convert.FromBase64String(SilentMp3));
+                    }
+                    return silent;
+                }
+                if (mode == "custom")
+                {
+                    string file = Path.Combine(SoundsDir, kind + ".mp3");
+                    return File.Exists(file) ? file : null;
+                }
+            }
+            catch { }
+            return null;
+        }
+
+        // Sound packs: one folder per pack in GuideStrap\SoundPacks, files go into content\sounds
+        public static List<string> SoundPacks()
+        {
+            try
+            {
+                if (!Directory.Exists(Paths.SoundPacks)) return new();
+                return Directory.GetDirectories(Paths.SoundPacks).Select(d => Path.GetFileName(d))
+                    .OrderBy(n => n, StringComparer.OrdinalIgnoreCase).ToList();
+            }
+            catch { return new(); }
+        }
+
+        public static string? SoundPackDir(AppSettings s)
+        {
+            if (string.IsNullOrEmpty(s.SoundPack) || s.SoundPack.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) return null;
+            string dir = Path.Combine(Paths.SoundPacks, s.SoundPack);
+            return Directory.Exists(dir) ? dir : null;
         }
 
         public static bool ImportCustomCursor(string source)
@@ -4773,7 +7100,7 @@ namespace GuideStrap
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
-            g.Clear(Parent?.BackColor ?? Theme.Card);
+            Theme.ClearToParent(this, g, Theme.Card);
             g.SmoothingMode = SmoothingMode.AntiAlias;
             for (int i = 0; i < Theme.Accents.Length; i++)
             {
@@ -4853,7 +7180,11 @@ namespace GuideStrap
     // Translations: English text is the key. Text with {0}, {1}... is matched as a template.
     static class L
     {
-        public static readonly (string Code, string Native)[] Languages = { ("en", "English"), ("es", "Español"), ("pt", "Português") };
+        public static readonly (string Code, string Native)[] Languages =
+        {
+            ("en", "English"), ("es", "Español"), ("pt", "Português"),
+            ("fr", "Français"), ("de", "Deutsch"), ("tr", "Türkçe"), ("fil", "Filipino"),
+        };
         static string lang = "en";
         static Dictionary<string, string>? table;
         static readonly List<(Regex Pattern, string Translation)> templates = new();
@@ -4874,7 +7205,8 @@ namespace GuideStrap
         public static string SystemLanguage()
         {
             string c = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
-            return c is "es" or "pt" ? c : "en";
+            if (c == "tl") c = "fil";
+            return Languages.Any(x => x.Code == c) ? c : "en";
         }
 
         static void Load()
@@ -4920,9 +7252,17 @@ namespace GuideStrap
     {
         public static Dictionary<string, string> For(string lang)
         {
-            int col = lang == "es" ? 1 : 2;
             var d = new Dictionary<string, string>(Data.Length);
-            foreach (var row in Data) d[row[0]] = row[col];
+            if (lang is "es" or "pt")
+            {
+                int col = lang == "es" ? 1 : 2;
+                foreach (var row in Data) d[row[0]] = row[col];
+            }
+            else
+            {
+                int col = lang switch { "fr" => 1, "de" => 2, "tr" => 3, "fil" => 4, _ => 0 };
+                if (col > 0) foreach (var row in More) d[row[0]] = row[col];
+            }
             return d;
         }
 
@@ -5019,7 +7359,7 @@ namespace GuideStrap
             new[] { "Pick a preset, or change settings one by one.", "Elige un preajuste o cambia los ajustes uno por uno.", "Escolha uma predefinição ou mude as configurações uma por uma." },
             new[] { "FastFlags", "FastFlags", "FastFlags" },
             new[] { "Flags from Roblox's allowlist.", "Flags de la lista permitida de Roblox.", "Flags da lista permitida do Roblox." },
-            new[] { "Text & Font", "Texto y fuente", "Texto e fonte" },
+            new[] { "Text fonts", "Fuentes de texto", "Fontes de texto" },
             new[] { "The font Roblox uses in-game.", "La fuente que Roblox usa en el juego.", "A fonte que o Roblox usa no jogo." },
             new[] { "Mods", "Mods", "Mods" },
             new[] { "Cosmetic file swaps. Only GuideStrap's copy of Roblox is changed.", "Cambios estéticos de archivos. Solo cambia la copia de Roblox de GuideStrap.", "Trocas visuais de arquivos. Só a cópia do Roblox do GuideStrap muda." },
@@ -5262,7 +7602,803 @@ namespace GuideStrap
             new[] { "Black", "Negro", "Preto" },
             new[] { "Purple, or plain black with no color.", "Morado, o negro sin color.", "Roxo, ou preto sem cor." },
             new[] { "The new theme shows after GuideStrap restarts.", "El nuevo tema se verá cuando GuideStrap se reinicie.", "O novo tema aparece depois que o GuideStrap reiniciar." },
-            new[] { "Used by the Purple theme for buttons, switches and highlights.", "Lo usa el tema Morado para botones, interruptores y resaltados.", "Usada pelo tema Roxo em botões, chaves e destaques." }
+            new[] { "Used by the Purple theme for buttons, switches and highlights.", "Lo usa el tema Morado para botones, interruptores y resaltados.", "Usada pelo tema Roxo em botões, chaves e destaques." },
+            new[] { "Potato mode", "Modo papa", "Modo batata" },
+            new[] { "Everything low for the most FPS, or turn on parts one by one.", "Todo al mínimo para más FPS, o activa partes una por una.", "Tudo no mínimo para mais FPS, ou ative partes uma por uma." },
+            new[] { "Turn on everything", "Activar todo", "Ativar tudo" },
+            new[] { "All of the switches below at once.", "Todos los interruptores de abajo a la vez.", "Todas as chaves abaixo de uma vez." },
+            new[] { "Blurry textures", "Texturas borrosas", "Texturas borradas" },
+            new[] { "Lowest texture quality. Works on every game's textures.", "Calidad de textura más baja. Funciona en las texturas de cualquier juego.", "Qualidade de textura mais baixa. Funciona nas texturas de qualquer jogo." },
+            new[] { "No grass", "Sin césped", "Sem grama" },
+            new[] { "Hides terrain grass.", "Oculta el césped del terreno.", "Esconde a grama do terreno." },
+            new[] { "Anti-aliasing off", "Antialiasing desactivado", "Anti-aliasing desligado" },
+            new[] { "No edge smoothing. Edges look a bit jagged.", "Sin suavizado de bordes. Los bordes se ven un poco dentados.", "Sem suavização de bordas. As bordas ficam um pouco serrilhadas." },
+            new[] { "Preview", "Vista previa", "Prévia" },
+            new[] { "See what blurry textures look like.", "Mira cómo se ven las texturas borrosas.", "Veja como ficam as texturas borradas." },
+            new[] { "Texture preview", "Vista previa de texturas", "Prévia de texturas" },
+            new[] { "Normal", "Normal", "Normal" },
+            new[] { "Made-up example. In real games the blur looks the same, the textures just differ.", "Ejemplo inventado. En juegos reales el desenfoque se ve igual, solo cambian las texturas.", "Exemplo inventado. Em jogos reais o desfoque fica igual, só as texturas mudam." },
+            new[] { "Performance", "Rendimiento", "Desempenho" },
+            new[] { "Roblox default", "Predeterminado de Roblox", "Padrão do Roblox" },
+            new[] { "FPS cap", "Límite de FPS", "Limite de FPS" },
+            new[] { "Sets Roblox's own max frame rate before it opens. Normal Roblox keeps it too.", "Ajusta el límite de FPS propio de Roblox antes de abrirlo. Roblox normal también lo conserva.", "Define o limite de FPS do próprio Roblox antes de abrir. O Roblox normal também mantém." },
+            new[] { "Above normal", "Superior a lo normal", "Acima do normal" },
+            new[] { "High", "Alta", "Alta" },
+            new[] { "Roblox priority", "Prioridad de Roblox", "Prioridade do Roblox" },
+            new[] { "Gives Roblox more CPU time. High can slow OBS while streaming.", "Da más tiempo de CPU a Roblox. Alta puede ralentizar OBS al transmitir.", "Dá mais tempo de CPU ao Roblox. Alta pode deixar o OBS lento durante a live." },
+            new[] { "Muted", "Silenciado", "Mudo" },
+            new[] { "Custom .mp3...", ".mp3 propio...", ".mp3 próprio..." },
+            new[] { "Footsteps", "Pasos", "Passos" },
+            new[] { "Jump sound", "Sonido de salto", "Som de pulo" },
+            new[] { "Sound pack", "Paquete de sonidos", "Pacote de sons" },
+            new[] { "None", "Ninguno", "Nenhum" },
+            new[] { "Using {0}. Its files replace Roblox's sounds.", "Usando {0}. Sus archivos reemplazan los sonidos de Roblox.", "Usando {0}. Os arquivos dele substituem os sons do Roblox." },
+            new[] { "Open the folder and add a pack: one folder per pack, with .ogg or .mp3 files.", "Abre la carpeta y agrega un paquete: una carpeta por paquete, con archivos .ogg o .mp3.", "Abra a pasta e adicione um pacote: uma pasta por pacote, com arquivos .ogg ou .mp3." },
+            new[] { "No pack. Pick one, or open the folder to add more.", "Sin paquete. Elige uno o abre la carpeta para agregar más.", "Sem pacote. Escolha um ou abra a pasta para adicionar mais." },
+            new[] { "No footstep sound", "Sin sonido de pasos", "Sem som de passos" },
+            new[] { "Your own sound", "Tu propio sonido", "Seu próprio som" },
+            new[] { "Roblox's default footsteps", "Pasos normales de Roblox", "Passos padrão do Roblox" },
+            new[] { "No jump or landing sound", "Sin sonido de salto ni de aterrizaje", "Sem som de pulo nem de pouso" },
+            new[] { "Roblox's default jump sound", "Sonido de salto normal de Roblox", "Som de pulo padrão do Roblox" },
+            new[] { "Pick a sound", "Elige un sonido", "Escolha um som" },
+            new[] { "That isn't an MP3 file", "Eso no es un archivo MP3", "Isso não é um arquivo MP3" },
+            new[] { "These Roblox sounds are .mp3 files. Convert your sound to .mp3 first (any free online converter works).", "Estos sonidos de Roblox son archivos .mp3. Convierte tu sonido a .mp3 primero (sirve cualquier convertidor gratis en línea).", "Esses sons do Roblox são arquivos .mp3. Converta seu som para .mp3 primeiro (qualquer conversor online grátis serve)." },
+            new[] { "Sound set. It applies next time you launch Roblox.", "Sonido listo. Se aplica la próxima vez que abras Roblox.", "Som definido. Vale na próxima vez que você abrir o Roblox." },
+            new[] { "Small cross", "Cruz pequeña", "Cruz pequena" },
+            new[] { "Circle", "Círculo", "Círculo" },
+            new[] { "Classic arrow", "Flecha clásica", "Seta clássica" },
+            new[] { "Dot", "Punto", "Ponto" },
+            new[] { "A small cross, easy to aim with", "Una cruz pequeña, fácil para apuntar", "Uma cruz pequena, fácil de mirar" },
+            new[] { "A thin circle", "Un círculo fino", "Um círculo fino" },
+            new[] { "White arrow with a black outline", "Flecha blanca con borde negro", "Seta branca com contorno preto" },
+            new[] { "Shift lock crosshair", "Mira de shift lock", "Mira do shift lock" },
+            new[] { "A small dot in the middle of the screen", "Un punto pequeño en el centro de la pantalla", "Um ponto pequeno no meio da tela" },
+            new[] { "A small cross in the middle of the screen", "Una cruz pequeña en el centro de la pantalla", "Uma cruz pequena no meio da tela" },
+            new[] { "A thin circle in the middle of the screen", "Un círculo fino en el centro de la pantalla", "Um círculo fino no meio da tela" },
+            new[] { "Roblox's default shift lock icon", "Icono de shift lock normal de Roblox", "Ícone de shift lock padrão do Roblox" },
+            new[] { "Pick a crosshair image", "Elige una imagen de mira", "Escolha uma imagem de mira" },
+            new[] { "Setups", "Configuraciones", "Configurações salvas" },
+            new[] { "Saved setups", "Configuraciones guardadas", "Configurações salvas" },
+            new[] { "Save", "Guardar", "Salvar" },
+            new[] { "Pick a setup", "Elige una configuración", "Escolha uma configuração" },
+            new[] { "Save your mods and graphics as a setup, like BedWars or Recording.", "Guarda tus mods y gráficos como una configuración, como BedWars o Grabación.", "Salve seus mods e gráficos como uma configuração, como BedWars ou Gravação." },
+            new[] { "{0} saved. Pick one to switch to it.", "{0} guardadas. Elige una para cambiar a ella.", "{0} salvas. Escolha uma para trocar para ela." },
+            new[] { "Save setup", "Guardar configuración", "Salvar configuração" },
+            new[] { "Name this setup. Saving with an existing name replaces it.", "Ponle nombre. Si usas un nombre que ya existe, se reemplaza.", "Dê um nome. Se usar um nome que já existe, ele é substituído." },
+            new[] { "Saved {0}.", "{0} guardada.", "{0} salva." },
+            new[] { "Switched to {0}. It applies next time you launch Roblox.", "Cambiado a {0}. Se aplica la próxima vez que abras Roblox.", "Trocado para {0}. Vale na próxima vez que você abrir o Roblox." },
+            new[] { "Pick a setup first", "Primero elige una configuración", "Escolha uma configuração primeiro" },
+            new[] { "Choose the setup you want to delete from the list.", "Elige de la lista la configuración que quieres borrar.", "Escolha na lista a configuração que você quer apagar." },
+            new[] { "Delete setup?", "¿Borrar configuración?", "Apagar configuração?" },
+            new[] { "Delete {0}? Your current settings stay the same.", "¿Borrar {0}? Tus ajustes actuales no cambian.", "Apagar {0}? Suas configurações atuais continuam iguais." },
+            new[] { "Delete", "Borrar", "Apagar" },
+            new[] { "Crash helper", "Ayuda con cierres", "Ajuda com travamentos" },
+            new[] { "If Roblox crashes, shows what went wrong and how to fix it.", "Si Roblox se cierra por un error, muestra qué pasó y cómo arreglarlo.", "Se o Roblox travar, mostra o que deu errado e como resolver." },
+            new[] { "Roblox crashed", "Roblox se cerró por un error", "O Roblox travou" },
+            new[] { "Roblox crashed while starting", "Roblox se cerró al iniciar", "O Roblox travou ao abrir" },
+            new[] { "Error {0}: {1}", "Error {0}: {1}", "Erro {0}: {1}" },
+            new[] { "Try these fixes, starting with the first one.", "Prueba estas soluciones, empezando por la primera.", "Tente estas soluções, começando pela primeira." },
+            new[] { "Open Roblox logs", "Abrir registros de Roblox", "Abrir logs do Roblox" },
+            new[] { "memory access error", "error de acceso a memoria", "erro de acesso à memória" },
+            new[] { "Roblox stopped itself (security check)", "Roblox se detuvo solo (control de seguridad)", "O Roblox se fechou sozinho (verificação de segurança)" },
+            new[] { "stack overflow", "desbordamiento de pila", "estouro de pilha" },
+            new[] { "memory corruption", "memoria dañada", "memória corrompida" },
+            new[] { "out of memory", "sin memoria", "sem memória" },
+            new[] { "unhandled error", "error no controlado", "erro não tratado" },
+            new[] { "the graphics driver stopped responding", "el controlador de gráficos dejó de responder", "o driver de vídeo parou de responder" },
+            new[] { "internal error", "error interno", "erro interno" },
+            new[] { "unknown error", "error desconocido", "erro desconhecido" },
+            new[] { "Close overlays and macro tools", "Cierra overlays y programas de macros", "Feche overlays e programas de macro" },
+            new[] { "Roblox closes itself when another program hooks into it, like FPS unlockers, macros, cheats or some recording overlays.", "Roblox se cierra solo cuando otro programa se mete en él, como desbloqueadores de FPS, macros, trucos o algunos overlays de grabación.", "O Roblox se fecha sozinho quando outro programa se conecta a ele, como desbloqueadores de FPS, macros, cheats ou alguns overlays de gravação." },
+            new[] { "Switch the rendering API", "Cambia la API de gráficos", "Troque a API gráfica" },
+            new[] { "Your graphics driver may not like Direct3D 11. Try Vulkan next time.", "Puede que tu controlador de gráficos no se lleve bien con Direct3D 11. Prueba Vulkan la próxima vez.", "Talvez seu driver de vídeo não se dê bem com o Direct3D 11. Tente o Vulkan na próxima vez." },
+            new[] { "Your graphics driver may not like the current one. Try Direct3D 11 next time.", "Puede que tu controlador de gráficos no se lleve bien con la actual. Prueba Direct3D 11 la próxima vez.", "Talvez seu driver de vídeo não se dê bem com a atual. Tente o Direct3D 11 na próxima vez." },
+            new[] { "Use Vulkan", "Usar Vulkan", "Usar Vulkan" },
+            new[] { "Use D3D11", "Usar D3D11", "Usar D3D11" },
+            new[] { "Done", "Listo", "Pronto" },
+            new[] { "Free up memory", "Libera memoria", "Libere memória" },
+            new[] { "Close browser tabs and other games, and turn on Potato mode in Graphics.", "Cierra pestañas del navegador y otros juegos, y activa el Modo papa en Gráficos.", "Feche abas do navegador e outros jogos, e ative o Modo batata em Gráficos." },
+            new[] { "Launch once without mods", "Abre una vez sin mods", "Abra uma vez sem mods" },
+            new[] { "A mod or custom font can break after a Roblox update. Your mods stay saved and come back the launch after.", "Un mod o una fuente propia puede fallar tras una actualización de Roblox. Tus mods siguen guardados y vuelven en la siguiente apertura.", "Um mod ou fonte própria pode quebrar depois de uma atualização do Roblox. Seus mods continuam salvos e voltam na abertura seguinte." },
+            new[] { "Skip mods", "Saltar mods", "Pular mods" },
+            new[] { "Reset FastFlags", "Restablecer FastFlags", "Redefinir FastFlags" },
+            new[] { "A flag can stop working after a Roblox update. This clears your flags and sets Graphics back to Balanced.", "Un flag puede dejar de funcionar tras una actualización de Roblox. Esto borra tus flags y vuelve Gráficos a Equilibrado.", "Uma flag pode parar de funcionar depois de uma atualização do Roblox. Isso apaga suas flags e volta Gráficos para Equilibrado." },
+            new[] { "Reset flags", "Restablecer flags", "Redefinir flags" },
+            new[] { "Turn off multiple Roblox windows", "Desactiva varias ventanas de Roblox", "Desative várias janelas do Roblox" },
+            new[] { "Running more than one Roblox at once can make it crash.", "Abrir más de un Roblox a la vez puede hacer que se cierre.", "Abrir mais de um Roblox ao mesmo tempo pode fazer ele travar." },
+            new[] { "Turn off", "Desactivar", "Desativar" },
+            new[] { "Update your graphics driver", "Actualiza tu controlador de gráficos", "Atualize seu driver de vídeo" },
+            new[] { "Get the newest driver from NVIDIA, AMD or Intel. Old drivers are the most common cause of crashes.", "Descarga el controlador más nuevo de NVIDIA, AMD o Intel. Los controladores viejos son la causa más común de cierres.", "Baixe o driver mais novo da NVIDIA, AMD ou Intel. Drivers antigos são a causa mais comum de travamentos." },
+            new[] { "Downloads a fresh copy of Roblox next time you launch. Fixes broken or half-updated files.", "Descarga una copia nueva de Roblox la próxima vez que lo abras. Arregla archivos dañados o a medio actualizar.", "Baixa uma cópia nova do Roblox na próxima vez que você abrir. Corrige arquivos quebrados ou atualizados pela metade." },
+            new[] { "Close Roblox first", "Cierra Roblox primero", "Feche o Roblox primeiro" },
+            new[] { "Roblox is still using its files. Close every Roblox window, then press Repair again.", "Roblox todavía está usando sus archivos. Cierra todas las ventanas de Roblox y vuelve a pulsar Reparar.", "O Roblox ainda está usando os arquivos. Feche todas as janelas do Roblox e aperte Reparar de novo." },
+            new[] { "Close", "Cerrar", "Fechar" },
+            new[] { "Friends", "Amigos", "Amigos" },
+            new[] { "Discord", "Discord", "Discord" },
+            new[] { "Rejoin last server", "Volver al último servidor", "Voltar ao último servidor" },
+            new[] { "Server hop", "Cambiar de servidor", "Trocar de servidor" },
+            new[] { "Small server", "Servidor pequeño", "Servidor pequeno" },
+            new[] { "Join a game first. GuideStrap remembers the last server you were in.", "Entra a un juego primero. GuideStrap recuerda el último servidor en el que estuviste.", "Entre em um jogo primeiro. O GuideStrap lembra o último servidor em que você esteve." },
+            new[] { "Paste a game link first, or join a game once.", "Pega primero un enlace de juego, o entra a un juego una vez.", "Cole primeiro um link de jogo, ou entre em um jogo uma vez." },
+            new[] { "Finding a small server...", "Buscando un servidor pequeño...", "Procurando um servidor pequeno..." },
+            new[] { "Finding another server...", "Buscando otro servidor...", "Procurando outro servidor..." },
+            new[] { "Couldn't find an open server for that game. Try again in a moment.", "No se encontró un servidor libre para ese juego. Intenta de nuevo en un momento.", "Não foi encontrado um servidor livre para esse jogo. Tente de novo daqui a pouco." },
+            new[] { "Applying your {0} setup...", "Aplicando tu configuración {0}...", "Aplicando sua configuração {0}..." },
+            new[] { "Signing in...", "Iniciando sesión...", "Entrando..." },
+            new[] { "Streamer mode is on", "El modo streamer está activado", "O modo streamer está ligado" },
+            new[] { "Account names are hidden.", "Los nombres de cuenta están ocultos.", "Os nomes das contas estão ocultos." },
+            new[] { "Streamer mode", "Modo streamer", "Modo streamer" },
+            new[] { "Names hidden", "Nombres ocultos", "Nomes ocultos" },
+            new[] { "hidden", "oculta", "oculta" },
+            new[] { "Hides account names and server location in GuideStrap and on Discord.", "Oculta los nombres de cuenta y la ubicación del servidor en GuideStrap y en Discord.", "Oculta os nomes das contas e o local do servidor no GuideStrap e no Discord." },
+            new[] { "Session summary", "Resumen de la sesión", "Resumo da sessão" },
+            new[] { "After you close Roblox, a small popup shows how long you played.", "Al cerrar Roblox, un aviso pequeño muestra cuánto jugaste.", "Quando você fecha o Roblox, um aviso pequeno mostra quanto tempo você jogou." },
+            new[] { "Session over", "Sesión terminada", "Sessão encerrada" },
+            new[] { "You played for {0}.", "Jugaste {0}.", "Você jogou por {0}." },
+            new[] { "Games: {0}", "Juegos: {0}", "Jogos: {0}" },
+            new[] { "Last server: {0}", "Último servidor: {0}", "Último servidor: {0}" },
+            new[] { "Friend started playing", "Un amigo empezó a jugar", "Um amigo começou a jogar" },
+            new[] { "{0} is playing {1}.", "{0} está jugando {1}.", "{0} está jogando {1}." },
+            new[] { "A friend", "Un amigo", "Um amigo" },
+            new[] { "a game", "un juego", "um jogo" },
+            new[] { "Join", "Unirse", "Entrar" },
+            new[] { "Join game", "Unirse al juego", "Entrar no jogo" },
+            new[] { "See who's online and join them.", "Mira quién está en línea y únete.", "Veja quem está online e entre com eles." },
+            new[] { "Refresh", "Actualizar", "Atualizar" },
+            new[] { "Online friends", "Amigos en línea", "Amigos online" },
+            new[] { "Friend alerts", "Avisos de amigos", "Avisos de amigos" },
+            new[] { "A small popup when a friend starts playing a game.", "Un aviso pequeño cuando un amigo empieza a jugar.", "Um aviso pequeno quando um amigo começa a jogar." },
+            new[] { "Open this page to load your friends.", "Abre esta página para cargar a tus amigos.", "Abra esta página para carregar seus amigos." },
+            new[] { "Pick a saved account in Accounts to see your friends.", "Elige una cuenta guardada en Cuentas para ver a tus amigos.", "Escolha uma conta salva em Contas para ver seus amigos." },
+            new[] { "Loading...", "Cargando...", "Carregando..." },
+            new[] { "None of your {0} friends are online right now.", "Ninguno de tus {0} amigos está en línea ahora.", "Nenhum dos seus {0} amigos está online agora." },
+            new[] { "{0} of {1} friends online.", "{0} de {1} amigos en línea.", "{0} de {1} amigos online." },
+            new[] { "Couldn't load friends. {0}", "No se pudieron cargar los amigos. {0}", "Não foi possível carregar os amigos. {0}" },
+            new[] { "Playing {0}", "Jugando {0}", "Jogando {0}" },
+            new[] { "In Roblox Studio", "En Roblox Studio", "No Roblox Studio" },
+            new[] { "Online", "En línea", "Online" },
+            new[] { "What your Discord profile shows while you use GuideStrap.", "Lo que muestra tu perfil de Discord mientras usas GuideStrap.", "O que seu perfil do Discord mostra enquanto você usa o GuideStrap." },
+            new[] { "Discord status", "Estado de Discord", "Status do Discord" },
+            new[] { "Shows GuideStrap and what you're doing on your Discord profile.", "Muestra GuideStrap y lo que haces en tu perfil de Discord.", "Mostra o GuideStrap e o que você está fazendo no seu perfil do Discord." },
+            new[] { "What to show", "Qué mostrar", "O que mostrar" },
+            new[] { "Show the game you're in", "Mostrar el juego en el que estás", "Mostrar o jogo em que você está" },
+            new[] { "The game's name, picture and a View game button.", "El nombre del juego, su imagen y un botón Ver juego.", "O nome do jogo, a imagem e um botão Ver jogo." },
+            new[] { "Show the account you're using", "Mostrar la cuenta que usas", "Mostrar a conta que você está usando" },
+            new[] { "Adds \"Playing as\" with your display name.", "Agrega \"Jugando como\" con tu nombre visible.", "Adiciona \"Jogando como\" com seu nome de exibição." },
+            new[] { "Let friends join you", "Dejar que tus amigos se unan", "Deixar amigos entrarem com você" },
+            new[] { "Adds a Join server button that puts friends in your server.", "Agrega un botón Unirse al servidor que lleva a tus amigos a tu servidor.", "Adiciona um botão Entrar no servidor que coloca seus amigos no seu servidor." },
+            new[] { "Discord has to be open on this PC. Streamer mode (in Settings) hides your account, server location and the Join button.", "Discord tiene que estar abierto en esta PC. El modo streamer (en Ajustes) oculta tu cuenta, la ubicación del servidor y el botón Unirse.", "O Discord precisa estar aberto neste PC. O modo streamer (em Configurações) oculta sua conta, o local do servidor e o botão Entrar." },
+            new[] { "Mod gallery", "Galería de mods", "Galeria de mods" },
+            new[] { "Skies, cursors, crosshairs and sound packs you can install in one click.", "Cielos, cursores, miras y paquetes de sonidos que instalas con un clic.", "Céus, cursores, miras e pacotes de sons que você instala com um clique." },
+            new[] { "Browse", "Explorar", "Explorar" },
+            new[] { "Loading the gallery...", "Cargando la galería...", "Carregando a galeria..." },
+            new[] { "Only cosmetic files: images, skies and sounds. Everything installs into GuideStrap's copy of Roblox.", "Solo archivos cosméticos: imágenes, cielos y sonidos. Todo se instala en la copia de Roblox de GuideStrap.", "Só arquivos cosméticos: imagens, céus e sons. Tudo é instalado na cópia do Roblox do GuideStrap." },
+            new[] { "The gallery is empty right now.", "La galería está vacía por ahora.", "A galeria está vazia por enquanto." },
+            new[] { "{0} mods", "{0} mods", "{0} mods" },
+            new[] { "Couldn't load the gallery. Check your internet and try again.", "No se pudo cargar la galería. Revisa tu internet e intenta de nuevo.", "Não foi possível carregar a galeria. Verifique sua internet e tente de novo." },
+            new[] { "Sky", "Cielo", "Céu" },
+            new[] { "Cursor", "Cursor", "Cursor" },
+            new[] { "Crosshair", "Mira", "Mira" },
+            new[] { "by {0}", "por {0}", "por {0}" },
+            new[] { "Install", "Instalar", "Instalar" },
+            new[] { "Installing...", "Instalando...", "Instalando..." },
+            new[] { "Installed", "Instalado", "Instalado" },
+            new[] { "Couldn't install that", "No se pudo instalar", "Não foi possível instalar" },
+            new[] { "That mod is too big.", "Ese mod es demasiado grande.", "Esse mod é grande demais." },
+            new[] { "That image couldn't be read.", "No se pudo leer esa imagen.", "Não foi possível ler essa imagem." },
+            new[] { "That sky pack has no .tex files.", "Ese paquete de cielo no tiene archivos .tex.", "Esse pacote de céu não tem arquivos .tex." },
+            new[] { "That sound pack has no .ogg or .mp3 files.", "Ese paquete de sonidos no tiene archivos .ogg ni .mp3.", "Esse pacote de sons não tem arquivos .ogg nem .mp3." },
+            new[] { "Link game", "Vincular juego", "Vincular jogo" },
+            new[] { "Auto setups", "Configuraciones automáticas", "Configurações automáticas" },
+            new[] { "Remove all links?", "¿Quitar todos los vínculos?", "Remover todos os vínculos?" },
+            new[] { "Every game goes back to your normal settings.", "Todos los juegos vuelven a tus ajustes normales.", "Todos os jogos voltam para suas configurações normais." },
+            new[] { "Remove", "Quitar", "Remover" },
+            new[] { "Link a setup to a game and it turns on by itself when you launch that game.", "Vincula una configuración a un juego y se activará sola al abrir ese juego.", "Vincule uma configuração a um jogo e ela liga sozinha quando você abre esse jogo." },
+            new[] { "  +{0} more", "  +{0} más", "  +{0} mais" },
+            new[] { "Choose a saved setup in the list above, then link it to a game.", "Elige una configuración guardada en la lista de arriba y luego vincúlala a un juego.", "Escolha uma configuração salva na lista acima e depois vincule a um jogo." },
+            new[] { "Link {0} to a game", "Vincular {0} a un juego", "Vincular {0} a um jogo" },
+            new[] { "Paste the game link or place ID. GuideStrap switches to this setup whenever you launch that game.", "Pega el enlace del juego o el ID del lugar. GuideStrap usará esta configuración cada vez que abras ese juego.", "Cole o link do jogo ou o ID do lugar. O GuideStrap usa esta configuração sempre que você abrir esse jogo." },
+            new[] { "Link", "Vincular", "Vincular" },
+            new[] { "That doesn't look like a game link", "Eso no parece un enlace de juego", "Isso não parece um link de jogo" },
+            new[] { "Paste a link like roblox.com/games/123456, or just the number.", "Pega un enlace como roblox.com/games/123456, o solo el número.", "Cole um link como roblox.com/games/123456, ou só o número." },
+            new[] { "Linked {0}.", "{0} vinculada.", "{0} vinculada." },
+            new[] { "Rejoin your server", "Vuelve a tu servidor", "Volte ao seu servidor" },
+            new[] { "Jump straight back into the server you were in, if it's still running.", "Vuelve directo al servidor en el que estabas, si sigue abierto.", "Volte direto para o servidor em que você estava, se ele ainda estiver aberto." },
+            new[] { "Rejoin", "Volver a unirse", "Voltar" },
+            new[] { "Checking Roblox's servers...", "Revisando los servidores de Roblox...", "Verificando os servidores do Roblox..." },
+            new[] { "You're offline", "No tienes conexión", "Você está offline" },
+            new[] { "GuideStrap can't reach the internet. Check your Wi-Fi or cable, then try again.", "GuideStrap no puede conectarse a internet. Revisa tu Wi-Fi o cable y vuelve a intentarlo.", "O GuideStrap não consegue acessar a internet. Verifique seu Wi-Fi ou cabo e tente de novo." },
+            new[] { "Try again", "Intentar de nuevo", "Tentar de novo" },
+            new[] { "Roblox looks down", "Roblox parece caído", "O Roblox parece fora do ar" },
+            new[] { "Roblox's servers aren't answering right now, so games might not load. This is on Roblox's side, not your PC.", "Los servidores de Roblox no responden ahora, así que los juegos podrían no cargar. Es un problema de Roblox, no de tu PC.", "Os servidores do Roblox não estão respondendo agora, então os jogos podem não carregar. O problema é do Roblox, não do seu PC." },
+            new[] { "Try anyway", "Intentar igual", "Tentar mesmo assim" },
+            new[] { "Status page", "Página de estado", "Página de status" },
+            new[] { "Start screen background", "Fondo de la pantalla de inicio", "Fundo da tela inicial" },
+            new[] { "Your own picture behind the start screen. It's darkened so text stays readable.", "Tu propia imagen detrás de la pantalla de inicio. Se oscurece para que el texto se lea bien.", "Sua própria imagem atrás da tela inicial. Ela fica mais escura para o texto continuar legível." },
+            new[] { "Choose image", "Elegir imagen", "Escolher imagem" },
+            new[] { "The start screen is back to plain.", "La pantalla de inicio volvió a ser lisa.", "A tela inicial voltou ao normal." },
+            new[] { "Pick a picture", "Elige una imagen", "Escolha uma imagem" },
+            new[] { "That picture is too small.", "Esa imagen es demasiado pequeña.", "Essa imagem é pequena demais." },
+            new[] { "Background set. It shows on the start screen.", "Fondo listo. Se ve en la pantalla de inicio.", "Fundo definido. Ele aparece na tela inicial." },
+            new[] { "Couldn't use that picture", "No se pudo usar esa imagen", "Não foi possível usar essa imagem" },
+            new[] { "Start with Windows", "Iniciar con Windows", "Iniciar com o Windows" },
+            new[] { "Opens quietly in the tray when your PC starts, so friend alerts work.", "Se abre en silencio en la bandeja al encender la PC, para que funcionen los avisos de amigos.", "Abre discretamente na bandeja quando o PC liga, para os avisos de amigos funcionarem." },
+            new[] { "Opens quietly in the tray when your PC starts.", "Se abre en silencio en la bandeja al encender la PC.", "Abre discretamente na bandeja quando o PC liga." },
+            new[] { "Install GuideStrap first", "Instala GuideStrap primero", "Instale o GuideStrap primeiro" },
+            new[] { "This only works for the installed GuideStrap, not a copy you're running from somewhere else.", "Esto solo funciona con el GuideStrap instalado, no con una copia que abras desde otro lugar.", "Isso só funciona com o GuideStrap instalado, não com uma cópia aberta de outro lugar." },
+            new[] { "Uninstall", "Desinstalar", "Desinstalar" },
+            new[] { "Uninstall GuideStrap", "Desinstalar GuideStrap", "Desinstalar o GuideStrap" },
+            new[] { "Removes GuideStrap, its settings and its copy of Roblox. Normal Roblox stays.", "Quita GuideStrap, sus ajustes y su copia de Roblox. Roblox normal se queda.", "Remove o GuideStrap, as configurações e a cópia do Roblox dele. O Roblox normal continua." },
+            new[] { "GuideStrap isn't installed", "GuideStrap no está instalado", "O GuideStrap não está instalado" },
+            new[] { "This copy isn't installed, so there's nothing to remove.", "Esta copia no está instalada, así que no hay nada que quitar.", "Esta cópia não está instalada, então não há nada para remover." },
+            new[] { "The language GuideStrap uses.", "El idioma que usa GuideStrap.", "O idioma que o GuideStrap usa." },
+            new[] { "What's new in GuideStrap {0}", "Novedades de GuideStrap {0}", "Novidades do GuideStrap {0}" },
+            new[] { "Nice", "Genial", "Legal" },
+            new[] { "• GuideStrap checks if Roblox is down before launching\n• Pick your own picture for the start screen (Settings > Appearance)\n• Start GuideStrap with Windows, quietly in the tray (Settings)\n• Uninstall GuideStrap from Settings > Tools\n• New languages: Français, Deutsch, Türkçe and Filipino\n• This window, after every update", "• GuideStrap revisa si Roblox está caído antes de abrirlo\n• Elige tu propia imagen para la pantalla de inicio (Ajustes > Apariencia)\n• Inicia GuideStrap con Windows, en silencio en la bandeja (Ajustes)\n• Desinstala GuideStrap desde Ajustes > Herramientas\n• Idiomas nuevos: Français, Deutsch, Türkçe y Filipino\n• Esta ventana, después de cada actualización", "• O GuideStrap verifica se o Roblox está fora do ar antes de abrir\n• Escolha sua própria imagem para a tela inicial (Configurações > Aparência)\n• Inicie o GuideStrap com o Windows, discretamente na bandeja (Configurações)\n• Desinstale o GuideStrap em Configurações > Ferramentas\n• Idiomas novos: Français, Deutsch, Türkçe e Filipino\n• Esta janela, depois de cada atualização" },
+            new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Esto quita GuideStrap y su copia de Roblox. Roblox normal sigue instalado.", "Isso remove o GuideStrap e a cópia do Roblox dele. O Roblox normal continua instalado." },
+            new[] { "Keep my settings, accounts and mods in case I reinstall", "Guardar mis ajustes, cuentas y mods por si lo reinstalo", "Manter minhas configurações, contas e mods caso eu reinstale" },
+            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap se desinstaló. Tus ajustes, cuentas y mods se guardan para la próxima vez.", "O GuideStrap foi desinstalado. Suas configurações, contas e mods ficam guardados para a próxima vez." }
+        };
+
+        // English, Français, Deutsch, Türkçe, Filipino
+        static readonly string[][] More =
+        {
+            new[] { "Join a game (optional)", "Rejoindre un jeu (facultatif)", "Einem Spiel beitreten (optional)", "Bir oyuna katıl (isteğe bağlı)", "Sumali sa isang laro (opsyonal)" },
+            new[] { "Paste a game link or place ID. Leave it empty to just open Roblox.", "Colle un lien de jeu ou un ID de place. Laisse vide pour juste ouvrir Roblox.", "Füge einen Spiellink oder eine Place-ID ein. Leer lassen, um nur Roblox zu öffnen.", "Bir oyun bağlantısı veya place ID yapıştır. Sadece Roblox'u açmak için boş bırak.", "Mag-paste ng link ng laro o place ID. Iwanang blangko para buksan lang ang Roblox." },
+            new[] { "Games you join show up here so you can jump back in.", "Les jeux que tu rejoins s'affichent ici pour y retourner vite.", "Spiele, denen du beitrittst, erscheinen hier, damit du schnell zurückkannst.", "Katıldığın oyunlar burada görünür, böylece hemen geri dönebilirsin.", "Lalabas dito ang mga larong sinalihan mo para madali kang makabalik." },
+            new[] { "Logins are encrypted and only work for your Windows user on this PC. Don't press \"Log out\" on the Roblox website for a saved account, or its saved login stops working.", "Les connexions sont chiffrées et ne marchent que pour ton utilisateur Windows sur ce PC. N'appuie pas sur \"Se déconnecter\" sur le site Roblox pour un compte enregistré, sinon sa connexion enregistrée ne marchera plus.", "Anmeldungen sind verschlüsselt und funktionieren nur für deinen Windows-Benutzer auf diesem PC. Drück auf der Roblox-Website bei einem gespeicherten Konto nicht auf \"Abmelden\", sonst funktioniert die gespeicherte Anmeldung nicht mehr.", "Girişler şifrelenir ve sadece bu bilgisayardaki Windows kullanıcın için çalışır. Kayıtlı bir hesap için Roblox sitesinde \"Çıkış yap\"a basma, yoksa kayıtlı girişi çalışmaz.", "Naka-encrypt ang mga login at gagana lang para sa Windows user mo sa PC na ito. Huwag pindutin ang \"Log out\" sa Roblox website para sa naka-save na account, kundi titigil na ang naka-save na login nito." },
+            new[] { "Preset", "Préréglage", "Voreinstellung", "Ön ayar", "Preset" },
+            new[] { "Max FPS", "FPS max", "Max. FPS", "Maks FPS", "Max FPS" },
+            new[] { "Roblox only reads flags on its allowlist, so anything else gets skipped automatically.", "Roblox ne lit que les flags de sa liste autorisée, le reste est ignoré automatiquement.", "Roblox liest nur Flags von seiner Erlaubnisliste, alles andere wird automatisch übersprungen.", "Roblox sadece izin listesindeki flag'leri okur, geri kalanı otomatik olarak atlanır.", "Ang mga flag lang na nasa allowlist ang binabasa ng Roblox, kaya awtomatikong nilalaktawan ang iba." },
+            new[] { "Current font", "Police actuelle", "Aktuelle Schriftart", "Mevcut yazı tipi", "Kasalukuyang font" },
+            new[] { "Works with .ttf and .otf files (free fonts: fonts.google.com). Emoji keep their normal look. Applies next time you press Play.", "Fonctionne avec les fichiers .ttf et .otf (polices gratuites : fonts.google.com). Les emojis gardent leur look normal. S'applique au prochain clic sur Jouer.", "Funktioniert mit .ttf- und .otf-Dateien (kostenlose Schriften: fonts.google.com). Emojis behalten ihr normales Aussehen. Gilt beim nächsten Klick auf Spielen.", ".ttf ve .otf dosyalarıyla çalışır (ücretsiz yazı tipleri: fonts.google.com). Emojiler normal görünür. Bir sonraki Oyna'ya basışında uygulanır.", "Gumagana sa .ttf at .otf na file (libreng font: fonts.google.com). Normal pa rin ang itsura ng emoji. Gagana sa susunod mong pagpindot ng Play." },
+            new[] { "Normal Roblox is never touched. Launching Roblox without GuideStrap always uses the original files, sounds and settings.", "Roblox normal n'est jamais modifié. Lancer Roblox sans GuideStrap utilise toujours les fichiers, sons et réglages d'origine.", "Normales Roblox wird nie verändert. Roblox ohne GuideStrap zu starten nutzt immer die Originaldateien, -sounds und -einstellungen.", "Normal Roblox'a asla dokunulmaz. Roblox'u GuideStrap olmadan açmak her zaman orijinal dosyaları, sesleri ve ayarları kullanır.", "Hindi kailanman ginagalaw ang normal na Roblox. Kapag binuksan ang Roblox nang walang GuideStrap, laging orihinal na files, tunog at settings ang gamit." },
+            new[] { "Version {0}  ·  by Guide", "Version {0}  ·  par Guide", "Version {0}  ·  von Guide", "Sürüm {0}  ·  Guide tarafından", "Bersyon {0}  ·  gawa ni Guide" },
+            new[] { "FastFlag editor", "Éditeur de FastFlags", "FastFlag-Editor", "FastFlag düzenleyici", "FastFlag editor" },
+            new[] { "Only flags on Roblox's allowlist are kept. Adding one you already have asks before replacing it.", "Seuls les flags de la liste autorisée de Roblox sont gardés. Si tu ajoutes un flag que tu as déjà, on te demande avant de le remplacer.", "Nur Flags von Roblox' Erlaubnisliste werden behalten. Fügst du ein Flag hinzu, das du schon hast, wirst du vor dem Ersetzen gefragt.", "Sadece Roblox'un izin listesindeki flag'ler tutulur. Zaten olan bir flag'i eklersen değiştirmeden önce sorulur.", "Ang mga flag lang na nasa allowlist ng Roblox ang itinatabi. Kapag nagdagdag ka ng flag na meron ka na, tatanungin ka muna bago palitan." },
+            new[] { "Tip: press Enter in the value box to add.", "Astuce : appuie sur Entrée dans la case de valeur pour ajouter.", "Tipp: Drück Enter im Wertfeld, um hinzuzufügen.", "İpucu: Eklemek için değer kutusunda Enter'a bas.", "Tip: pindutin ang Enter sa value box para magdagdag." },
+            new[] { "Paste FastFlags JSON", "Coller du JSON de FastFlags", "FastFlags-JSON einfügen", "FastFlags JSON yapıştır", "I-paste ang FastFlags JSON" },
+            new[] { "Flags that aren't on Roblox's allowlist are skipped.", "Les flags qui ne sont pas sur la liste autorisée de Roblox sont ignorés.", "Flags, die nicht auf Roblox' Erlaubnisliste stehen, werden übersprungen.", "Roblox'un izin listesinde olmayan flag'ler atlanır.", "Nilalaktawan ang mga flag na wala sa allowlist ng Roblox." },
+            new[] { "Account: {0}", "Compte : {0}", "Konto: {0}", "Hesap: {0}", "Account: {0}" },
+            new[] { "Launch Roblox", "Lancer Roblox", "Roblox starten", "Roblox'u başlat", "I-launch ang Roblox" },
+            new[] { "Add account", "Ajouter un compte", "Konto hinzufügen", "Hesap ekle", "Magdagdag ng account" },
+            new[] { "Use", "Utiliser", "Verwenden", "Kullan", "Gamitin" },
+            new[] { "Open editor", "Ouvrir l'éditeur", "Editor öffnen", "Düzenleyiciyi aç", "Buksan ang editor" },
+            new[] { "Choose font file", "Choisir un fichier de police", "Schriftdatei wählen", "Yazı tipi dosyası seç", "Pumili ng font file" },
+            new[] { "Add flag", "Ajouter un flag", "Flag hinzufügen", "Flag ekle", "Magdagdag ng flag" },
+            new[] { "Add", "Ajouter", "Hinzufügen", "Ekle", "Idagdag" },
+            new[] { "Import", "Importer", "Importieren", "İçe aktar", "I-import" },
+            new[] { "Done", "Terminé", "Fertig", "Tamam", "Tapos na" },
+            new[] { "Main menu", "Menu principal", "Hauptmenü", "Ana menü", "Main menu" },
+            new[] { "Close", "Fermer", "Schließen", "Kapat", "Isara" },
+            new[] { "Switch account", "Changer de compte", "Konto wechseln", "Hesap değiştir", "Magpalit ng account" },
+            new[] { "Active", "Actif", "Aktiv", "Aktif", "Aktibo" },
+            new[] { "Use default font", "Police par défaut", "Standardschrift verwenden", "Varsayılan yazı tipini kullan", "Gamitin ang default na font" },
+            new[] { "Choose .ogg", "Choisir un .ogg", ".ogg wählen", ".ogg seç", "Pumili ng .ogg" },
+            new[] { "Reset", "Réinitialiser", "Zurücksetzen", "Sıfırla", "I-reset" },
+            new[] { "Choose sky folder", "Choisir un dossier de ciel", "Himmel-Ordner wählen", "Gökyüzü klasörü seç", "Pumili ng sky folder" },
+            new[] { "Open mods folder", "Ouvrir le dossier des mods", "Mod-Ordner öffnen", "Mod klasörünü aç", "Buksan ang mods folder" },
+            new[] { "Export", "Exporter", "Exportieren", "Dışa aktar", "I-export" },
+            new[] { "Open folder", "Ouvrir le dossier", "Ordner öffnen", "Klasörü aç", "Buksan ang folder" },
+            new[] { "Clear cache", "Vider le cache", "Cache leeren", "Önbelleği temizle", "I-clear ang cache" },
+            new[] { "Repair", "Réparer", "Reparieren", "Onar", "Ayusin" },
+            new[] { "Check now", "Vérifier", "Jetzt prüfen", "Şimdi kontrol et", "Tingnan ngayon" },
+            new[] { "Import JSON", "Importer du JSON", "JSON importieren", "JSON içe aktar", "I-import ang JSON" },
+            new[] { "Copy JSON", "Copier le JSON", "JSON kopieren", "JSON kopyala", "Kopyahin ang JSON" },
+            new[] { "Clear all", "Tout effacer", "Alle löschen", "Hepsini temizle", "Burahin lahat" },
+            new[] { "Cancel", "Annuler", "Abbrechen", "İptal", "Kanselahin" },
+            new[] { "Add an account", "Ajouter un compte", "Konto hinzufügen", "Hesap ekle", "Magdagdag ng account" },
+            new[] { "Opens the Roblox login page.", "Ouvre la page de connexion Roblox.", "Öffnet die Roblox-Anmeldeseite.", "Roblox giriş sayfasını açar.", "Binubuksan ang login page ng Roblox." },
+            new[] { "Add, import or edit flags.", "Ajoute, importe ou modifie des flags.", "Flags hinzufügen, importieren oder bearbeiten.", "Flag ekle, içe aktar veya düzenle.", "Magdagdag, mag-import o mag-edit ng mga flag." },
+            new[] { "Mods folder", "Dossier des mods", "Mod-Ordner", "Mod klasörü", "Mods folder" },
+            new[] { "Files here replace the matching files in Roblox (same folder layout).", "Les fichiers ici remplacent ceux de Roblox qui ont le même nom (même structure de dossiers).", "Dateien hier ersetzen die passenden Dateien in Roblox (gleiche Ordnerstruktur).", "Buradaki dosyalar Roblox'taki aynı adlı dosyaların yerine geçer (aynı klasör düzeni).", "Pinapalitan ng mga file dito ang katugmang file sa Roblox (parehong ayos ng folder)." },
+            new[] { "Use my selected account for website joins", "Utiliser mon compte choisi pour le site", "Mein gewähltes Konto für Website-Beitritte nutzen", "Site katılımlarında seçtiğim hesabı kullan", "Gamitin ang napili kong account sa pagsali mula sa website" },
+            new[] { "Play buttons on roblox.com join as the account picked here.", "Les boutons Jouer de roblox.com rejoignent avec le compte choisi ici.", "Spielen-Buttons auf roblox.com treten mit dem hier gewählten Konto bei.", "roblox.com'daki Oyna düğmeleri burada seçilen hesapla katılır.", "Ang mga Play button sa roblox.com ay sasali gamit ang account na napili dito." },
+            new[] { "Close this window when launching", "Fermer cette fenêtre au lancement", "Dieses Fenster beim Start schließen", "Başlatırken bu pencereyi kapat", "Isara ang window na ito pag nag-launch" },
+            new[] { "Only the loading screen stays open while Roblox starts.", "Seul l'écran de chargement reste ouvert pendant que Roblox démarre.", "Nur der Ladebildschirm bleibt offen, während Roblox startet.", "Roblox açılırken sadece yükleme ekranı açık kalır.", "Loading screen lang ang naiiwang bukas habang nagsisimula ang Roblox." },
+            new[] { "Stay in the tray while Roblox is open", "Rester dans la barre des tâches pendant que Roblox est ouvert", "Im Infobereich bleiben, solange Roblox offen ist", "Roblox açıkken sistem tepsisinde kal", "Manatili sa tray habang bukas ang Roblox" },
+            new[] { "Needed for Discord status, server location and recent games.", "Nécessaire pour le statut Discord, la position du serveur et les jeux récents.", "Nötig für den Discord-Status, den Serverstandort und zuletzt gespielte Spiele.", "Discord durumu, sunucu konumu ve son oyunlar için gerekli.", "Kailangan para sa Discord status, lokasyon ng server at mga recent na laro." },
+            new[] { "Show server location", "Afficher la position du serveur", "Serverstandort anzeigen", "Sunucu konumunu göster", "Ipakita ang lokasyon ng server" },
+            new[] { "Pops up where the server you joined is, like \"Dallas, Texas, US\".", "Indique où se trouve le serveur rejoint, comme \"Dallas, Texas, US\".", "Zeigt, wo der beigetretene Server steht, z. B. \"Dallas, Texas, US\".", "Katıldığın sunucunun nerede olduğunu gösterir, örneğin \"Dallas, Texas, US\".", "Lalabas kung nasaan ang server na sinalihan mo, gaya ng \"Dallas, Texas, US\"." },
+            new[] { "Allow multiple Roblox windows", "Autoriser plusieurs fenêtres Roblox", "Mehrere Roblox-Fenster erlauben", "Birden fazla Roblox penceresine izin ver", "Payagan ang maraming Roblox window" },
+            new[] { "Run more than one account at once. Roblox sometimes blocks this.", "Lance plusieurs comptes en même temps. Roblox bloque parfois ça.", "Mehrere Konten gleichzeitig spielen. Roblox blockiert das manchmal.", "Aynı anda birden fazla hesap aç. Roblox bazen bunu engeller.", "Maglaro gamit ang higit sa isang account nang sabay. Minsan hinaharangan ito ng Roblox." },
+            new[] { "Open Roblox links with GuideStrap", "Ouvrir les liens Roblox avec GuideStrap", "Roblox-Links mit GuideStrap öffnen", "Roblox bağlantılarını GuideStrap ile aç", "Buksan ang mga Roblox link gamit ang GuideStrap" },
+            new[] { "Off gives Play buttons on roblox.com back to normal Roblox.", "Désactivé, les boutons Jouer de roblox.com repassent à Roblox normal.", "Aus gibt die Spielen-Buttons auf roblox.com an normales Roblox zurück.", "Kapalıyken roblox.com'daki Oyna düğmeleri normal Roblox'a geri döner.", "Kapag naka-off, babalik sa normal na Roblox ang mga Play button sa roblox.com." },
+            new[] { "Discord status", "Statut Discord", "Discord-Status", "Discord durumu", "Discord status" },
+            new[] { "Shows on your profile what you're doing in GuideStrap and which game you're in.", "Affiche sur ton profil ce que tu fais dans GuideStrap et dans quel jeu tu es.", "Zeigt auf deinem Profil, was du in GuideStrap machst und in welchem Spiel du bist.", "Profilinde GuideStrap'te ne yaptığını ve hangi oyunda olduğunu gösterir.", "Ipinapakita sa profile mo kung ano ang ginagawa mo sa GuideStrap at kung anong laro ka." },
+            new[] { "Accent color", "Couleur d'accent", "Akzentfarbe", "Vurgu rengi", "Accent color" },
+            new[] { "The color used for buttons, switches and highlights.", "La couleur des boutons, interrupteurs et surlignages.", "Die Farbe für Buttons, Schalter und Hervorhebungen.", "Düğmeler, anahtarlar ve vurgular için kullanılan renk.", "Ang kulay ng mga button, switch at highlight." },
+            new[] { "Settings profile", "Profil de réglages", "Einstellungsprofil", "Ayar profili", "Settings profile" },
+            new[] { "Share your graphics, FastFlags, cursor and color as one file.", "Partage tes graphismes, FastFlags, curseur et couleur dans un seul fichier.", "Teile deine Grafik, FastFlags, deinen Cursor und deine Farbe als eine Datei.", "Grafiklerini, FastFlags'lerini, imlecini ve rengini tek bir dosya olarak paylaş.", "I-share ang graphics, FastFlags, cursor at kulay mo bilang isang file." },
+            new[] { "GuideStrap folder", "Dossier de GuideStrap", "GuideStrap-Ordner", "GuideStrap klasörü", "GuideStrap folder" },
+            new[] { "Settings, mods and the downloaded Roblox live here.", "Les réglages, les mods et le Roblox téléchargé sont ici.", "Hier liegen Einstellungen, Mods und das heruntergeladene Roblox.", "Ayarlar, modlar ve indirilen Roblox burada durur.", "Nandito ang settings, mods at ang na-download na Roblox." },
+            new[] { "Deletes Roblox's temporary files, old logs and cached pictures.", "Supprime les fichiers temporaires de Roblox, les vieux journaux et les images en cache.", "Löscht Roblox' temporäre Dateien, alte Logs und zwischengespeicherte Bilder.", "Roblox'un geçici dosyalarını, eski kayıtlarını ve önbellekteki resimleri siler.", "Binubura ang mga pansamantalang file ng Roblox, lumang log at naka-cache na larawan." },
+            new[] { "Repair Roblox", "Réparer Roblox", "Roblox reparieren", "Roblox'u onar", "Ayusin ang Roblox" },
+            new[] { "Fixes crashes or a broken install by downloading Roblox again.", "Corrige les plantages ou une installation cassée en retéléchargeant Roblox.", "Behebt Abstürze oder eine kaputte Installation, indem Roblox neu heruntergeladen wird.", "Roblox'u yeniden indirerek çökmeleri veya bozuk kurulumu düzeltir.", "Inaayos ang crash o sirang install sa pag-download ulit ng Roblox." },
+            new[] { "Updates", "Mises à jour", "Updates", "Güncellemeler", "Updates" },
+            new[] { "You're on GuideStrap {0}.", "Tu as GuideStrap {0}.", "Du hast GuideStrap {0}.", "GuideStrap {0} kullanıyorsun.", "GuideStrap {0} ang gamit mo." },
+            new[] { "Recent games", "Jeux récents", "Zuletzt gespielt", "Son oyunlar", "Mga recent na laro" },
+            new[] { "Active flags", "Flags actifs", "Aktive Flags", "Aktif flag'ler", "Mga aktibong flag" },
+            new[] { "Your own mods", "Tes propres mods", "Deine eigenen Mods", "Kendi modların", "Sarili mong mods" },
+            new[] { "Behavior", "Comportement", "Verhalten", "Davranış", "Gawi" },
+            new[] { "Discord", "Discord", "Discord", "Discord", "Discord" },
+            new[] { "Appearance", "Apparence", "Aussehen", "Görünüm", "Itsura" },
+            new[] { "Profiles", "Profils", "Profile", "Profiller", "Mga profile" },
+            new[] { "Tools", "Outils", "Werkzeuge", "Araçlar", "Mga tool" },
+            new[] { "Play", "Jouer", "Spielen", "Oyna", "Maglaro" },
+            new[] { "Start Roblox with your settings.", "Lance Roblox avec tes réglages.", "Starte Roblox mit deinen Einstellungen.", "Roblox'u ayarlarınla başlat.", "Simulan ang Roblox gamit ang settings mo." },
+            new[] { "Accounts", "Comptes", "Konten", "Hesaplar", "Mga account" },
+            new[] { "Saved Roblox accounts.", "Comptes Roblox enregistrés.", "Gespeicherte Roblox-Konten.", "Kayıtlı Roblox hesapları.", "Mga naka-save na Roblox account." },
+            new[] { "Graphics", "Graphismes", "Grafik", "Grafikler", "Graphics" },
+            new[] { "Pick a preset, or change settings one by one.", "Choisis un préréglage, ou change les réglages un par un.", "Wähle eine Voreinstellung oder ändere Einstellungen einzeln.", "Bir ön ayar seç veya ayarları tek tek değiştir.", "Pumili ng preset, o baguhin ang settings isa-isa." },
+            new[] { "FastFlags", "FastFlags", "FastFlags", "FastFlags", "FastFlags" },
+            new[] { "Flags from Roblox's allowlist.", "Flags de la liste autorisée de Roblox.", "Flags von Roblox' Erlaubnisliste.", "Roblox'un izin listesindeki flag'ler.", "Mga flag mula sa allowlist ng Roblox." },
+            new[] { "Text fonts", "Polices du texte", "Schriftarten", "Yazı tipleri", "Mga font ng text" },
+            new[] { "The font Roblox uses in-game.", "La police que Roblox utilise en jeu.", "Die Schriftart, die Roblox im Spiel nutzt.", "Roblox'un oyun içinde kullandığı yazı tipi.", "Ang font na gamit ng Roblox sa loob ng laro." },
+            new[] { "Mods", "Mods", "Mods", "Modlar", "Mods" },
+            new[] { "Cosmetic file swaps. Only GuideStrap's copy of Roblox is changed.", "Changements de fichiers cosmétiques. Seule la copie de Roblox de GuideStrap est modifiée.", "Kosmetischer Dateitausch. Nur GuideStraps Kopie von Roblox wird verändert.", "Görsel dosya değişiklikleri. Sadece GuideStrap'in Roblox kopyası değişir.", "Pagpapalit ng cosmetic na file. Ang kopya lang ng Roblox ng GuideStrap ang binabago." },
+            new[] { "Settings", "Réglages", "Einstellungen", "Ayarlar", "Settings" },
+            new[] { "Launcher options.", "Options du lanceur.", "Launcher-Optionen.", "Başlatıcı seçenekleri.", "Mga opsyon ng launcher." },
+            new[] { "About", "À propos", "Über", "Hakkında", "Tungkol" },
+            new[] { "What GuideStrap is.", "Ce qu'est GuideStrap.", "Was GuideStrap ist.", "GuideStrap nedir.", "Ano ang GuideStrap." },
+            new[] { "Remove account?", "Supprimer le compte ?", "Konto entfernen?", "Hesap kaldırılsın mı?", "Tanggalin ang account?" },
+            new[] { "Remove {0} (@{1}) from GuideStrap?", "Supprimer {0} (@{1}) de GuideStrap ?", "{0} (@{1}) aus GuideStrap entfernen?", "{0} (@{1}) GuideStrap'ten kaldırılsın mı?", "Tanggalin si {0} (@{1}) sa GuideStrap?" },
+            new[] { "Remove", "Supprimer", "Entfernen", "Kaldır", "Tanggalin" },
+            new[] { "That isn't an Ogg file", "Ce n'est pas un fichier Ogg", "Das ist keine Ogg-Datei", "Bu bir Ogg dosyası değil", "Hindi iyan Ogg file" },
+            new[] { "Roblox only plays .ogg sounds here. Convert your sound to .ogg first (any free online converter works).", "Roblox ne lit que des sons .ogg ici. Convertis ton son en .ogg d'abord (n'importe quel convertisseur gratuit en ligne marche).", "Roblox spielt hier nur .ogg-Sounds ab. Wandle deinen Sound zuerst in .ogg um (jeder kostenlose Online-Konverter geht).", "Roblox burada sadece .ogg sesleri çalar. Önce sesini .ogg'a çevir (herhangi bir ücretsiz çevrimiçi dönüştürücü olur).", ".ogg na tunog lang ang pinapatugtog ng Roblox dito. I-convert muna sa .ogg ang tunog mo (kahit anong libreng online converter ay pwede)." },
+            new[] { "No sky files found", "Aucun fichier de ciel trouvé", "Keine Himmel-Dateien gefunden", "Gökyüzü dosyası bulunamadı", "Walang nakitang sky file" },
+            new[] { "Sky packs are .tex files like sky512_up.tex. Pick the folder that contains them.", "Les packs de ciel sont des fichiers .tex comme sky512_up.tex. Choisis le dossier qui les contient.", "Himmel-Pakete sind .tex-Dateien wie sky512_up.tex. Wähle den Ordner, der sie enthält.", "Gökyüzü paketleri sky512_up.tex gibi .tex dosyalarıdır. Onları içeren klasörü seç.", "Ang mga sky pack ay .tex na file gaya ng sky512_up.tex. Piliin ang folder na naglalaman nito." },
+            new[] { "Restart to apply", "Redémarrer pour appliquer", "Neustart zum Übernehmen", "Uygulamak için yeniden başlat", "I-restart para gumana" },
+            new[] { "The new color shows after GuideStrap restarts.", "La nouvelle couleur s'affiche après le redémarrage de GuideStrap.", "Die neue Farbe erscheint nach einem Neustart von GuideStrap.", "Yeni renk GuideStrap yeniden başladıktan sonra görünür.", "Lalabas ang bagong kulay pagka-restart ng GuideStrap." },
+            new[] { "The new language shows after GuideStrap restarts.", "La nouvelle langue s'affiche après le redémarrage de GuideStrap.", "Die neue Sprache erscheint nach einem Neustart von GuideStrap.", "Yeni dil GuideStrap yeniden başladıktan sonra görünür.", "Lalabas ang bagong wika pagka-restart ng GuideStrap." },
+            new[] { "Repair Roblox?", "Réparer Roblox ?", "Roblox reparieren?", "Roblox onarılsın mı?", "Ayusin ang Roblox?" },
+            new[] { "This deletes GuideStrap's copy of Roblox. It downloads a fresh one next time you launch.", "Ceci supprime la copie de Roblox de GuideStrap. Une nouvelle est téléchargée au prochain lancement.", "Das löscht GuideStraps Kopie von Roblox. Beim nächsten Start wird eine frische heruntergeladen.", "Bu, GuideStrap'in Roblox kopyasını siler. Bir sonraki başlatışta yenisi indirilir.", "Buburahin nito ang kopya ng Roblox ng GuideStrap. Magda-download ng bago sa susunod mong pag-launch." },
+            new[] { "Updates aren't set up yet", "Les mises à jour ne sont pas encore configurées", "Updates sind noch nicht eingerichtet", "Güncellemeler henüz ayarlanmadı", "Hindi pa naka-set up ang updates" },
+            new[] { "Once GuideStrap is published on GitHub, set UpdateRepo in the code and it will update itself.", "Une fois GuideStrap publié sur GitHub, mets UpdateRepo dans le code et il se mettra à jour tout seul.", "Sobald GuideStrap auf GitHub veröffentlicht ist, trag UpdateRepo im Code ein und es aktualisiert sich selbst.", "GuideStrap GitHub'da yayınlanınca koda UpdateRepo'yu yaz, kendini güncelleyecek.", "Kapag na-publish na ang GuideStrap sa GitHub, ilagay ang UpdateRepo sa code at kusa na itong mag-a-update." },
+            new[] { "Update available", "Mise à jour disponible", "Update verfügbar", "Güncelleme var", "May update" },
+            new[] { "GuideStrap {0} is out. Update now?", "GuideStrap {0} est sorti. Mettre à jour maintenant ?", "GuideStrap {0} ist da. Jetzt aktualisieren?", "GuideStrap {0} çıktı. Şimdi güncellensin mi?", "Labas na ang GuideStrap {0}. Mag-update ngayon?" },
+            new[] { "That profile can't be read", "Ce profil ne peut pas être lu", "Dieses Profil kann nicht gelesen werden", "Bu profil okunamıyor", "Hindi mabasa ang profile na iyan" },
+            new[] { "The file is damaged or isn't a GuideStrap profile.", "Le fichier est abîmé ou ce n'est pas un profil GuideStrap.", "Die Datei ist beschädigt oder kein GuideStrap-Profil.", "Dosya bozuk ya da bir GuideStrap profili değil.", "Sira ang file o hindi ito GuideStrap profile." },
+            new[] { "Use this profile?", "Utiliser ce profil ?", "Dieses Profil verwenden?", "Bu profil kullanılsın mı?", "Gamitin ang profile na ito?" },
+            new[] { "Use profile", "Utiliser le profil", "Profil verwenden", "Profili kullan", "Gamitin ang profile" },
+            new[] { "Your graphics, FastFlags, cursor and accent color will be replaced.", "Tes graphismes, FastFlags, curseur et couleur d'accent seront remplacés.", "Deine Grafik, FastFlags, dein Cursor und deine Akzentfarbe werden ersetzt.", "Grafiklerin, FastFlags'lerin, imlecin ve vurgu rengin değiştirilecek.", "Papalitan ang graphics, FastFlags, cursor at accent color mo." },
+            new[] { "The profile's color shows after GuideStrap restarts.", "La couleur du profil s'affiche après le redémarrage de GuideStrap.", "Die Farbe des Profils erscheint nach einem Neustart von GuideStrap.", "Profilin rengi GuideStrap yeniden başladıktan sonra görünür.", "Lalabas ang kulay ng profile pagka-restart ng GuideStrap." },
+            new[] { "Clear every flag?", "Effacer tous les flags ?", "Alle Flags löschen?", "Tüm flag'ler temizlensin mi?", "Burahin lahat ng flag?" },
+            new[] { "This removes all {0} flags (and resets Graphics to Balanced).", "Ceci supprime les {0} flags (et remet les Graphismes sur Équilibré).", "Das entfernt alle {0} Flags (und setzt Grafik auf Ausgewogen zurück).", "Bu, {0} flag'in hepsini kaldırır (ve Grafikleri Dengeli'ye döndürür).", "Tatanggalin nito ang lahat ng {0} flag (at ibabalik ang Graphics sa Balanced)." },
+            new[] { "That isn't valid JSON", "Ce n'est pas du JSON valide", "Das ist kein gültiges JSON", "Bu geçerli bir JSON değil", "Hindi iyan valid na JSON" },
+            new[] { "Make sure it looks like { \"FlagName\": \"Value\", ... } with quotes around names.", "Vérifie que ça ressemble à { \"FlagName\": \"Value\", ... } avec des guillemets autour des noms.", "Es sollte so aussehen: { \"FlagName\": \"Value\", ... } mit Anführungszeichen um die Namen.", "{ \"FlagName\": \"Value\", ... } gibi göründüğünden ve isimlerin tırnak içinde olduğundan emin ol.", "Siguraduhing ganito ang itsura: { \"FlagName\": \"Value\", ... } na may quotes sa mga pangalan." },
+            new[] { "That isn't a flag list", "Ce n'est pas une liste de flags", "Das ist keine Flag-Liste", "Bu bir flag listesi değil", "Hindi iyan listahan ng flag" },
+            new[] { "The JSON should be an object like { \"FlagName\": \"Value\" }.", "Le JSON doit être un objet comme { \"FlagName\": \"Value\" }.", "Das JSON sollte ein Objekt sein wie { \"FlagName\": \"Value\" }.", "JSON { \"FlagName\": \"Value\" } gibi bir nesne olmalı.", "Dapat object ang JSON gaya ng { \"FlagName\": \"Value\" }." },
+            new[] { "Changes are saved automatically.", "Les changements sont enregistrés automatiquement.", "Änderungen werden automatisch gespeichert.", "Değişiklikler otomatik kaydedilir.", "Kusang nase-save ang mga pagbabago." },
+            new[] { "Wait for Roblox to finish launching first.", "Attends d'abord que Roblox ait fini de se lancer.", "Warte zuerst, bis Roblox fertig gestartet ist.", "Önce Roblox'un açılmasını bekle.", "Hintayin munang matapos mag-launch ang Roblox." },
+            new[] { "That doesn't look like a game link or place ID.", "Ça ne ressemble pas à un lien de jeu ou un ID de place.", "Das sieht nicht wie ein Spiellink oder eine Place-ID aus.", "Bu bir oyun bağlantısına veya place ID'ye benzemiyor.", "Mukhang hindi iyan link ng laro o place ID." },
+            new[] { "Added {0}.", "{0} ajouté.", "{0} hinzugefügt.", "{0} eklendi.", "Naidagdag ang {0}." },
+            new[] { "Font reset to Roblox's default.", "Police remise par défaut de Roblox.", "Schrift auf Roblox' Standard zurückgesetzt.", "Yazı tipi Roblox'un varsayılanına döndü.", "Ibinalik ang font sa default ng Roblox." },
+            new[] { "Font set to {0}.", "Police réglée sur {0}.", "Schrift auf {0} gesetzt.", "Yazı tipi {0} olarak ayarlandı.", "Naka-set ang font sa {0}." },
+            new[] { "Death sound set. It applies next time you launch Roblox.", "Son de mort réglé. Il s'applique au prochain lancement de Roblox.", "Todessound gesetzt. Er gilt beim nächsten Start von Roblox.", "Ölüm sesi ayarlandı. Roblox'u bir sonraki açışında uygulanır.", "Naka-set na ang death sound. Gagana ito sa susunod mong pag-launch ng Roblox." },
+            new[] { "Cleared {0} MB of old Roblox cache and logs.", "{0} Mo de vieux cache et journaux Roblox effacés.", "{0} MB alter Roblox-Cache und Logs gelöscht.", "{0} MB eski Roblox önbelleği ve kaydı temizlendi.", "Nabura ang {0} MB ng lumang cache at log ng Roblox." },
+            new[] { "Roblox will re-download next time you launch.", "Roblox sera retéléchargé au prochain lancement.", "Roblox wird beim nächsten Start neu heruntergeladen.", "Roblox bir sonraki başlatışta yeniden indirilecek.", "Magda-download ulit ang Roblox sa susunod mong pag-launch." },
+            new[] { "GuideStrap is up to date.", "GuideStrap est à jour.", "GuideStrap ist aktuell.", "GuideStrap güncel.", "Updated na ang GuideStrap." },
+            new[] { "Downloading the update...", "Téléchargement de la mise à jour...", "Update wird heruntergeladen...", "Güncelleme indiriliyor...", "Dina-download ang update..." },
+            new[] { "Profile saved.", "Profil enregistré.", "Profil gespeichert.", "Profil kaydedildi.", "Na-save ang profile." },
+            new[] { "Profile loaded.", "Profil chargé.", "Profil geladen.", "Profil yüklendi.", "Na-load ang profile." },
+            new[] { "Nothing to copy yet.", "Rien à copier pour l'instant.", "Noch nichts zum Kopieren.", "Henüz kopyalanacak bir şey yok.", "Wala pang makokopya." },
+            new[] { "Copied {0} flags to your clipboard.", "{0} flags copiés dans ton presse-papiers.", "{0} Flags in die Zwischenablage kopiert.", "{0} flag panoya kopyalandı.", "Nakopya ang {0} flag sa clipboard mo." },
+            new[] { "All flags cleared.", "Tous les flags ont été effacés.", "Alle Flags gelöscht.", "Tüm flag'ler temizlendi.", "Nabura lahat ng flag." },
+            new[] { "Type a value first.", "Écris d'abord une valeur.", "Gib zuerst einen Wert ein.", "Önce bir değer yaz.", "Mag-type muna ng value." },
+            new[] { "Paste some JSON first.", "Colle d'abord du JSON.", "Füge zuerst JSON ein.", "Önce JSON yapıştır.", "Mag-paste muna ng JSON." },
+            new[] { "Updated {0}.", "{0} mis à jour.", "{0} aktualisiert.", "{0} güncellendi.", "Na-update ang {0}." },
+            new[] { "Removed {0}.", "{0} supprimé.", "{0} entfernt.", "{0} kaldırıldı.", "Natanggal ang {0}." },
+            new[] { "Play Roblox", "Jouer à Roblox", "Roblox spielen", "Roblox oyna", "Maglaro ng Roblox" },
+            new[] { "No account selected", "Aucun compte choisi", "Kein Konto gewählt", "Hesap seçilmedi", "Walang napiling account" },
+            new[] { "Roblox will use whoever is logged in on the website.", "Roblox utilisera la personne connectée sur le site.", "Roblox nutzt, wer auf der Website angemeldet ist.", "Roblox, sitede kim giriş yaptıysa onu kullanır.", "Gagamitin ng Roblox kung sino ang naka-log in sa website." },
+            new[] { "Roblox login", "Connexion Roblox", "Roblox-Anmeldung", "Roblox girişi", "Roblox login" },
+            new[] { "Add accounts", "Ajouter des comptes", "Konten hinzufügen", "Hesap ekle", "Magdagdag ng account" },
+            new[] { "{0} graphics  ·  {1}  ·  {2} FastFlag{3}", "Graphismes {0}  ·  {1}  ·  {2} FastFlag(s)", "{0} Grafik  ·  {1}  ·  {2} FastFlag(s)", "{0} grafik  ·  {1}  ·  {2} FastFlag", "{0} graphics  ·  {1}  ·  {2} FastFlag" },
+            new[] { "custom font", "police perso", "eigene Schrift", "özel yazı tipi", "custom font" },
+            new[] { "default font", "police par défaut", "Standardschrift", "varsayılan yazı tipi", "default na font" },
+            new[] { "Custom font", "Police perso", "Eigene Schrift", "Özel yazı tipi", "Custom font" },
+            new[] { "  (no preview, still works in-game)", "  (pas d'aperçu, marche quand même en jeu)", "  (keine Vorschau, funktioniert trotzdem im Spiel)", "  (önizleme yok, oyunda yine de çalışır)", "  (walang preview, gagana pa rin sa laro)" },
+            new[] { "Balanced", "Équilibré", "Ausgewogen", "Dengeli", "Balanced" },
+            new[] { "Max graphics", "Graphismes max", "Max. Grafik", "Maks grafik", "Max graphics" },
+            new[] { "No flags yet. Pick a graphics preset or open the editor.", "Aucun flag pour l'instant. Choisis un préréglage graphique ou ouvre l'éditeur.", "Noch keine Flags. Wähle eine Grafik-Voreinstellung oder öffne den Editor.", "Henüz flag yok. Bir grafik ön ayarı seç veya düzenleyiciyi aç.", "Wala pang flag. Pumili ng graphics preset o buksan ang editor." },
+            new[] { "The quick brown fox jumps over the lazy dog\n0123456789  !?  Hello from GuideStrap", "Portez ce vieux whisky au juge blond qui fume\n0123456789  !?  Bonjour de GuideStrap", "Zwölf Boxkämpfer jagen Viktor quer über den großen Sylter Deich\n0123456789  !?  Hallo von GuideStrap", "Pijamalı hasta yağız şoföre çabucak güvendi\n0123456789  !?  GuideStrap'ten merhaba", "Ang mabilis na kayumangging soro ay tumalon sa tamad na aso\n0123456789  !?  Hello mula sa GuideStrap" },
+            new[] { "Roblox default", "Par défaut de Roblox", "Roblox-Standard", "Roblox varsayılanı", "Default ng Roblox" },
+            new[] { "{0} flag{1}", "{0} flag(s)", "{0} Flag(s)", "{0} flag", "{0} flag" },
+            new[] { "+ {0} more", "+ {0} de plus", "+ {0} weitere", "+ {0} tane daha", "+ {0} pa" },
+            new[] { "About GuideStrap", "À propos de GuideStrap", "Über GuideStrap", "GuideStrap hakkında", "Tungkol sa GuideStrap" },
+            new[] { "Open GuideStrap folder", "Ouvrir le dossier de GuideStrap", "GuideStrap-Ordner öffnen", "GuideStrap klasörünü aç", "Buksan ang GuideStrap folder" },
+            new[] { "Configure settings", "Configurer les réglages", "Einstellungen anpassen", "Ayarları yapılandır", "I-configure ang settings" },
+            new[] { "Accounts  ·  {0}", "Comptes  ·  {0}", "Konten  ·  {0}", "Hesaplar  ·  {0}", "Mga account  ·  {0}" },
+            new[] { "Starting...", "Démarrage...", "Startet...", "Başlıyor...", "Nagsisimula..." },
+            new[] { "Cancelling...", "Annulation...", "Wird abgebrochen...", "İptal ediliyor...", "Kinakansela..." },
+            new[] { "Opened the game page in your browser", "Page du jeu ouverte dans ton navigateur", "Spielseite im Browser geöffnet", "Oyun sayfası tarayıcında açıldı", "Nabuksan ang page ng laro sa browser mo" },
+            new[] { "Roblox didn't return a version.", "Roblox n'a pas renvoyé de version.", "Roblox hat keine Version geliefert.", "Roblox bir sürüm döndürmedi.", "Walang ibinigay na bersyon ang Roblox." },
+            new[] { "Roblox said no (HTTP {0}).", "Roblox a refusé (HTTP {0}).", "Roblox hat abgelehnt (HTTP {0}).", "Roblox reddetti (HTTP {0}).", "Tumanggi ang Roblox (HTTP {0})." },
+            new[] { "This account's saved login expired. Remove it and add it again.", "La connexion enregistrée de ce compte a expiré. Supprime-le et ajoute-le à nouveau.", "Die gespeicherte Anmeldung dieses Kontos ist abgelaufen. Entferne es und füge es neu hinzu.", "Bu hesabın kayıtlı girişinin süresi doldu. Kaldırıp tekrar ekle.", "Nag-expire na ang naka-save na login ng account na ito. Tanggalin ito at idagdag ulit." },
+            new[] { "Couldn't log in this account (HTTP {0}).", "Impossible de connecter ce compte (HTTP {0}).", "Dieses Konto konnte nicht angemeldet werden (HTTP {0}).", "Bu hesapla giriş yapılamadı (HTTP {0}).", "Hindi ma-log in ang account na ito (HTTP {0})." },
+            new[] { "Couldn't log in this account. Try again.", "Impossible de connecter ce compte. Réessaie.", "Dieses Konto konnte nicht angemeldet werden. Versuch es noch mal.", "Bu hesapla giriş yapılamadı. Tekrar dene.", "Hindi ma-log in ang account na ito. Subukan ulit." },
+            new[] { "{0} downloaded corrupted. Try again.", "{0} est arrivé corrompu. Réessaie.", "{0} wurde beschädigt heruntergeladen. Versuch es noch mal.", "{0} bozuk indirildi. Tekrar dene.", "Sira ang na-download na {0}. Subukan ulit." },
+            new[] { "Getting the latest Roblox...", "Récupération du dernier Roblox...", "Neuestes Roblox wird geholt...", "En son Roblox alınıyor...", "Kinukuha ang pinakabagong Roblox..." },
+            new[] { "Installing Roblox... {0}%", "Installation de Roblox... {0}%", "Roblox wird installiert... {0}%", "Roblox kuruluyor... %{0}", "Ini-install ang Roblox... {0}%" },
+            new[] { "Connecting to Roblox...", "Connexion à Roblox...", "Verbinde mit Roblox...", "Roblox'a bağlanılıyor...", "Kumokonekta sa Roblox..." },
+            new[] { "Applying your settings...", "Application de tes réglages...", "Deine Einstellungen werden angewendet...", "Ayarların uygulanıyor...", "Inilalapat ang settings mo..." },
+            new[] { "Signing in as {0}...", "Connexion en tant que {0}...", "Anmeldung als {0}...", "{0} olarak giriş yapılıyor...", "Nagla-log in bilang {0}..." },
+            new[] { "Starting Roblox...", "Démarrage de Roblox...", "Roblox startet...", "Roblox başlatılıyor...", "Sinisimulan ang Roblox..." },
+            new[] { "Death sound", "Son de mort", "Todessound", "Ölüm sesi", "Death sound" },
+            new[] { "Mouse cursor", "Curseur de souris", "Mauszeiger", "Fare imleci", "Mouse cursor" },
+            new[] { "Sky", "Ciel", "Himmel", "Gökyüzü", "Langit" },
+            new[] { "Custom sound", "Son perso", "Eigener Sound", "Özel ses", "Custom na tunog" },
+            new[] { "Roblox's default sound", "Son par défaut de Roblox", "Roblox' Standardsound", "Roblox'un varsayılan sesi", "Default na tunog ng Roblox" },
+            new[] { "Roblox's default cursor", "Curseur par défaut de Roblox", "Roblox' Standardzeiger", "Roblox'un varsayılan imleci", "Default na cursor ng Roblox" },
+            new[] { "Purple arrow made for GuideStrap", "Flèche violette faite pour GuideStrap", "Lila Pfeil, gemacht für GuideStrap", "GuideStrap için yapılmış mor ok", "Purple na arrow na ginawa para sa GuideStrap" },
+            new[] { "A small dot, easy to aim with", "Un petit point, facile pour viser", "Ein kleiner Punkt, gut zum Zielen", "Küçük bir nokta, nişan almak kolay", "Maliit na tuldok, madaling pang-asinta" },
+            new[] { "Your own image", "Ta propre image", "Dein eigenes Bild", "Kendi resmin", "Sarili mong larawan" },
+            new[] { "Custom sky pack ({0} files). Games with their own sky keep it.", "Pack de ciel perso ({0} fichiers). Les jeux avec leur propre ciel le gardent.", "Eigenes Himmel-Paket ({0} Dateien). Spiele mit eigenem Himmel behalten ihn.", "Özel gökyüzü paketi ({0} dosya). Kendi gökyüzü olan oyunlar onu korur.", "Custom na sky pack ({0} file). Ang mga larong may sariling langit ay mananatili sa kanila." },
+            new[] { "Roblox's default sky. Gray sky is under Graphics.", "Ciel par défaut de Roblox. Le ciel gris est dans Graphismes.", "Roblox' Standardhimmel. Grauer Himmel ist unter Grafik.", "Roblox'un varsayılan gökyüzü. Gri gökyüzü Grafikler'de.", "Default na langit ng Roblox. Nasa Graphics ang gray na langit." },
+            new[] { "Lowest quality, flat lighting, no grass. For weak PCs or pure frames.", "Qualité minimale, éclairage plat, pas d'herbe. Pour les PC faibles ou les FPS purs.", "Niedrigste Qualität, flaches Licht, kein Gras. Für schwache PCs oder reine FPS.", "En düşük kalite, düz ışık, çim yok. Zayıf bilgisayarlar veya saf FPS için.", "Pinakamababang quality, flat na ilaw, walang damo. Para sa mahihinang PC o purong FPS." },
+            new[] { "Performance", "Performance", "Leistung", "Performans", "Performance" },
+            new[] { "Low settings that still look okay. Great for laptops.", "Réglages bas qui restent jolis. Parfait pour les portables.", "Niedrige Einstellungen, die trotzdem okay aussehen. Super für Laptops.", "Yine de iyi görünen düşük ayarlar. Laptoplar için harika.", "Mababang settings na maayos pa rin tingnan. Maganda para sa laptop." },
+            new[] { "Roblox's normal automatic settings. Nothing changed.", "Les réglages automatiques normaux de Roblox. Rien n'est changé.", "Roblox' normale automatische Einstellungen. Nichts geändert.", "Roblox'un normal otomatik ayarları. Hiçbir şey değişmedi.", "Ang normal na awtomatikong settings ng Roblox. Walang binago." },
+            new[] { "Quality", "Qualité", "Qualität", "Kalite", "Quality" },
+            new[] { "Sharper textures and smoother edges. Needs a decent PC.", "Textures plus nettes et bords plus lisses. Demande un bon PC.", "Schärfere Texturen und glattere Kanten. Braucht einen ordentlichen PC.", "Daha keskin dokular ve daha düzgün kenarlar. İyi bir bilgisayar ister.", "Mas malinaw na texture at mas makinis na gilid. Kailangan ng maayos na PC." },
+            new[] { "Max Graphics", "Graphismes max", "Max. Grafik", "Maks Grafik", "Max Graphics" },
+            new[] { "Everything maxed out. Best looks, lowest FPS.", "Tout au maximum. Meilleur rendu, FPS les plus bas.", "Alles auf Maximum. Bestes Aussehen, niedrigste FPS.", "Her şey en üstte. En iyi görünüm, en düşük FPS.", "Lahat nasa max. Pinakamagandang itsura, pinakamababang FPS." },
+            new[] { "Custom", "Perso", "Benutzerdefiniert", "Özel", "Custom" },
+            new[] { "You changed settings yourself. Move the slider to pick a preset again.", "Tu as changé les réglages toi-même. Bouge le curseur pour rechoisir un préréglage.", "Du hast Einstellungen selbst geändert. Beweg den Regler, um wieder eine Voreinstellung zu wählen.", "Ayarları kendin değiştirdin. Tekrar ön ayar seçmek için kaydırıcıyı oynat.", "Ikaw mismo ang nagbago ng settings. Igalaw ang slider para pumili ulit ng preset." },
+            new[] { "Pick a font", "Choisis une police", "Wähle eine Schrift", "Bir yazı tipi seç", "Pumili ng font" },
+            new[] { "Pick a death sound", "Choisis un son de mort", "Wähle einen Todessound", "Bir ölüm sesi seç", "Pumili ng death sound" },
+            new[] { "Pick a cursor image", "Choisis une image de curseur", "Wähle ein Zeigerbild", "Bir imleç resmi seç", "Pumili ng larawan ng cursor" },
+            new[] { "Pick a folder with sky .tex files (from a Roblox sky mod pack)", "Choisis un dossier avec des fichiers de ciel .tex (d'un pack de ciel Roblox)", "Wähle einen Ordner mit Himmel-.tex-Dateien (aus einem Roblox-Himmel-Paket)", "Gökyüzü .tex dosyaları olan bir klasör seç (bir Roblox gökyüzü paketinden)", "Pumili ng folder na may sky .tex na file (mula sa Roblox sky pack)" },
+            new[] { "Overwrite", "Remplacer", "Überschreiben", "Üzerine yaz", "Palitan" },
+            new[] { "Keep original", "Garder l'original", "Original behalten", "Orijinali koru", "Panatilihin ang orihinal" },
+            new[] { "Auto", "Auto", "Auto", "Otomatik", "Auto" },
+            new[] { "Lowest", "Minimale", "Niedrigste", "En düşük", "Pinakamababa" },
+            new[] { "Low", "Basse", "Niedrig", "Düşük", "Mababa" },
+            new[] { "Medium", "Moyenne", "Mittel", "Orta", "Katamtaman" },
+            new[] { "High", "Haute", "Hoch", "Yüksek", "Mataas" },
+            new[] { "Off (1x)", "Désactivé (1x)", "Aus (1x)", "Kapalı (1x)", "Off (1x)" },
+            new[] { "Default", "Par défaut", "Standard", "Varsayılan", "Default" },
+            new[] { "GuideStrap arrow", "Flèche GuideStrap", "GuideStrap-Pfeil", "GuideStrap oku", "GuideStrap arrow" },
+            new[] { "Small dot", "Petit point", "Kleiner Punkt", "Küçük nokta", "Maliit na tuldok" },
+            new[] { "Custom image...", "Image perso...", "Eigenes Bild...", "Özel resim...", "Custom na larawan..." },
+            new[] { "Couldn't add that account", "Impossible d'ajouter ce compte", "Konto konnte nicht hinzugefügt werden", "Hesap eklenemedi", "Hindi maidagdag ang account na iyan" },
+            new[] { "Couldn't use that font", "Impossible d'utiliser cette police", "Schrift konnte nicht verwendet werden", "Yazı tipi kullanılamadı", "Hindi magamit ang font na iyan" },
+            new[] { "Couldn't use that sound", "Impossible d'utiliser ce son", "Sound konnte nicht verwendet werden", "Ses kullanılamadı", "Hindi magamit ang tunog na iyan" },
+            new[] { "Couldn't use that sky", "Impossible d'utiliser ce ciel", "Himmel konnte nicht verwendet werden", "Gökyüzü kullanılamadı", "Hindi magamit ang langit na iyan" },
+            new[] { "Couldn't change that", "Impossible de changer ça", "Konnte das nicht ändern", "Bu değiştirilemedi", "Hindi iyan mabago" },
+            new[] { "Restart now", "Redémarrer maintenant", "Jetzt neu starten", "Şimdi yeniden başlat", "I-restart ngayon" },
+            new[] { "Later", "Plus tard", "Später", "Sonra", "Mamaya" },
+            new[] { "Close Roblox first", "Ferme Roblox d'abord", "Schließ zuerst Roblox", "Önce Roblox'u kapat", "Isara muna ang Roblox" },
+            new[] { "Update", "Mettre à jour", "Aktualisieren", "Güncelle", "I-update" },
+            new[] { "Update failed", "Échec de la mise à jour", "Update fehlgeschlagen", "Güncelleme başarısız", "Pumalya ang update" },
+            new[] { "Couldn't launch Roblox", "Impossible de lancer Roblox", "Roblox konnte nicht gestartet werden", "Roblox başlatılamadı", "Hindi ma-launch ang Roblox" },
+            new[] { "Something went wrong", "Un problème est survenu", "Etwas ist schiefgelaufen", "Bir şeyler ters gitti", "May nangyaring mali" },
+            new[] { "Graphics quality level, 1 (lowest) to 21 (highest)", "Niveau de qualité graphique, de 1 (minimum) à 21 (maximum)", "Grafikqualitätsstufe, 1 (niedrigste) bis 21 (höchste)", "Grafik kalite seviyesi, 1 (en düşük) ile 21 (en yüksek) arası", "Antas ng graphics quality, 1 (pinakamababa) hanggang 21 (pinakamataas)" },
+            new[] { "True = use the texture quality flag", "True = utiliser le flag de qualité des textures", "True = Texturqualitäts-Flag nutzen", "True = doku kalitesi flag'ini kullan", "True = gamitin ang flag ng texture quality" },
+            new[] { "Texture quality: 0 lowest, 1 low, 2 medium, 3 high", "Qualité des textures : 0 minimale, 1 basse, 2 moyenne, 3 haute", "Texturqualität: 0 niedrigste, 1 niedrig, 2 mittel, 3 hoch", "Doku kalitesi: 0 en düşük, 1 düşük, 2 orta, 3 yüksek", "Texture quality: 0 pinakamababa, 1 mababa, 2 katamtaman, 3 mataas" },
+            new[] { "Anti-aliasing samples: 1, 2, 4 or 8", "Échantillons d'anticrénelage : 1, 2, 4 ou 8", "Kantenglättungs-Samples: 1, 2, 4 oder 8", "Kenar yumuşatma örnekleri: 1, 2, 4 veya 8", "Mga sample ng anti-aliasing: 1, 2, 4 o 8" },
+            new[] { "True = render with Direct3D 11", "True = rendu avec Direct3D 11", "True = mit Direct3D 11 rendern", "True = Direct3D 11 ile çiz", "True = mag-render gamit ang Direct3D 11" },
+            new[] { "True = render with Vulkan", "True = rendu avec Vulkan", "True = mit Vulkan rendern", "True = Vulkan ile çiz", "True = mag-render gamit ang Vulkan" },
+            new[] { "True = render with OpenGL", "True = rendu avec OpenGL", "True = mit OpenGL rendern", "True = OpenGL ile çiz", "True = mag-render gamit ang OpenGL" },
+            new[] { "Grass draw distance (min). 0 with max = no grass", "Distance d'affichage de l'herbe (min). 0 avec max = pas d'herbe", "Gras-Sichtweite (min). 0 mit max = kein Gras", "Çim çizim mesafesi (min). Max ile birlikte 0 = çim yok", "Layo ng pagguhit ng damo (min). 0 kasama ang max = walang damo" },
+            new[] { "Grass draw distance (max). 0 = no grass", "Distance d'affichage de l'herbe (max). 0 = pas d'herbe", "Gras-Sichtweite (max). 0 = kein Gras", "Çim çizim mesafesi (max). 0 = çim yok", "Layo ng pagguhit ng damo (max). 0 = walang damo" },
+            new[] { "True = gray sky instead of the skybox", "True = ciel gris à la place de la skybox", "True = grauer Himmel statt Skybox", "True = gökyüzü kutusu yerine gri gökyüzü", "True = gray na langit sa halip na skybox" },
+            new[] { "True = freeze lighting updates (faster)", "True = figer les mises à jour d'éclairage (plus rapide)", "True = Lichtupdates einfrieren (schneller)", "True = ışık güncellemelerini dondur (daha hızlı)", "True = i-freeze ang pag-update ng ilaw (mas mabilis)" },
+            new[] { "Grass movement. 0 = still grass", "Mouvement de l'herbe. 0 = herbe immobile", "Grasbewegung. 0 = stilles Gras", "Çim hareketi. 0 = hareketsiz çim", "Galaw ng damo. 0 = hindi gumagalaw na damo" },
+            new[] { "True = turn off DPI scaling", "True = désactiver la mise à l'échelle DPI", "True = DPI-Skalierung ausschalten", "True = DPI ölçeklemeyi kapat", "True = i-off ang DPI scaling" },
+            new[] { "False = Alt+Enter uses exclusive fullscreen", "False = Alt+Entrée utilise le plein écran exclusif", "False = Alt+Enter nutzt exklusiven Vollbildmodus", "False = Alt+Enter özel tam ekran kullanır", "False = exclusive fullscreen ang Alt+Enter" },
+            new[] { "Mesh detail switching distance", "Distance de changement de détail des maillages", "Wechseldistanz für Mesh-Details", "Model detayı geçiş mesafesi", "Layo ng pagpapalit ng detalye ng mesh" },
+            new[] { "Mesh detail distance, level 1 to 2", "Distance de détail des maillages, niveau 1 à 2", "Mesh-Detail-Distanz, Stufe 1 bis 2", "Model detayı mesafesi, seviye 1'den 2'ye", "Layo ng detalye ng mesh, level 1 hanggang 2" },
+            new[] { "Mesh detail distance, level 2 to 3", "Distance de détail des maillages, niveau 2 à 3", "Mesh-Detail-Distanz, Stufe 2 bis 3", "Model detayı mesafesi, seviye 2'den 3'e", "Layo ng detalye ng mesh, level 2 hanggang 3" },
+            new[] { "Mesh detail distance, level 3 to 4", "Distance de détail des maillages, niveau 3 à 4", "Mesh-Detail-Distanz, Stufe 3 bis 4", "Model detayı mesafesi, seviye 3'ten 4'e", "Layo ng detalye ng mesh, level 3 hanggang 4" },
+            new[] { "Connected to a server in {0}", "Connecté à un serveur à {0}", "Mit einem Server in {0} verbunden", "{0} konumundaki bir sunucuya bağlandı", "Nakakonekta sa isang server sa {0}" },
+            new[] { "Account", "Compte", "Konto", "Hesap", "Account" },
+            new[] { "Open GuideStrap", "Ouvrir GuideStrap", "GuideStrap öffnen", "GuideStrap'i aç", "Buksan ang GuideStrap" },
+            new[] { "Exit", "Quitter", "Beenden", "Çıkış", "Lumabas" },
+            new[] { "Search", "Rechercher", "Suchen", "Ara", "Maghanap" },
+            new[] { "Filter", "Filtrer", "Filtern", "Filtrele", "I-filter" },
+            new[] { "Value", "Valeur", "Wert", "Değer", "Value" },
+            new[] { "e.g. https://www.roblox.com/games/920587237", "ex. https://www.roblox.com/games/920587237", "z. B. https://www.roblox.com/games/920587237", "örn. https://www.roblox.com/games/920587237", "hal. https://www.roblox.com/games/920587237" },
+            new[] { "Saved accounts", "Comptes enregistrés", "Gespeicherte Konten", "Kayıtlı hesaplar", "Mga naka-save na account" },
+            new[] { "Default (Roblox's own login)", "Par défaut (connexion propre à Roblox)", "Standard (Roblox' eigene Anmeldung)", "Varsayılan (Roblox'un kendi girişi)", "Default (sariling login ng Roblox)" },
+            new[] { "Uses whoever is logged in on the Roblox website", "Utilise la personne connectée sur le site Roblox", "Nutzt, wer auf der Roblox-Website angemeldet ist", "Roblox sitesinde kim giriş yaptıysa onu kullanır", "Ginagamit kung sino ang naka-log in sa Roblox website" },
+            new[] { "Using Roblox's own login.", "Utilisation de la connexion propre à Roblox.", "Roblox' eigene Anmeldung wird genutzt.", "Roblox'un kendi girişi kullanılıyor.", "Gamit ang sariling login ng Roblox." },
+            new[] { "Switched to {0}.", "Passé à {0}.", "Zu {0} gewechselt.", "{0} hesabına geçildi.", "Lumipat sa {0}." },
+            new[] { "Advanced settings", "Réglages avancés", "Erweiterte Einstellungen", "Gelişmiş ayarlar", "Advanced na settings" },
+            new[] { "Change every graphics setting yourself.", "Change chaque réglage graphique toi-même.", "Ändere jede Grafikeinstellung selbst.", "Her grafik ayarını kendin değiştir.", "Ikaw mismo ang magbago ng bawat graphics setting." },
+            new[] { "Graphics quality", "Qualité graphique", "Grafikqualität", "Grafik kalitesi", "Graphics quality" },
+            new[] { "Roblox's quality level (1-21). Auto = Roblox decides.", "Le niveau de qualité de Roblox (1-21). Auto = Roblox décide.", "Roblox' Qualitätsstufe (1-21). Auto = Roblox entscheidet.", "Roblox'un kalite seviyesi (1-21). Otomatik = Roblox karar verir.", "Antas ng quality ng Roblox (1-21). Auto = ang Roblox ang bahala." },
+            new[] { "Texture quality", "Qualité des textures", "Texturqualität", "Doku kalitesi", "Texture quality" },
+            new[] { "How sharp surfaces and decals look.", "La netteté des surfaces et des décalques.", "Wie scharf Oberflächen und Decals aussehen.", "Yüzeylerin ve çıkartmaların ne kadar keskin göründüğü.", "Gaano kalinaw ang mga surface at decal." },
+            new[] { "Anti-aliasing", "Anticrénelage", "Kantenglättung", "Kenar yumuşatma", "Anti-aliasing" },
+            new[] { "Smooths jagged edges. Costs FPS.", "Lisse les bords en escalier. Coûte des FPS.", "Glättet gezackte Kanten. Kostet FPS.", "Tırtıklı kenarları yumuşatır. FPS'e mal olur.", "Pinapakinis ang mga tulis-tulis na gilid. May bawas sa FPS." },
+            new[] { "Rendering API", "API de rendu", "Rendering-API", "Çizim API'si", "Rendering API" },
+            new[] { "Try Vulkan or D3D11 if you crash or stutter.", "Essaie Vulkan ou D3D11 si ça plante ou saccade.", "Probier Vulkan oder D3D11, wenn es abstürzt oder ruckelt.", "Çökme veya takılma olursa Vulkan ya da D3D11'i dene.", "Subukan ang Vulkan o D3D11 kung nagka-crash o nag-i-stutter." },
+            new[] { "Remove grass", "Retirer l'herbe", "Gras entfernen", "Çimi kaldır", "Tanggalin ang damo" },
+            new[] { "Hides terrain grass. Big FPS boost on grassy maps.", "Cache l'herbe du terrain. Gros gain de FPS sur les cartes avec de l'herbe.", "Versteckt Geländegras. Großer FPS-Gewinn auf Karten mit viel Gras.", "Arazi çimini gizler. Çimli haritalarda büyük FPS artışı.", "Itinatago ang damo sa terrain. Malaking dagdag na FPS sa mga map na madamo." },
+            new[] { "Gray sky", "Ciel gris", "Grauer Himmel", "Gri gökyüzü", "Gray na langit" },
+            new[] { "Replaces the skybox with flat gray.", "Remplace la skybox par un gris uni.", "Ersetzt die Skybox durch flaches Grau.", "Gökyüzü kutusunu düz griyle değiştirir.", "Pinapalitan ang skybox ng plain na gray." },
+            new[] { "Low-detail meshes", "Maillages peu détaillés", "Detailarme Meshes", "Az detaylı modeller", "Low-detail na mesh" },
+            new[] { "Always uses the simplest version of models.", "Utilise toujours la version la plus simple des modèles.", "Nutzt immer die einfachste Version von Modellen.", "Her zaman modellerin en basit sürümünü kullanır.", "Laging ginagamit ang pinakasimpleng bersyon ng mga model." },
+            new[] { "Freeze lighting updates", "Figer l'éclairage", "Lichtupdates einfrieren", "Işık güncellemelerini dondur", "I-freeze ang pag-update ng ilaw" },
+            new[] { "Faster, but lighting can look flat or wrong.", "Plus rapide, mais l'éclairage peut paraître plat ou faux.", "Schneller, aber das Licht kann flach oder falsch aussehen.", "Daha hızlı, ama ışık düz veya yanlış görünebilir.", "Mas mabilis, pero puwedeng magmukhang flat o mali ang ilaw." },
+            new[] { "Still grass", "Herbe immobile", "Stilles Gras", "Hareketsiz çim", "Hindi gumagalaw na damo" },
+            new[] { "Stops grass from waving around.", "Empêche l'herbe de bouger.", "Verhindert, dass das Gras sich bewegt.", "Çimin sallanmasını durdurur.", "Pinapahinto ang paggalaw ng damo." },
+            new[] { "Disable DPI scaling", "Désactiver la mise à l'échelle DPI", "DPI-Skalierung ausschalten", "DPI ölçeklemeyi kapat", "I-off ang DPI scaling" },
+            new[] { "Sharper on high-res screens, UI gets smaller.", "Plus net sur les écrans haute résolution, l'interface devient plus petite.", "Schärfer auf hochauflösenden Bildschirmen, die Oberfläche wird kleiner.", "Yüksek çözünürlüklü ekranlarda daha keskin, arayüz küçülür.", "Mas malinaw sa high-res na screen, lumiliit ang UI." },
+            new[] { "Alt+Enter real fullscreen", "Vrai plein écran avec Alt+Entrée", "Echtes Vollbild mit Alt+Enter", "Alt+Enter ile gerçek tam ekran", "Totoong fullscreen sa Alt+Enter" },
+            new[] { "Exclusive fullscreen, can lower input lag.", "Plein écran exclusif, peut réduire la latence.", "Exklusiver Vollbildmodus, kann die Eingabeverzögerung senken.", "Özel tam ekran, giriş gecikmesini azaltabilir.", "Exclusive fullscreen, puwedeng bumaba ang input lag." },
+            new[] { "Play buttons on roblox.com now open GuideStrap.", "Les boutons Jouer de roblox.com ouvrent maintenant GuideStrap.", "Spielen-Buttons auf roblox.com öffnen jetzt GuideStrap.", "roblox.com'daki Oyna düğmeleri artık GuideStrap'i açıyor.", "Binubuksan na ngayon ng mga Play button sa roblox.com ang GuideStrap." },
+            new[] { "Play buttons on roblox.com open normal Roblox again.", "Les boutons Jouer de roblox.com ouvrent à nouveau Roblox normal.", "Spielen-Buttons auf roblox.com öffnen wieder normales Roblox.", "roblox.com'daki Oyna düğmeleri tekrar normal Roblox'u açıyor.", "Normal na Roblox na ulit ang binubuksan ng mga Play button sa roblox.com." },
+            new[] { "Language", "Langue", "Sprache", "Dil", "Wika" },
+            new[] { "English, Español or Português.", "English, Español ou Português.", "English, Español oder Português.", "English, Español veya Português.", "English, Español o Português." },
+            new[] { "Added {0}", "{0} ajouté(s)", "{0} hinzugefügt", "{0} eklendi", "Naidagdag ang {0}" },
+            new[] { "Overwrote {0}", "{0} remplacé(s)", "{0} überschrieben", "{0} üzerine yazıldı", "Napalitan ang {0}" },
+            new[] { "Kept {0} original", "{0} original(aux) gardé(s)", "{0} Original(e) behalten", "{0} orijinal korundu", "Itinabi ang {0} orihinal" },
+            new[] { "{0} already the same", "{0} déjà identique(s)", "{0} bereits gleich", "{0} zaten aynı", "{0} pareho na" },
+            new[] { "Skipped {0} not on the allowlist", "{0} ignoré(s), pas sur la liste autorisée", "{0} übersprungen, nicht auf der Erlaubnisliste", "{0} atlandı, izin listesinde değil", "Nilaktawan ang {0}, wala sa allowlist" },
+            new[] { "Nothing changed.", "Rien n'a changé.", "Nichts geändert.", "Hiçbir şey değişmedi.", "Walang nagbago." },
+            new[] { "This flag is already in your list", "Ce flag est déjà dans ta liste", "Dieses Flag ist schon in deiner Liste", "Bu flag zaten listende var", "Nasa listahan mo na ang flag na ito" },
+            new[] { "{0}\n\nCurrent value:   {1}\nNew value:   {2}\n\nDo you want to overwrite it with the new value, or keep the original?", "{0}\n\nValeur actuelle :   {1}\nNouvelle valeur :   {2}\n\nTu veux le remplacer par la nouvelle valeur, ou garder l'original ?", "{0}\n\nAktueller Wert:   {1}\nNeuer Wert:   {2}\n\nMöchtest du es mit dem neuen Wert überschreiben oder das Original behalten?", "{0}\n\nMevcut değer:   {1}\nYeni değer:   {2}\n\nYeni değerle üzerine yazmak mı, yoksa orijinali korumak mı istiyorsun?", "{0}\n\nKasalukuyang value:   {1}\nBagong value:   {2}\n\nGusto mo bang palitan ito ng bagong value, o panatilihin ang orihinal?" },
+            new[] { "Do the same for the other {0} duplicate{1}", "Faire pareil pour les {0} autres doublons", "Dasselbe für die anderen {0} Duplikate tun", "Diğer {0} kopya için de aynısını yap", "Gawin din ito sa iba pang {0} na doble" },
+            new[] { "No flags yet. Press \"Add flag\" or \"Import JSON\" to get started.", "Aucun flag pour l'instant. Appuie sur \"Ajouter un flag\" ou \"Importer du JSON\" pour commencer.", "Noch keine Flags. Drück \"Flag hinzufügen\" oder \"JSON importieren\", um loszulegen.", "Henüz flag yok. Başlamak için \"Flag ekle\" veya \"JSON içe aktar\"a bas.", "Wala pang flag. Pindutin ang \"Magdagdag ng flag\" o \"I-import ang JSON\" para magsimula." },
+            new[] { "No flags match your filter.", "Aucun flag ne correspond à ton filtre.", "Keine Flags passen zu deinem Filter.", "Filtrene uyan flag yok.", "Walang flag na tugma sa filter mo." },
+            new[] { "GuideStrap Setup", "Installation de GuideStrap", "GuideStrap-Setup", "GuideStrap Kurulumu", "GuideStrap Setup" },
+            new[] { "Welcome to GuideStrap", "Bienvenue dans GuideStrap", "Willkommen bei GuideStrap", "GuideStrap'e hoş geldin", "Welcome sa GuideStrap" },
+            new[] { "Pick your language, then install. It only takes a few seconds.", "Choisis ta langue, puis installe. Ça ne prend que quelques secondes.", "Wähle deine Sprache und installiere dann. Das dauert nur ein paar Sekunden.", "Dilini seç, sonra kur. Sadece birkaç saniye sürer.", "Piliin ang wika mo, tapos i-install. Ilang segundo lang ito." },
+            new[] { "Desktop shortcut", "Raccourci sur le bureau", "Desktop-Verknüpfung", "Masaüstü kısayolu", "Shortcut sa desktop" },
+            new[] { "Add a GuideStrap icon to your desktop.", "Ajoute une icône GuideStrap sur ton bureau.", "Fügt ein GuideStrap-Symbol auf deinem Desktop hinzu.", "Masaüstüne bir GuideStrap simgesi ekler.", "Magdagdag ng GuideStrap icon sa desktop mo." },
+            new[] { "Play buttons on roblox.com open GuideStrap.", "Les boutons Jouer de roblox.com ouvrent GuideStrap.", "Spielen-Buttons auf roblox.com öffnen GuideStrap.", "roblox.com'daki Oyna düğmeleri GuideStrap'i açar.", "Binubuksan ng mga Play button sa roblox.com ang GuideStrap." },
+            new[] { "Install", "Installer", "Installieren", "Kur", "I-install" },
+            new[] { "Installing...", "Installation...", "Wird installiert...", "Kuruluyor...", "Ini-install..." },
+            new[] { "Setup failed", "L'installation a échoué", "Setup fehlgeschlagen", "Kurulum başarısız", "Pumalya ang setup" },
+            new[] { "Installs for your Windows user only. Remove it any time from Settings > Apps.", "S'installe seulement pour ton utilisateur Windows. Tu peux le retirer quand tu veux dans Paramètres > Applications.", "Wird nur für deinen Windows-Benutzer installiert. Entferne es jederzeit unter Einstellungen > Apps.", "Sadece Windows kullanıcın için kurulur. İstediğin zaman Ayarlar > Uygulamalar'dan kaldırabilirsin.", "Para lang sa Windows user mo ang install. Tanggalin anumang oras sa Settings > Apps." },
+            new[] { "Uninstall GuideStrap?", "Désinstaller GuideStrap ?", "GuideStrap deinstallieren?", "GuideStrap kaldırılsın mı?", "I-uninstall ang GuideStrap?" },
+            new[] { "This removes GuideStrap, its copy of Roblox, your settings, mods and saved logins. Normal Roblox stays installed.", "Ceci supprime GuideStrap, sa copie de Roblox, tes réglages, mods et connexions enregistrées. Roblox normal reste installé.", "Das entfernt GuideStrap, seine Kopie von Roblox, deine Einstellungen, Mods und gespeicherten Anmeldungen. Normales Roblox bleibt installiert.", "Bu, GuideStrap'i, Roblox kopyasını, ayarlarını, modlarını ve kayıtlı girişlerini kaldırır. Normal Roblox kurulu kalır.", "Tatanggalin nito ang GuideStrap, ang kopya nito ng Roblox, ang settings, mods at mga naka-save na login mo. Mananatiling naka-install ang normal na Roblox." },
+            new[] { "Uninstall", "Désinstaller", "Deinstallieren", "Kaldır", "I-uninstall" },
+            new[] { "Close GuideStrap first", "Ferme GuideStrap d'abord", "Schließ zuerst GuideStrap", "Önce GuideStrap'i kapat", "Isara muna ang GuideStrap" },
+            new[] { "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "GuideStrap tourne encore (regarde dans la zone près de l'horloge). Ferme-le, puis réessaie.", "GuideStrap läuft noch (schau im Infobereich neben der Uhr). Schließ es und versuch es dann noch mal.", "GuideStrap hâlâ çalışıyor (saatin yanındaki tepsiye bak). Kapat, sonra tekrar dene.", "Tumatakbo pa ang GuideStrap (tingnan ang tray malapit sa orasan). Isara ito, tapos subukan ulit." },
+            new[] { "GuideStrap was uninstalled.", "GuideStrap a été désinstallé.", "GuideStrap wurde deinstalliert.", "GuideStrap kaldırıldı.", "Na-uninstall na ang GuideStrap." },
+            new[] { "GuideStrap is a Roblox launcher made by Guide. It downloads Roblox from Roblox's own servers, keeps it updated, and starts it with your settings applied.\n\nBesides launching, it handles graphics presets, FastFlags (only the ones Roblox allows), a custom in-game font, and switching between saved accounts.\n\nIt never touches the game while it's running. It only changes launch files and settings that Roblox reads on its own, so it isn't an exploit. Saved logins are encrypted for your Windows user.\n\nEverything happens in GuideStrap's own copy of Roblox. Your normal Roblox install is never changed, so launching Roblox without GuideStrap always gives you the original game, sounds and settings.\n\nGuideStrap is a fan project and isn't affiliated with Roblox Corporation.", "GuideStrap est un lanceur Roblox créé par Guide. Il télécharge Roblox depuis les serveurs de Roblox, le garde à jour et le lance avec tes réglages.\n\nEn plus du lancement, il gère les préréglages graphiques, les FastFlags (seulement ceux que Roblox autorise), une police perso en jeu et le changement entre comptes enregistrés.\n\nIl ne touche jamais au jeu pendant qu'il tourne. Il change seulement des fichiers de lancement et des réglages que Roblox lit lui-même, donc ce n'est pas un exploit. Les connexions enregistrées sont chiffrées pour ton utilisateur Windows.\n\nTout se passe dans la propre copie de Roblox de GuideStrap. Ton Roblox normal n'est jamais modifié, donc lancer Roblox sans GuideStrap te donne toujours le jeu, les sons et les réglages d'origine.\n\nGuideStrap est un projet de fan et n'est pas affilié à Roblox Corporation.", "GuideStrap ist ein Roblox-Launcher von Guide. Er lädt Roblox von Roblox' eigenen Servern herunter, hält es aktuell und startet es mit deinen Einstellungen.\n\nNeben dem Starten kümmert er sich um Grafik-Voreinstellungen, FastFlags (nur die, die Roblox erlaubt), eine eigene Schrift im Spiel und das Wechseln zwischen gespeicherten Konten.\n\nEr fasst das Spiel nie an, während es läuft. Er ändert nur Startdateien und Einstellungen, die Roblox selbst liest, also ist er kein Exploit. Gespeicherte Anmeldungen sind für deinen Windows-Benutzer verschlüsselt.\n\nAlles passiert in GuideStraps eigener Kopie von Roblox. Deine normale Roblox-Installation wird nie verändert, also bekommst du ohne GuideStrap immer das Originalspiel mit Originalsounds und -einstellungen.\n\nGuideStrap ist ein Fanprojekt und gehört nicht zur Roblox Corporation.", "GuideStrap, Guide tarafından yapılmış bir Roblox başlatıcısıdır. Roblox'u Roblox'un kendi sunucularından indirir, güncel tutar ve ayarlarınla başlatır.\n\nBaşlatmanın yanında grafik ön ayarlarını, FastFlags'i (sadece Roblox'un izin verdiklerini), oyun içi özel yazı tipini ve kayıtlı hesaplar arasında geçişi yönetir.\n\nOyun çalışırken ona asla dokunmaz. Sadece Roblox'un kendisinin okuduğu başlatma dosyalarını ve ayarları değiştirir, yani bir exploit değildir. Kayıtlı girişler Windows kullanıcın için şifrelenir.\n\nHer şey GuideStrap'in kendi Roblox kopyasında olur. Normal Roblox kurulumun asla değişmez, bu yüzden Roblox'u GuideStrap olmadan açmak her zaman orijinal oyunu, sesleri ve ayarları verir.\n\nGuideStrap bir hayran projesidir ve Roblox Corporation ile bağlantılı değildir.", "Ang GuideStrap ay Roblox launcher na gawa ni Guide. Dina-download nito ang Roblox mula sa sariling server ng Roblox, pinapanatiling updated, at sinisimulan gamit ang settings mo.\n\nBukod sa pag-launch, hawak din nito ang graphics presets, FastFlags (yung mga pinapayagan lang ng Roblox), custom na font sa laro, at paglipat sa pagitan ng mga naka-save na account.\n\nHindi nito ginagalaw ang laro habang tumatakbo. Binabago lang nito ang launch files at settings na kusang binabasa ng Roblox, kaya hindi ito exploit. Naka-encrypt ang mga naka-save na login para sa Windows user mo.\n\nLahat ay nangyayari sa sariling kopya ng Roblox ng GuideStrap. Hindi kailanman binabago ang normal mong Roblox install, kaya ang pag-launch ng Roblox nang walang GuideStrap ay laging orihinal na laro, tunog at settings.\n\nAng GuideStrap ay fan project at hindi konektado sa Roblox Corporation." },
+            new[] { "Reinstall GuideStrap", "Réinstaller GuideStrap", "GuideStrap neu installieren", "GuideStrap'i yeniden kur", "I-reinstall ang GuideStrap" },
+            new[] { "GuideStrap is already installed. Reinstalling replaces it with this copy and keeps your settings, accounts and mods.", "GuideStrap est déjà installé. La réinstallation le remplace par cette copie et garde tes réglages, comptes et mods.", "GuideStrap ist schon installiert. Neu installieren ersetzt es durch diese Kopie und behält deine Einstellungen, Konten und Mods.", "GuideStrap zaten kurulu. Yeniden kurmak onu bu kopyayla değiştirir ve ayarlarını, hesaplarını ve modlarını korur.", "Naka-install na ang GuideStrap. Papalitan ito ng kopyang ito at itatabi ang settings, account at mods mo." },
+            new[] { "Installed: {0}  ·  This file: {1}", "Installé : {0}  ·  Ce fichier : {1}", "Installiert: {0}  ·  Diese Datei: {1}", "Kurulu: {0}  ·  Bu dosya: {1}", "Naka-install: {0}  ·  Ang file na ito: {1}" },
+            new[] { "Also repair Roblox", "Réparer aussi Roblox", "Roblox auch reparieren", "Roblox'u da onar", "Ayusin din ang Roblox" },
+            new[] { "Downloads a fresh copy of Roblox next time you launch.", "Télécharge une nouvelle copie de Roblox au prochain lancement.", "Lädt beim nächsten Start eine frische Kopie von Roblox herunter.", "Bir sonraki başlatışta Roblox'un yeni bir kopyasını indirir.", "Magda-download ng bagong kopya ng Roblox sa susunod mong pag-launch." },
+            new[] { "Reinstall", "Réinstaller", "Neu installieren", "Yeniden kur", "I-reinstall" },
+            new[] { "Reinstalling...", "Réinstallation...", "Wird neu installiert...", "Yeniden kuruluyor...", "Nire-reinstall..." },
+            new[] { "GuideStrap is open", "GuideStrap est ouvert", "GuideStrap ist geöffnet", "GuideStrap açık", "Bukas ang GuideStrap" },
+            new[] { "GuideStrap is open right now. Close it and continue?", "GuideStrap est ouvert en ce moment. Le fermer et continuer ?", "GuideStrap ist gerade geöffnet. Schließen und fortfahren?", "GuideStrap şu an açık. Kapatıp devam edilsin mi?", "Bukas ngayon ang GuideStrap. Isara ito at magpatuloy?" },
+            new[] { "Close and continue", "Fermer et continuer", "Schließen und fortfahren", "Kapat ve devam et", "Isara at magpatuloy" },
+            new[] { "Theme", "Thème", "Design", "Tema", "Tema" },
+            new[] { "Purple", "Violet", "Lila", "Mor", "Purple" },
+            new[] { "Black", "Noir", "Schwarz", "Siyah", "Itim" },
+            new[] { "Purple, or plain black with no color.", "Violet, ou noir uni sans couleur.", "Lila oder schlichtes Schwarz ohne Farbe.", "Mor veya renksiz düz siyah.", "Purple, o plain na itim na walang kulay." },
+            new[] { "The new theme shows after GuideStrap restarts.", "Le nouveau thème s'affiche après le redémarrage de GuideStrap.", "Das neue Design erscheint nach einem Neustart von GuideStrap.", "Yeni tema GuideStrap yeniden başladıktan sonra görünür.", "Lalabas ang bagong tema pagka-restart ng GuideStrap." },
+            new[] { "Used by the Purple theme for buttons, switches and highlights.", "Utilisée par le thème Violet pour les boutons, interrupteurs et surlignages.", "Wird vom lila Design für Buttons, Schalter und Hervorhebungen genutzt.", "Mor tema tarafından düğmeler, anahtarlar ve vurgular için kullanılır.", "Ginagamit ng Purple na tema para sa mga button, switch at highlight." },
+            new[] { "Potato mode", "Mode patate", "Kartoffelmodus", "Patates modu", "Potato mode" },
+            new[] { "Everything low for the most FPS, or turn on parts one by one.", "Tout au minimum pour le plus de FPS, ou active les éléments un par un.", "Alles auf niedrig für die meisten FPS, oder schalte Teile einzeln ein.", "En çok FPS için her şey düşük, ya da parçaları tek tek aç.", "Lahat nasa mababa para sa pinakamaraming FPS, o i-on ang mga bahagi isa-isa." },
+            new[] { "Turn on everything", "Tout activer", "Alles einschalten", "Hepsini aç", "I-on lahat" },
+            new[] { "All of the switches below at once.", "Tous les interrupteurs ci-dessous d'un coup.", "Alle Schalter unten auf einmal.", "Aşağıdaki tüm anahtarlar bir kerede.", "Lahat ng switch sa ibaba nang sabay." },
+            new[] { "Blurry textures", "Textures floues", "Verschwommene Texturen", "Bulanık dokular", "Malabong texture" },
+            new[] { "Lowest texture quality. Works on every game's textures.", "Qualité de texture minimale. Marche sur les textures de n'importe quel jeu.", "Niedrigste Texturqualität. Wirkt auf die Texturen jedes Spiels.", "En düşük doku kalitesi. Her oyunun dokularında çalışır.", "Pinakamababang texture quality. Gumagana sa texture ng kahit anong laro." },
+            new[] { "No grass", "Pas d'herbe", "Kein Gras", "Çim yok", "Walang damo" },
+            new[] { "Hides terrain grass.", "Cache l'herbe du terrain.", "Versteckt Geländegras.", "Arazi çimini gizler.", "Itinatago ang damo sa terrain." },
+            new[] { "Anti-aliasing off", "Anticrénelage désactivé", "Kantenglättung aus", "Kenar yumuşatma kapalı", "Naka-off ang anti-aliasing" },
+            new[] { "No edge smoothing. Edges look a bit jagged.", "Pas de lissage des bords. Les bords sont un peu en escalier.", "Keine Kantenglättung. Kanten sehen etwas gezackt aus.", "Kenar yumuşatma yok. Kenarlar biraz tırtıklı görünür.", "Walang pagpapakinis ng gilid. Medyo tulis-tulis ang mga gilid." },
+            new[] { "Preview", "Aperçu", "Vorschau", "Önizleme", "Preview" },
+            new[] { "See what blurry textures look like.", "Vois à quoi ressemblent les textures floues.", "Sieh dir an, wie verschwommene Texturen aussehen.", "Bulanık dokuların nasıl göründüğüne bak.", "Tingnan kung ano ang itsura ng malabong texture." },
+            new[] { "Texture preview", "Aperçu des textures", "Texturvorschau", "Doku önizlemesi", "Preview ng texture" },
+            new[] { "Normal", "Normal", "Normal", "Normal", "Normal" },
+            new[] { "Made-up example. In real games the blur looks the same, the textures just differ.", "Exemple inventé. Dans les vrais jeux le flou est le même, seules les textures changent.", "Erfundenes Beispiel. In echten Spielen sieht die Unschärfe gleich aus, nur die Texturen sind anders.", "Uydurma örnek. Gerçek oyunlarda bulanıklık aynı görünür, sadece dokular farklıdır.", "Gawa-gawang halimbawa. Sa totoong laro pareho ang labo, iba lang ang texture." },
+            new[] { "FPS cap", "Limite de FPS", "FPS-Limit", "FPS sınırı", "FPS cap" },
+            new[] { "Sets Roblox's own max frame rate before it opens. Normal Roblox keeps it too.", "Règle la limite d'images propre à Roblox avant qu'il s'ouvre. Roblox normal la garde aussi.", "Setzt Roblox' eigenes Bildratenlimit, bevor es startet. Normales Roblox behält es auch.", "Roblox açılmadan önce Roblox'un kendi kare hızı sınırını ayarlar. Normal Roblox da bunu korur.", "Sine-set ang sariling max frame rate ng Roblox bago ito bumukas. Mananatili rin ito sa normal na Roblox." },
+            new[] { "Above normal", "Au-dessus de la normale", "Höher als normal", "Normalin üstünde", "Higit sa normal" },
+            new[] { "Roblox priority", "Priorité de Roblox", "Roblox-Priorität", "Roblox önceliği", "Priority ng Roblox" },
+            new[] { "Gives Roblox more CPU time. High can slow OBS while streaming.", "Donne plus de temps CPU à Roblox. Haute peut ralentir OBS pendant un stream.", "Gibt Roblox mehr CPU-Zeit. Hoch kann OBS beim Streamen verlangsamen.", "Roblox'a daha çok işlemci zamanı verir. Yüksek, yayın yaparken OBS'i yavaşlatabilir.", "Binibigyan ang Roblox ng mas maraming oras sa CPU. Puwedeng bumagal ang OBS sa High habang nag-i-stream." },
+            new[] { "Muted", "Muet", "Stumm", "Sessiz", "Naka-mute" },
+            new[] { "Custom .mp3...", ".mp3 perso...", "Eigene .mp3...", "Özel .mp3...", "Custom na .mp3..." },
+            new[] { "Footsteps", "Pas", "Schritte", "Ayak sesleri", "Yabag" },
+            new[] { "Jump sound", "Son de saut", "Sprungsound", "Zıplama sesi", "Tunog ng pagtalon" },
+            new[] { "Sound pack", "Pack de sons", "Soundpaket", "Ses paketi", "Sound pack" },
+            new[] { "None", "Aucun", "Keins", "Yok", "Wala" },
+            new[] { "Using {0}. Its files replace Roblox's sounds.", "Utilise {0}. Ses fichiers remplacent les sons de Roblox.", "Nutzt {0}. Seine Dateien ersetzen Roblox' Sounds.", "{0} kullanılıyor. Dosyaları Roblox'un seslerinin yerine geçer.", "Gamit ang {0}. Pinapalitan ng mga file nito ang mga tunog ng Roblox." },
+            new[] { "Open the folder and add a pack: one folder per pack, with .ogg or .mp3 files.", "Ouvre le dossier et ajoute un pack : un dossier par pack, avec des fichiers .ogg ou .mp3.", "Öffne den Ordner und füge ein Paket hinzu: ein Ordner pro Paket, mit .ogg- oder .mp3-Dateien.", "Klasörü aç ve bir paket ekle: her paket için bir klasör, içinde .ogg veya .mp3 dosyaları.", "Buksan ang folder at magdagdag ng pack: isang folder bawat pack, na may .ogg o .mp3 na file." },
+            new[] { "No pack. Pick one, or open the folder to add more.", "Pas de pack. Choisis-en un, ou ouvre le dossier pour en ajouter.", "Kein Paket. Wähle eins oder öffne den Ordner, um mehr hinzuzufügen.", "Paket yok. Birini seç veya daha fazlasını eklemek için klasörü aç.", "Walang pack. Pumili ng isa, o buksan ang folder para magdagdag pa." },
+            new[] { "No footstep sound", "Pas de son de pas", "Kein Schrittsound", "Ayak sesi yok", "Walang tunog ng yabag" },
+            new[] { "Your own sound", "Ton propre son", "Dein eigener Sound", "Kendi sesin", "Sarili mong tunog" },
+            new[] { "Roblox's default footsteps", "Pas par défaut de Roblox", "Roblox' Standardschritte", "Roblox'un varsayılan ayak sesleri", "Default na yabag ng Roblox" },
+            new[] { "No jump or landing sound", "Pas de son de saut ni d'atterrissage", "Kein Sprung- oder Landesound", "Zıplama veya iniş sesi yok", "Walang tunog ng pagtalon o paglapag" },
+            new[] { "Roblox's default jump sound", "Son de saut par défaut de Roblox", "Roblox' Standard-Sprungsound", "Roblox'un varsayılan zıplama sesi", "Default na tunog ng pagtalon ng Roblox" },
+            new[] { "Pick a sound", "Choisis un son", "Wähle einen Sound", "Bir ses seç", "Pumili ng tunog" },
+            new[] { "That isn't an MP3 file", "Ce n'est pas un fichier MP3", "Das ist keine MP3-Datei", "Bu bir MP3 dosyası değil", "Hindi iyan MP3 file" },
+            new[] { "These Roblox sounds are .mp3 files. Convert your sound to .mp3 first (any free online converter works).", "Ces sons de Roblox sont des fichiers .mp3. Convertis ton son en .mp3 d'abord (n'importe quel convertisseur gratuit en ligne marche).", "Diese Roblox-Sounds sind .mp3-Dateien. Wandle deinen Sound zuerst in .mp3 um (jeder kostenlose Online-Konverter geht).", "Bu Roblox sesleri .mp3 dosyasıdır. Önce sesini .mp3'e çevir (herhangi bir ücretsiz çevrimiçi dönüştürücü olur).", "Mga .mp3 na file ang mga tunog na ito ng Roblox. I-convert muna sa .mp3 ang tunog mo (kahit anong libreng online converter ay pwede)." },
+            new[] { "Sound set. It applies next time you launch Roblox.", "Son réglé. Il s'applique au prochain lancement de Roblox.", "Sound gesetzt. Er gilt beim nächsten Start von Roblox.", "Ses ayarlandı. Roblox'u bir sonraki açışında uygulanır.", "Naka-set na ang tunog. Gagana ito sa susunod mong pag-launch ng Roblox." },
+            new[] { "Small cross", "Petite croix", "Kleines Kreuz", "Küçük artı", "Maliit na krus" },
+            new[] { "Circle", "Cercle", "Kreis", "Daire", "Bilog" },
+            new[] { "Classic arrow", "Flèche classique", "Klassischer Pfeil", "Klasik ok", "Klasikong arrow" },
+            new[] { "Dot", "Point", "Punkt", "Nokta", "Tuldok" },
+            new[] { "A small cross, easy to aim with", "Une petite croix, facile pour viser", "Ein kleines Kreuz, gut zum Zielen", "Küçük bir artı, nişan almak kolay", "Maliit na krus, madaling pang-asinta" },
+            new[] { "A thin circle", "Un cercle fin", "Ein dünner Kreis", "İnce bir daire", "Manipis na bilog" },
+            new[] { "White arrow with a black outline", "Flèche blanche avec un contour noir", "Weißer Pfeil mit schwarzem Rand", "Siyah kenarlı beyaz ok", "Puting arrow na may itim na gilid" },
+            new[] { "Shift lock crosshair", "Viseur du shift lock", "Shift-Lock-Fadenkreuz", "Shift lock nişangahı", "Shift lock crosshair" },
+            new[] { "A small dot in the middle of the screen", "Un petit point au milieu de l'écran", "Ein kleiner Punkt in der Bildschirmmitte", "Ekranın ortasında küçük bir nokta", "Maliit na tuldok sa gitna ng screen" },
+            new[] { "A small cross in the middle of the screen", "Une petite croix au milieu de l'écran", "Ein kleines Kreuz in der Bildschirmmitte", "Ekranın ortasında küçük bir artı", "Maliit na krus sa gitna ng screen" },
+            new[] { "A thin circle in the middle of the screen", "Un cercle fin au milieu de l'écran", "Ein dünner Kreis in der Bildschirmmitte", "Ekranın ortasında ince bir daire", "Manipis na bilog sa gitna ng screen" },
+            new[] { "Roblox's default shift lock icon", "Icône de shift lock par défaut de Roblox", "Roblox' Standard-Shift-Lock-Symbol", "Roblox'un varsayılan shift lock simgesi", "Default na shift lock icon ng Roblox" },
+            new[] { "Pick a crosshair image", "Choisis une image de viseur", "Wähle ein Fadenkreuz-Bild", "Bir nişangah resmi seç", "Pumili ng larawan ng crosshair" },
+            new[] { "Setups", "Configurations", "Setups", "Kurulumlar", "Mga setup" },
+            new[] { "Saved setups", "Configurations enregistrées", "Gespeicherte Setups", "Kayıtlı kurulumlar", "Mga naka-save na setup" },
+            new[] { "Save", "Enregistrer", "Speichern", "Kaydet", "I-save" },
+            new[] { "Pick a setup", "Choisis une configuration", "Wähle ein Setup", "Bir kurulum seç", "Pumili ng setup" },
+            new[] { "Save your mods and graphics as a setup, like BedWars or Recording.", "Enregistre tes mods et graphismes comme configuration, par exemple BedWars ou Enregistrement.", "Speichere deine Mods und Grafik als Setup, z. B. BedWars oder Aufnahme.", "Modlarını ve grafiklerini bir kurulum olarak kaydet, örneğin BedWars veya Kayıt.", "I-save ang mods at graphics mo bilang setup, gaya ng BedWars o Recording." },
+            new[] { "{0} saved. Pick one to switch to it.", "{0} enregistrée(s). Choisis-en une pour y passer.", "{0} gespeichert. Wähle eins, um dazu zu wechseln.", "{0} kayıtlı. Geçmek için birini seç.", "{0} ang naka-save. Pumili ng isa para lumipat dito." },
+            new[] { "Save setup", "Enregistrer la configuration", "Setup speichern", "Kurulumu kaydet", "I-save ang setup" },
+            new[] { "Name this setup. Saving with an existing name replaces it.", "Nomme cette configuration. Utiliser un nom existant la remplace.", "Gib diesem Setup einen Namen. Ein vorhandener Name wird ersetzt.", "Bu kuruluma bir isim ver. Var olan bir isimle kaydetmek onu değiştirir.", "Pangalanan ang setup na ito. Papalitan ito kung pareho ang pangalan." },
+            new[] { "Saved {0}.", "{0} enregistrée.", "{0} gespeichert.", "{0} kaydedildi.", "Na-save ang {0}." },
+            new[] { "Switched to {0}. It applies next time you launch Roblox.", "Passé à {0}. S'applique au prochain lancement de Roblox.", "Zu {0} gewechselt. Gilt beim nächsten Start von Roblox.", "{0} kurulumuna geçildi. Roblox'u bir sonraki açışında uygulanır.", "Lumipat sa {0}. Gagana ito sa susunod mong pag-launch ng Roblox." },
+            new[] { "Pick a setup first", "Choisis d'abord une configuration", "Wähle zuerst ein Setup", "Önce bir kurulum seç", "Pumili muna ng setup" },
+            new[] { "Choose the setup you want to delete from the list.", "Choisis dans la liste la configuration à supprimer.", "Wähle aus der Liste das Setup, das du löschen willst.", "Listeden silmek istediğin kurulumu seç.", "Piliin sa listahan ang setup na gusto mong burahin." },
+            new[] { "Delete setup?", "Supprimer la configuration ?", "Setup löschen?", "Kurulum silinsin mi?", "Burahin ang setup?" },
+            new[] { "Delete {0}? Your current settings stay the same.", "Supprimer {0} ? Tes réglages actuels ne changent pas.", "{0} löschen? Deine aktuellen Einstellungen bleiben gleich.", "{0} silinsin mi? Mevcut ayarların aynı kalır.", "Burahin ang {0}? Hindi magbabago ang kasalukuyang settings mo." },
+            new[] { "Delete", "Supprimer", "Löschen", "Sil", "Burahin" },
+            new[] { "Crash helper", "Aide aux plantages", "Absturzhilfe", "Çökme yardımcısı", "Crash helper" },
+            new[] { "If Roblox crashes, shows what went wrong and how to fix it.", "Si Roblox plante, montre ce qui s'est passé et comment le réparer.", "Wenn Roblox abstürzt, zeigt sie, was schiefging und wie man es behebt.", "Roblox çökerse neyin ters gittiğini ve nasıl düzeltileceğini gösterir.", "Kapag nag-crash ang Roblox, ipinapakita kung ano ang nangyari at paano ito ayusin." },
+            new[] { "Roblox crashed", "Roblox a planté", "Roblox ist abgestürzt", "Roblox çöktü", "Nag-crash ang Roblox" },
+            new[] { "Roblox crashed while starting", "Roblox a planté au démarrage", "Roblox ist beim Starten abgestürzt", "Roblox açılırken çöktü", "Nag-crash ang Roblox habang nagsisimula" },
+            new[] { "Error {0}: {1}", "Erreur {0} : {1}", "Fehler {0}: {1}", "Hata {0}: {1}", "Error {0}: {1}" },
+            new[] { "Try these fixes, starting with the first one.", "Essaie ces solutions, en commençant par la première.", "Probier diese Lösungen, angefangen mit der ersten.", "Bu çözümleri ilkinden başlayarak dene.", "Subukan ang mga ayos na ito, simula sa una." },
+            new[] { "Open Roblox logs", "Ouvrir les journaux de Roblox", "Roblox-Logs öffnen", "Roblox kayıtlarını aç", "Buksan ang mga log ng Roblox" },
+            new[] { "memory access error", "erreur d'accès mémoire", "Speicherzugriffsfehler", "bellek erişim hatası", "error sa pag-access ng memory" },
+            new[] { "Roblox stopped itself (security check)", "Roblox s'est arrêté tout seul (contrôle de sécurité)", "Roblox hat sich selbst beendet (Sicherheitsprüfung)", "Roblox kendini durdurdu (güvenlik kontrolü)", "kusang huminto ang Roblox (security check)" },
+            new[] { "stack overflow", "dépassement de pile", "Stapelüberlauf", "yığın taşması", "stack overflow" },
+            new[] { "memory corruption", "mémoire corrompue", "beschädigter Speicher", "bozuk bellek", "sirang memory" },
+            new[] { "out of memory", "mémoire insuffisante", "kein Speicher mehr frei", "bellek yetersiz", "kulang ang memory" },
+            new[] { "unhandled error", "erreur non gérée", "unbehandelter Fehler", "işlenmemiş hata", "hindi nahawakang error" },
+            new[] { "the graphics driver stopped responding", "le pilote graphique a cessé de répondre", "der Grafiktreiber reagiert nicht mehr", "ekran kartı sürücüsü yanıt vermeyi durdurdu", "huminto sa pagsagot ang graphics driver" },
+            new[] { "internal error", "erreur interne", "interner Fehler", "dahili hata", "internal error" },
+            new[] { "unknown error", "erreur inconnue", "unbekannter Fehler", "bilinmeyen hata", "hindi kilalang error" },
+            new[] { "Close overlays and macro tools", "Ferme les overlays et les outils de macro", "Schließ Overlays und Makro-Tools", "Arayüz kaplamalarını ve makro araçlarını kapat", "Isara ang mga overlay at macro tool" },
+            new[] { "Roblox closes itself when another program hooks into it, like FPS unlockers, macros, cheats or some recording overlays.", "Roblox se ferme tout seul quand un autre programme s'y accroche, comme les débloqueurs de FPS, les macros, les triches ou certains overlays d'enregistrement.", "Roblox beendet sich selbst, wenn sich ein anderes Programm einklinkt, z. B. FPS-Unlocker, Makros, Cheats oder manche Aufnahme-Overlays.", "Başka bir program Roblox'a bağlandığında Roblox kendini kapatır, örneğin FPS kilit açıcılar, makrolar, hileler veya bazı kayıt kaplamaları.", "Kusang nagsasara ang Roblox kapag may ibang program na kumakabit dito, gaya ng FPS unlocker, macro, cheat o ilang recording overlay." },
+            new[] { "Switch the rendering API", "Change l'API de rendu", "Wechsle die Rendering-API", "Çizim API'sini değiştir", "Palitan ang rendering API" },
+            new[] { "Your graphics driver may not like Direct3D 11. Try Vulkan next time.", "Ton pilote graphique n'aime peut-être pas Direct3D 11. Essaie Vulkan la prochaine fois.", "Dein Grafiktreiber mag vielleicht Direct3D 11 nicht. Probier nächstes Mal Vulkan.", "Ekran kartı sürücün Direct3D 11'i sevmiyor olabilir. Bir dahaki sefere Vulkan'ı dene.", "Baka hindi gusto ng graphics driver mo ang Direct3D 11. Subukan ang Vulkan sa susunod." },
+            new[] { "Your graphics driver may not like the current one. Try Direct3D 11 next time.", "Ton pilote graphique n'aime peut-être pas l'API actuelle. Essaie Direct3D 11 la prochaine fois.", "Dein Grafiktreiber mag vielleicht die aktuelle nicht. Probier nächstes Mal Direct3D 11.", "Ekran kartı sürücün mevcut olanı sevmiyor olabilir. Bir dahaki sefere Direct3D 11'i dene.", "Baka hindi gusto ng graphics driver mo ang kasalukuyan. Subukan ang Direct3D 11 sa susunod." },
+            new[] { "Use Vulkan", "Utiliser Vulkan", "Vulkan nutzen", "Vulkan kullan", "Gamitin ang Vulkan" },
+            new[] { "Use D3D11", "Utiliser D3D11", "D3D11 nutzen", "D3D11 kullan", "Gamitin ang D3D11" },
+            new[] { "Free up memory", "Libère de la mémoire", "Gib Speicher frei", "Bellek boşalt", "Magbakante ng memory" },
+            new[] { "Close browser tabs and other games, and turn on Potato mode in Graphics.", "Ferme les onglets du navigateur et les autres jeux, et active le Mode patate dans Graphismes.", "Schließ Browser-Tabs und andere Spiele und schalte den Kartoffelmodus unter Grafik ein.", "Tarayıcı sekmelerini ve diğer oyunları kapat, Grafikler'de Patates modunu aç.", "Isara ang mga tab ng browser at ibang laro, at i-on ang Potato mode sa Graphics." },
+            new[] { "Launch once without mods", "Lancer une fois sans mods", "Einmal ohne Mods starten", "Bir kez modsuz başlat", "Mag-launch nang isang beses nang walang mods" },
+            new[] { "A mod or custom font can break after a Roblox update. Your mods stay saved and come back the launch after.", "Un mod ou une police perso peut casser après une mise à jour de Roblox. Tes mods restent enregistrés et reviennent au lancement suivant.", "Ein Mod oder eine eigene Schrift kann nach einem Roblox-Update kaputtgehen. Deine Mods bleiben gespeichert und sind beim Start danach zurück.", "Bir mod veya özel yazı tipi bir Roblox güncellemesinden sonra bozulabilir. Modların kayıtlı kalır ve sonraki başlatışta geri gelir.", "Puwedeng masira ang mod o custom font pagkatapos ng update ng Roblox. Naka-save pa rin ang mods mo at babalik sa kasunod na launch." },
+            new[] { "Skip mods", "Sauter les mods", "Mods überspringen", "Modları atla", "Laktawan ang mods" },
+            new[] { "Reset FastFlags", "Réinitialiser les FastFlags", "FastFlags zurücksetzen", "FastFlags'i sıfırla", "I-reset ang FastFlags" },
+            new[] { "A flag can stop working after a Roblox update. This clears your flags and sets Graphics back to Balanced.", "Un flag peut arrêter de marcher après une mise à jour de Roblox. Ceci efface tes flags et remet les Graphismes sur Équilibré.", "Ein Flag kann nach einem Roblox-Update aufhören zu funktionieren. Das löscht deine Flags und setzt Grafik auf Ausgewogen zurück.", "Bir flag bir Roblox güncellemesinden sonra çalışmayı bırakabilir. Bu, flag'lerini temizler ve Grafikleri Dengeli'ye döndürür.", "Puwedeng tumigil gumana ang isang flag pagkatapos ng update ng Roblox. Buburahin nito ang mga flag mo at ibabalik ang Graphics sa Balanced." },
+            new[] { "Reset flags", "Réinitialiser les flags", "Flags zurücksetzen", "Flag'leri sıfırla", "I-reset ang mga flag" },
+            new[] { "Turn off multiple Roblox windows", "Désactiver les fenêtres Roblox multiples", "Mehrere Roblox-Fenster ausschalten", "Birden fazla Roblox penceresini kapat", "I-off ang maraming Roblox window" },
+            new[] { "Running more than one Roblox at once can make it crash.", "Lancer plusieurs Roblox en même temps peut le faire planter.", "Mehr als ein Roblox gleichzeitig kann es abstürzen lassen.", "Aynı anda birden fazla Roblox açmak çökmesine yol açabilir.", "Puwedeng mag-crash ang Roblox kapag higit sa isa ang bukas nang sabay." },
+            new[] { "Turn off", "Désactiver", "Ausschalten", "Kapat", "I-off" },
+            new[] { "Update your graphics driver", "Mets à jour ton pilote graphique", "Aktualisiere deinen Grafiktreiber", "Ekran kartı sürücünü güncelle", "I-update ang graphics driver mo" },
+            new[] { "Get the newest driver from NVIDIA, AMD or Intel. Old drivers are the most common cause of crashes.", "Prends le dernier pilote chez NVIDIA, AMD ou Intel. Les vieux pilotes sont la cause la plus fréquente des plantages.", "Hol dir den neuesten Treiber von NVIDIA, AMD oder Intel. Alte Treiber sind die häufigste Ursache für Abstürze.", "NVIDIA, AMD veya Intel'den en yeni sürücüyü al. Eski sürücüler çökmelerin en yaygın sebebidir.", "Kunin ang pinakabagong driver mula sa NVIDIA, AMD o Intel. Ang lumang driver ang pinakakaraniwang sanhi ng crash." },
+            new[] { "Downloads a fresh copy of Roblox next time you launch. Fixes broken or half-updated files.", "Télécharge une nouvelle copie de Roblox au prochain lancement. Répare les fichiers cassés ou à moitié mis à jour.", "Lädt beim nächsten Start eine frische Kopie von Roblox herunter. Behebt kaputte oder halb aktualisierte Dateien.", "Bir sonraki başlatışta Roblox'un yeni bir kopyasını indirir. Bozuk veya yarım güncellenmiş dosyaları düzeltir.", "Magda-download ng bagong kopya ng Roblox sa susunod mong pag-launch. Inaayos ang sira o kalahating na-update na file." },
+            new[] { "Roblox is still using its files. Close every Roblox window, then press Repair again.", "Roblox utilise encore ses fichiers. Ferme toutes les fenêtres Roblox, puis appuie à nouveau sur Réparer.", "Roblox nutzt seine Dateien noch. Schließ alle Roblox-Fenster und drück dann noch mal auf Reparieren.", "Roblox hâlâ dosyalarını kullanıyor. Tüm Roblox pencerelerini kapat, sonra tekrar Onar'a bas.", "Ginagamit pa ng Roblox ang mga file nito. Isara lahat ng Roblox window, tapos pindutin ulit ang Ayusin." },
+            new[] { "Friends", "Amis", "Freunde", "Arkadaşlar", "Mga kaibigan" },
+            new[] { "Rejoin last server", "Rejoindre le dernier serveur", "Letztem Server erneut beitreten", "Son sunucuya tekrar katıl", "Bumalik sa huling server" },
+            new[] { "Server hop", "Changer de serveur", "Server wechseln", "Sunucu değiştir", "Lumipat ng server" },
+            new[] { "Small server", "Petit serveur", "Kleiner Server", "Küçük sunucu", "Maliit na server" },
+            new[] { "Join a game first. GuideStrap remembers the last server you were in.", "Rejoins d'abord un jeu. GuideStrap se souvient du dernier serveur où tu étais.", "Tritt zuerst einem Spiel bei. GuideStrap merkt sich den letzten Server, auf dem du warst.", "Önce bir oyuna katıl. GuideStrap en son bulunduğun sunucuyu hatırlar.", "Sumali muna sa isang laro. Tinatandaan ng GuideStrap ang huling server na pinuntahan mo." },
+            new[] { "Paste a game link first, or join a game once.", "Colle d'abord un lien de jeu, ou rejoins un jeu une fois.", "Füge zuerst einen Spiellink ein oder tritt einmal einem Spiel bei.", "Önce bir oyun bağlantısı yapıştır veya bir kez bir oyuna katıl.", "Mag-paste muna ng link ng laro, o sumali sa isang laro kahit isang beses." },
+            new[] { "Finding a small server...", "Recherche d'un petit serveur...", "Suche einen kleinen Server...", "Küçük bir sunucu aranıyor...", "Naghahanap ng maliit na server..." },
+            new[] { "Finding another server...", "Recherche d'un autre serveur...", "Suche einen anderen Server...", "Başka bir sunucu aranıyor...", "Naghahanap ng ibang server..." },
+            new[] { "Couldn't find an open server for that game. Try again in a moment.", "Aucun serveur libre trouvé pour ce jeu. Réessaie dans un moment.", "Kein freier Server für dieses Spiel gefunden. Versuch es gleich noch mal.", "Bu oyun için boş bir sunucu bulunamadı. Birazdan tekrar dene.", "Walang nakitang bakanteng server para sa larong iyan. Subukan ulit maya-maya." },
+            new[] { "Applying your {0} setup...", "Application de ta configuration {0}...", "Dein Setup {0} wird angewendet...", "{0} kurulumun uygulanıyor...", "Inilalapat ang setup mong {0}..." },
+            new[] { "Signing in...", "Connexion...", "Anmeldung...", "Giriş yapılıyor...", "Nagla-log in..." },
+            new[] { "Streamer mode is on", "Le mode streamer est activé", "Streamer-Modus ist an", "Yayıncı modu açık", "Naka-on ang streamer mode" },
+            new[] { "Account names are hidden.", "Les noms de compte sont cachés.", "Kontonamen sind versteckt.", "Hesap adları gizli.", "Nakatago ang mga pangalan ng account." },
+            new[] { "Streamer mode", "Mode streamer", "Streamer-Modus", "Yayıncı modu", "Streamer mode" },
+            new[] { "Names hidden", "Noms cachés", "Namen versteckt", "İsimler gizli", "Nakatago ang pangalan" },
+            new[] { "hidden", "caché", "versteckt", "gizli", "nakatago" },
+            new[] { "Hides account names and server location in GuideStrap and on Discord.", "Cache les noms de compte et la position du serveur dans GuideStrap et sur Discord.", "Versteckt Kontonamen und Serverstandort in GuideStrap und auf Discord.", "GuideStrap'te ve Discord'da hesap adlarını ve sunucu konumunu gizler.", "Itinatago ang mga pangalan ng account at lokasyon ng server sa GuideStrap at sa Discord." },
+            new[] { "Session summary", "Résumé de session", "Sitzungsübersicht", "Oturum özeti", "Buod ng session" },
+            new[] { "After you close Roblox, a small popup shows how long you played.", "Quand tu fermes Roblox, une petite fenêtre montre combien de temps tu as joué.", "Wenn du Roblox schließt, zeigt ein kleines Fenster, wie lange du gespielt hast.", "Roblox'u kapattığında, küçük bir pencere ne kadar oynadığını gösterir.", "Pagkasara mo ng Roblox, may maliit na popup na nagpapakita kung gaano ka katagal naglaro." },
+            new[] { "Session over", "Session terminée", "Sitzung beendet", "Oturum bitti", "Tapos na ang session" },
+            new[] { "You played for {0}.", "Tu as joué {0}.", "Du hast {0} gespielt.", "{0} oynadın.", "Naglaro ka nang {0}." },
+            new[] { "Games: {0}", "Jeux : {0}", "Spiele: {0}", "Oyunlar: {0}", "Mga laro: {0}" },
+            new[] { "Last server: {0}", "Dernier serveur : {0}", "Letzter Server: {0}", "Son sunucu: {0}", "Huling server: {0}" },
+            new[] { "Friend started playing", "Un ami a commencé à jouer", "Ein Freund hat angefangen zu spielen", "Bir arkadaşın oynamaya başladı", "Nagsimulang maglaro ang isang kaibigan" },
+            new[] { "{0} is playing {1}.", "{0} joue à {1}.", "{0} spielt {1}.", "{0}, {1} oynuyor.", "Naglalaro si {0} ng {1}." },
+            new[] { "A friend", "Un ami", "Ein Freund", "Bir arkadaş", "Isang kaibigan" },
+            new[] { "a game", "un jeu", "ein Spiel", "bir oyun", "isang laro" },
+            new[] { "Join", "Rejoindre", "Beitreten", "Katıl", "Sumali" },
+            new[] { "Join game", "Rejoindre le jeu", "Spiel beitreten", "Oyuna katıl", "Sumali sa laro" },
+            new[] { "See who's online and join them.", "Vois qui est en ligne et rejoins-les.", "Sieh, wer online ist, und tritt ihnen bei.", "Kimin çevrimiçi olduğunu gör ve onlara katıl.", "Tingnan kung sino ang online at sumali sa kanila." },
+            new[] { "Refresh", "Actualiser", "Aktualisieren", "Yenile", "I-refresh" },
+            new[] { "Online friends", "Amis en ligne", "Freunde online", "Çevrimiçi arkadaşlar", "Mga kaibigang online" },
+            new[] { "Friend alerts", "Alertes d'amis", "Freunde-Hinweise", "Arkadaş bildirimleri", "Alerto ng kaibigan" },
+            new[] { "A small popup when a friend starts playing a game.", "Une petite fenêtre quand un ami commence à jouer.", "Ein kleines Fenster, wenn ein Freund ein Spiel startet.", "Bir arkadaşın oyuna başladığında küçük bir pencere.", "Maliit na popup kapag nagsimulang maglaro ang isang kaibigan." },
+            new[] { "Open this page to load your friends.", "Ouvre cette page pour charger tes amis.", "Öffne diese Seite, um deine Freunde zu laden.", "Arkadaşlarını yüklemek için bu sayfayı aç.", "Buksan ang page na ito para i-load ang mga kaibigan mo." },
+            new[] { "Pick a saved account in Accounts to see your friends.", "Choisis un compte enregistré dans Comptes pour voir tes amis.", "Wähle unter Konten ein gespeichertes Konto, um deine Freunde zu sehen.", "Arkadaşlarını görmek için Hesaplar'dan kayıtlı bir hesap seç.", "Pumili ng naka-save na account sa Mga account para makita ang mga kaibigan mo." },
+            new[] { "Loading...", "Chargement...", "Lädt...", "Yükleniyor...", "Naglo-load..." },
+            new[] { "None of your {0} friends are online right now.", "Aucun de tes {0} amis n'est en ligne pour l'instant.", "Keiner deiner {0} Freunde ist gerade online.", "{0} arkadaşından hiçbiri şu an çevrimiçi değil.", "Wala sa {0} mong kaibigan ang online ngayon." },
+            new[] { "{0} of {1} friends online.", "{0} amis en ligne sur {1}.", "{0} von {1} Freunden online.", "{1} arkadaştan {0} tanesi çevrimiçi.", "{0} sa {1} kaibigan ang online." },
+            new[] { "Couldn't load friends. {0}", "Impossible de charger les amis. {0}", "Freunde konnten nicht geladen werden. {0}", "Arkadaşlar yüklenemedi. {0}", "Hindi ma-load ang mga kaibigan. {0}" },
+            new[] { "Playing {0}", "Joue à {0}", "Spielt {0}", "{0} oynuyor", "Naglalaro ng {0}" },
+            new[] { "In Roblox Studio", "Dans Roblox Studio", "In Roblox Studio", "Roblox Studio'da", "Nasa Roblox Studio" },
+            new[] { "Online", "En ligne", "Online", "Çevrimiçi", "Online" },
+            new[] { "What your Discord profile shows while you use GuideStrap.", "Ce que ton profil Discord affiche pendant que tu utilises GuideStrap.", "Was dein Discord-Profil zeigt, während du GuideStrap nutzt.", "GuideStrap kullanırken Discord profilinin ne gösterdiği.", "Ang ipinapakita ng Discord profile mo habang gamit mo ang GuideStrap." },
+            new[] { "Shows GuideStrap and what you're doing on your Discord profile.", "Affiche GuideStrap et ce que tu fais sur ton profil Discord.", "Zeigt GuideStrap und was du machst auf deinem Discord-Profil.", "Discord profilinde GuideStrap'i ve ne yaptığını gösterir.", "Ipinapakita ang GuideStrap at ang ginagawa mo sa Discord profile mo." },
+            new[] { "What to show", "Quoi afficher", "Was angezeigt wird", "Ne gösterilsin", "Ano ang ipapakita" },
+            new[] { "Show the game you're in", "Afficher le jeu où tu es", "Das Spiel zeigen, in dem du bist", "Bulunduğun oyunu göster", "Ipakita ang larong nilalaro mo" },
+            new[] { "The game's name, picture and a View game button.", "Le nom du jeu, son image et un bouton Voir le jeu.", "Der Name des Spiels, sein Bild und ein Spiel-ansehen-Button.", "Oyunun adı, resmi ve bir Oyunu gör düğmesi.", "Ang pangalan ng laro, larawan at View game button." },
+            new[] { "Show the account you're using", "Afficher le compte que tu utilises", "Das Konto zeigen, das du nutzt", "Kullandığın hesabı göster", "Ipakita ang account na gamit mo" },
+            new[] { "Adds \"Playing as\" with your display name.", "Ajoute \"Joue en tant que\" avec ton nom d'affichage.", "Fügt \"Spielt als\" mit deinem Anzeigenamen hinzu.", "Görünen adınla birlikte \"Oynayan:\" ekler.", "Nagdadagdag ng \"Naglalaro bilang\" kasama ang display name mo." },
+            new[] { "Let friends join you", "Laisser tes amis te rejoindre", "Freunde dir beitreten lassen", "Arkadaşlarının sana katılmasına izin ver", "Payagan ang mga kaibigan na sumali sa iyo" },
+            new[] { "Adds a Join server button that puts friends in your server.", "Ajoute un bouton Rejoindre le serveur qui amène tes amis dans ton serveur.", "Fügt einen Server-beitreten-Button hinzu, der Freunde auf deinen Server bringt.", "Arkadaşlarını sunucuna getiren bir Sunucuya katıl düğmesi ekler.", "Nagdadagdag ng Join server button na magdadala sa mga kaibigan mo sa server mo." },
+            new[] { "Discord has to be open on this PC. Streamer mode (in Settings) hides your account, server location and the Join button.", "Discord doit être ouvert sur ce PC. Le mode streamer (dans Réglages) cache ton compte, la position du serveur et le bouton Rejoindre.", "Discord muss auf diesem PC geöffnet sein. Der Streamer-Modus (in Einstellungen) versteckt dein Konto, den Serverstandort und den Beitreten-Button.", "Discord bu bilgisayarda açık olmalı. Yayıncı modu (Ayarlar'da) hesabını, sunucu konumunu ve Katıl düğmesini gizler.", "Kailangang bukas ang Discord sa PC na ito. Itinatago ng streamer mode (sa Settings) ang account mo, lokasyon ng server at ang Join button." },
+            new[] { "Mod gallery", "Galerie de mods", "Mod-Galerie", "Mod galerisi", "Mod gallery" },
+            new[] { "Skies, cursors, crosshairs and sound packs you can install in one click.", "Ciels, curseurs, viseurs et packs de sons à installer en un clic.", "Himmel, Zeiger, Fadenkreuze und Soundpakete, die du mit einem Klick installierst.", "Tek tıkla kurabileceğin gökyüzleri, imleçler, nişangahlar ve ses paketleri.", "Mga langit, cursor, crosshair at sound pack na mai-install sa isang click." },
+            new[] { "Browse", "Parcourir", "Durchsuchen", "Göz at", "Mag-browse" },
+            new[] { "Loading the gallery...", "Chargement de la galerie...", "Galerie wird geladen...", "Galeri yükleniyor...", "Nilo-load ang gallery..." },
+            new[] { "Only cosmetic files: images, skies and sounds. Everything installs into GuideStrap's copy of Roblox.", "Seulement des fichiers cosmétiques : images, ciels et sons. Tout s'installe dans la copie de Roblox de GuideStrap.", "Nur kosmetische Dateien: Bilder, Himmel und Sounds. Alles wird in GuideStraps Kopie von Roblox installiert.", "Sadece görsel dosyalar: resimler, gökyüzleri ve sesler. Her şey GuideStrap'in Roblox kopyasına kurulur.", "Cosmetic na file lang: larawan, langit at tunog. Lahat ay naka-install sa kopya ng Roblox ng GuideStrap." },
+            new[] { "The gallery is empty right now.", "La galerie est vide pour l'instant.", "Die Galerie ist gerade leer.", "Galeri şu an boş.", "Walang laman ang gallery sa ngayon." },
+            new[] { "{0} mods", "{0} mods", "{0} Mods", "{0} mod", "{0} mod" },
+            new[] { "Couldn't load the gallery. Check your internet and try again.", "Impossible de charger la galerie. Vérifie ta connexion internet et réessaie.", "Galerie konnte nicht geladen werden. Prüf dein Internet und versuch es noch mal.", "Galeri yüklenemedi. İnternetini kontrol edip tekrar dene.", "Hindi ma-load ang gallery. Tingnan ang internet mo at subukan ulit." },
+            new[] { "Cursor", "Curseur", "Zeiger", "İmleç", "Cursor" },
+            new[] { "Crosshair", "Viseur", "Fadenkreuz", "Nişangah", "Crosshair" },
+            new[] { "by {0}", "par {0}", "von {0}", "yapan: {0}", "gawa ni {0}" },
+            new[] { "Installed", "Installé", "Installiert", "Kuruldu", "Naka-install na" },
+            new[] { "Couldn't install that", "Impossible d'installer ça", "Konnte das nicht installieren", "Bu kurulamadı", "Hindi ma-install iyan" },
+            new[] { "That mod is too big.", "Ce mod est trop gros.", "Dieser Mod ist zu groß.", "Bu mod çok büyük.", "Masyadong malaki ang mod na iyan." },
+            new[] { "That image couldn't be read.", "Cette image n'a pas pu être lue.", "Dieses Bild konnte nicht gelesen werden.", "Bu resim okunamadı.", "Hindi mabasa ang larawang iyan." },
+            new[] { "That sky pack has no .tex files.", "Ce pack de ciel n'a pas de fichiers .tex.", "Dieses Himmel-Paket hat keine .tex-Dateien.", "Bu gökyüzü paketinde .tex dosyası yok.", "Walang .tex na file ang sky pack na iyan." },
+            new[] { "That sound pack has no .ogg or .mp3 files.", "Ce pack de sons n'a pas de fichiers .ogg ou .mp3.", "Dieses Soundpaket hat keine .ogg- oder .mp3-Dateien.", "Bu ses paketinde .ogg veya .mp3 dosyası yok.", "Walang .ogg o .mp3 na file ang sound pack na iyan." },
+            new[] { "Link game", "Lier un jeu", "Spiel verknüpfen", "Oyun bağla", "I-link ang laro" },
+            new[] { "Auto setups", "Configurations auto", "Auto-Setups", "Otomatik kurulumlar", "Auto setup" },
+            new[] { "Remove all links?", "Retirer tous les liens ?", "Alle Verknüpfungen entfernen?", "Tüm bağlantılar kaldırılsın mı?", "Tanggalin lahat ng link?" },
+            new[] { "Every game goes back to your normal settings.", "Tous les jeux reviennent à tes réglages normaux.", "Alle Spiele nutzen wieder deine normalen Einstellungen.", "Tüm oyunlar normal ayarlarına döner.", "Babalik ang lahat ng laro sa normal mong settings." },
+            new[] { "Link a setup to a game and it turns on by itself when you launch that game.", "Lie une configuration à un jeu et elle s'active toute seule quand tu lances ce jeu.", "Verknüpfe ein Setup mit einem Spiel, dann schaltet es sich beim Start dieses Spiels von selbst ein.", "Bir kurulumu bir oyuna bağla, o oyunu başlattığında kendiliğinden açılır.", "I-link ang setup sa isang laro at kusa itong mao-on kapag nilaunch mo ang larong iyon." },
+            new[] { "  +{0} more", "  +{0} de plus", "  +{0} weitere", "  +{0} tane daha", "  +{0} pa" },
+            new[] { "Choose a saved setup in the list above, then link it to a game.", "Choisis une configuration enregistrée dans la liste au-dessus, puis lie-la à un jeu.", "Wähle oben in der Liste ein gespeichertes Setup und verknüpfe es dann mit einem Spiel.", "Yukarıdaki listeden kayıtlı bir kurulum seç, sonra onu bir oyuna bağla.", "Pumili ng naka-save na setup sa listahan sa itaas, tapos i-link ito sa isang laro." },
+            new[] { "Link {0} to a game", "Lier {0} à un jeu", "{0} mit einem Spiel verknüpfen", "{0} kurulumunu bir oyuna bağla", "I-link ang {0} sa isang laro" },
+            new[] { "Paste the game link or place ID. GuideStrap switches to this setup whenever you launch that game.", "Colle le lien du jeu ou l'ID de place. GuideStrap passe à cette configuration chaque fois que tu lances ce jeu.", "Füge den Spiellink oder die Place-ID ein. GuideStrap wechselt zu diesem Setup, wann immer du dieses Spiel startest.", "Oyun bağlantısını veya place ID'yi yapıştır. GuideStrap o oyunu her başlattığında bu kuruluma geçer.", "I-paste ang link ng laro o place ID. Lilipat ang GuideStrap sa setup na ito tuwing ilalaunch mo ang larong iyon." },
+            new[] { "Link", "Lier", "Verknüpfen", "Bağla", "I-link" },
+            new[] { "That doesn't look like a game link", "Ça ne ressemble pas à un lien de jeu", "Das sieht nicht wie ein Spiellink aus", "Bu bir oyun bağlantısına benzemiyor", "Mukhang hindi iyan link ng laro" },
+            new[] { "Paste a link like roblox.com/games/123456, or just the number.", "Colle un lien comme roblox.com/games/123456, ou juste le numéro.", "Füge einen Link wie roblox.com/games/123456 ein, oder nur die Zahl.", "roblox.com/games/123456 gibi bir bağlantı ya da sadece numarayı yapıştır.", "Mag-paste ng link gaya ng roblox.com/games/123456, o ang numero lang." },
+            new[] { "Linked {0}.", "{0} liée.", "{0} verknüpft.", "{0} bağlandı.", "Na-link ang {0}." },
+            new[] { "Rejoin your server", "Rejoins ton serveur", "Tritt deinem Server erneut bei", "Sunucuna tekrar katıl", "Bumalik sa server mo" },
+            new[] { "Jump straight back into the server you were in, if it's still running.", "Retourne directement dans le serveur où tu étais, s'il tourne encore.", "Spring direkt zurück auf den Server, auf dem du warst, falls er noch läuft.", "Hâlâ açıksa bulunduğun sunucuya hemen geri dön.", "Bumalik agad sa server na pinuntahan mo, kung tumatakbo pa ito." },
+            new[] { "Rejoin", "Rejoindre", "Erneut beitreten", "Tekrar katıl", "Bumalik" },
+            new[] { "Checking Roblox's servers...", "Vérification des serveurs de Roblox...", "Prüfe Roblox' Server...", "Roblox sunucuları kontrol ediliyor...", "Tinitingnan ang mga server ng Roblox..." },
+            new[] { "You're offline", "Tu es hors ligne", "Du bist offline", "Çevrimdışısın", "Offline ka" },
+            new[] { "GuideStrap can't reach the internet. Check your Wi-Fi or cable, then try again.", "GuideStrap n'arrive pas à accéder à internet. Vérifie ton Wi-Fi ou ton câble, puis réessaie.", "GuideStrap erreicht das Internet nicht. Prüf dein WLAN oder Kabel und versuch es dann noch mal.", "GuideStrap internete ulaşamıyor. Wi-Fi'ını veya kablonu kontrol et, sonra tekrar dene.", "Hindi maabot ng GuideStrap ang internet. Tingnan ang Wi-Fi o cable mo, tapos subukan ulit." },
+            new[] { "Try again", "Réessayer", "Noch mal versuchen", "Tekrar dene", "Subukan ulit" },
+            new[] { "Roblox looks down", "Roblox semble en panne", "Roblox scheint down zu sein", "Roblox çökmüş görünüyor", "Mukhang down ang Roblox" },
+            new[] { "Roblox's servers aren't answering right now, so games might not load. This is on Roblox's side, not your PC.", "Les serveurs de Roblox ne répondent pas en ce moment, donc les jeux risquent de ne pas charger. Le problème vient de Roblox, pas de ton PC.", "Roblox' Server antworten gerade nicht, daher laden Spiele vielleicht nicht. Das liegt an Roblox, nicht an deinem PC.", "Roblox sunucuları şu an yanıt vermiyor, bu yüzden oyunlar yüklenmeyebilir. Sorun Roblox'ta, bilgisayarında değil.", "Hindi sumasagot ang mga server ng Roblox ngayon, kaya baka hindi mag-load ang mga laro. Problema ito ng Roblox, hindi ng PC mo." },
+            new[] { "Try anyway", "Essayer quand même", "Trotzdem versuchen", "Yine de dene", "Subukan pa rin" },
+            new[] { "Status page", "Page de statut", "Statusseite", "Durum sayfası", "Status page" },
+            new[] { "Start screen background", "Fond de l'écran d'accueil", "Hintergrund des Startbildschirms", "Başlangıç ekranı arka planı", "Background ng start screen" },
+            new[] { "Your own picture behind the start screen. It's darkened so text stays readable.", "Ta propre image derrière l'écran d'accueil. Elle est assombrie pour que le texte reste lisible.", "Dein eigenes Bild hinter dem Startbildschirm. Es wird abgedunkelt, damit Text lesbar bleibt.", "Başlangıç ekranının arkasında kendi resmin. Yazılar okunabilsin diye karartılır.", "Sarili mong larawan sa likod ng start screen. Pinadilim ito para mabasa pa rin ang text." },
+            new[] { "Choose image", "Choisir une image", "Bild wählen", "Resim seç", "Pumili ng larawan" },
+            new[] { "The start screen is back to plain.", "L'écran d'accueil est redevenu uni.", "Der Startbildschirm ist wieder schlicht.", "Başlangıç ekranı tekrar sade.", "Plain na ulit ang start screen." },
+            new[] { "Pick a picture", "Choisis une image", "Wähle ein Bild", "Bir resim seç", "Pumili ng larawan" },
+            new[] { "That picture is too small.", "Cette image est trop petite.", "Dieses Bild ist zu klein.", "Bu resim çok küçük.", "Masyadong maliit ang larawang iyan." },
+            new[] { "Background set. It shows on the start screen.", "Fond réglé. Il s'affiche sur l'écran d'accueil.", "Hintergrund gesetzt. Er erscheint auf dem Startbildschirm.", "Arka plan ayarlandı. Başlangıç ekranında görünür.", "Naka-set na ang background. Lalabas ito sa start screen." },
+            new[] { "Couldn't use that picture", "Impossible d'utiliser cette image", "Bild konnte nicht verwendet werden", "Bu resim kullanılamadı", "Hindi magamit ang larawang iyan" },
+            new[] { "Start with Windows", "Démarrer avec Windows", "Mit Windows starten", "Windows ile başlat", "Magsimula kasabay ng Windows" },
+            new[] { "Opens quietly in the tray when your PC starts, so friend alerts work.", "S'ouvre discrètement dans la zone de notification au démarrage du PC, pour que les alertes d'amis marchent.", "Öffnet sich leise im Infobereich, wenn dein PC startet, damit Freunde-Hinweise funktionieren.", "Bilgisayarın açılınca tepside sessizce açılır, böylece arkadaş bildirimleri çalışır.", "Tahimik na bumubukas sa tray pagbukas ng PC mo, para gumana ang alerto ng kaibigan." },
+            new[] { "Opens quietly in the tray when your PC starts.", "S'ouvre discrètement dans la zone de notification au démarrage du PC.", "Öffnet sich leise im Infobereich, wenn dein PC startet.", "Bilgisayarın açılınca tepside sessizce açılır.", "Tahimik na bumubukas sa tray pagbukas ng PC mo." },
+            new[] { "Install GuideStrap first", "Installe GuideStrap d'abord", "Installiere zuerst GuideStrap", "Önce GuideStrap'i kur", "I-install muna ang GuideStrap" },
+            new[] { "This only works for the installed GuideStrap, not a copy you're running from somewhere else.", "Ça ne marche qu'avec le GuideStrap installé, pas avec une copie lancée depuis un autre endroit.", "Das funktioniert nur mit dem installierten GuideStrap, nicht mit einer Kopie, die du von woanders startest.", "Bu sadece kurulu GuideStrap ile çalışır, başka bir yerden açtığın bir kopyayla değil.", "Gumagana lang ito sa naka-install na GuideStrap, hindi sa kopyang binuksan mo mula sa ibang lugar." },
+            new[] { "Uninstall GuideStrap", "Désinstaller GuideStrap", "GuideStrap deinstallieren", "GuideStrap'i kaldır", "I-uninstall ang GuideStrap" },
+            new[] { "Removes GuideStrap, its settings and its copy of Roblox. Normal Roblox stays.", "Supprime GuideStrap, ses réglages et sa copie de Roblox. Roblox normal reste.", "Entfernt GuideStrap, seine Einstellungen und seine Kopie von Roblox. Normales Roblox bleibt.", "GuideStrap'i, ayarlarını ve Roblox kopyasını kaldırır. Normal Roblox kalır.", "Tinatanggal ang GuideStrap, ang settings nito at ang kopya nito ng Roblox. Mananatili ang normal na Roblox." },
+            new[] { "GuideStrap isn't installed", "GuideStrap n'est pas installé", "GuideStrap ist nicht installiert", "GuideStrap kurulu değil", "Hindi naka-install ang GuideStrap" },
+            new[] { "This copy isn't installed, so there's nothing to remove.", "Cette copie n'est pas installée, donc il n'y a rien à supprimer.", "Diese Kopie ist nicht installiert, also gibt es nichts zu entfernen.", "Bu kopya kurulu değil, yani kaldırılacak bir şey yok.", "Hindi naka-install ang kopyang ito, kaya walang tatanggalin." },
+            new[] { "The language GuideStrap uses.", "La langue utilisée par GuideStrap.", "Die Sprache, die GuideStrap nutzt.", "GuideStrap'in kullandığı dil.", "Ang wikang gamit ng GuideStrap." },
+            new[] { "What's new in GuideStrap {0}", "Nouveautés de GuideStrap {0}", "Neu in GuideStrap {0}", "GuideStrap {0} yenilikleri", "Ano ang bago sa GuideStrap {0}" },
+            new[] { "Nice", "Super", "Super", "Süper", "Ayos" },
+            new[] { "• GuideStrap checks if Roblox is down before launching\n• Pick your own picture for the start screen (Settings > Appearance)\n• Start GuideStrap with Windows, quietly in the tray (Settings)\n• Uninstall GuideStrap from Settings > Tools\n• New languages: Français, Deutsch, Türkçe and Filipino\n• This window, after every update", "• GuideStrap vérifie si Roblox est en panne avant de le lancer\n• Choisis ta propre image pour l'écran d'accueil (Réglages > Apparence)\n• Démarre GuideStrap avec Windows, discrètement dans la zone de notification (Réglages)\n• Désinstalle GuideStrap depuis Réglages > Outils\n• Nouvelles langues : Français, Deutsch, Türkçe et Filipino\n• Cette fenêtre, après chaque mise à jour", "• GuideStrap prüft vor dem Start, ob Roblox down ist\n• Wähle dein eigenes Bild für den Startbildschirm (Einstellungen > Aussehen)\n• Starte GuideStrap mit Windows, leise im Infobereich (Einstellungen)\n• Deinstalliere GuideStrap unter Einstellungen > Werkzeuge\n• Neue Sprachen: Français, Deutsch, Türkçe und Filipino\n• Dieses Fenster, nach jedem Update", "• GuideStrap başlatmadan önce Roblox'un çöküp çökmediğini kontrol eder\n• Başlangıç ekranı için kendi resmini seç (Ayarlar > Görünüm)\n• GuideStrap'i Windows ile, tepside sessizce başlat (Ayarlar)\n• GuideStrap'i Ayarlar > Araçlar'dan kaldır\n• Yeni diller: Français, Deutsch, Türkçe ve Filipino\n• Her güncellemeden sonra bu pencere", "• Tinitingnan ng GuideStrap kung down ang Roblox bago mag-launch\n• Pumili ng sarili mong larawan para sa start screen (Settings > Itsura)\n• Simulan ang GuideStrap kasabay ng Windows, tahimik sa tray (Settings)\n• I-uninstall ang GuideStrap sa Settings > Mga tool\n• Mga bagong wika: Français, Deutsch, Türkçe at Filipino\n• Ang window na ito, pagkatapos ng bawat update" },
+            new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Ceci supprime GuideStrap et sa copie de Roblox. Roblox normal reste installé.", "Das entfernt GuideStrap und seine Kopie von Roblox. Normales Roblox bleibt installiert.", "Bu, GuideStrap'i ve Roblox kopyasını kaldırır. Normal Roblox kurulu kalır.", "Tatanggalin nito ang GuideStrap at ang kopya nito ng Roblox. Mananatiling naka-install ang normal na Roblox." },
+            new[] { "Keep my settings, accounts and mods in case I reinstall", "Garder mes réglages, comptes et mods au cas où je réinstalle", "Meine Einstellungen, Konten und Mods behalten, falls ich neu installiere", "Yeniden kurarsam diye ayarlarımı, hesaplarımı ve modlarımı sakla", "Itabi ang settings, account at mods ko kung sakaling mag-reinstall ako" },
+            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap a été désinstallé. Tes réglages, comptes et mods sont gardés pour la prochaine fois.", "GuideStrap wurde deinstalliert. Deine Einstellungen, Konten und Mods bleiben fürs nächste Mal erhalten.", "GuideStrap kaldırıldı. Ayarların, hesapların ve modların bir dahaki sefer için saklandı.", "Na-uninstall na ang GuideStrap. Naitabi ang settings, account at mods mo para sa susunod." }
         };
     }
 
@@ -5272,6 +8408,32 @@ namespace GuideStrap
     static class Setup
     {
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuideStrap";
+        const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+
+        public static bool StartsWithWindows
+        {
+            get
+            {
+                try
+                {
+                    using var key = Registry.CurrentUser.OpenSubKey(RunKey);
+                    return key?.GetValue("GuideStrap") != null;
+                }
+                catch { return false; }
+            }
+        }
+
+        // Starts the installed GuideStrap in the tray when Windows starts
+        public static void SetStartup(bool on)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.CreateSubKey(RunKey);
+                if (on) key.SetValue("GuideStrap", $"\"{InstallExe}\" --tray");
+                else key.DeleteValue("GuideStrap", false);
+            }
+            catch { }
+        }
         public static string InstallExe => Path.Combine(Paths.Base, "GuideStrap.exe");
         static string StartMenuLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "GuideStrap.lnk");
         static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "GuideStrap.lnk");
@@ -5335,7 +8497,7 @@ namespace GuideStrap
             }
         }
 
-        public static void Install(string language, bool desktopShortcut, bool openLinks, bool repairRoblox)
+        public static void Install(string language, bool desktopShortcut, bool openLinks, bool repairRoblox, bool startWithWindows)
         {
             Directory.CreateDirectory(Paths.Base);
             if (!RunningInstalled)
@@ -5349,6 +8511,7 @@ namespace GuideStrap
             }
 
             CreateShortcut(StartMenuLink);
+            SetStartup(startWithWindows);
             if (desktopShortcut) CreateShortcut(DesktopLink);
             else try { if (File.Exists(DesktopLink)) File.Delete(DesktopLink); } catch { }
             WriteEntry();
@@ -5406,7 +8569,8 @@ namespace GuideStrap
             catch { }
         }
 
-        public static void Uninstall()
+        // Returns true if GuideStrap was removed (the caller should then exit)
+        public static bool Uninstall(IWin32Window? owner = null)
         {
             var settings = AppSettings.Load();
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
@@ -5414,26 +8578,44 @@ namespace GuideStrap
 
             if (OtherCopiesRunning())
             {
-                ThemedDialog.Prompt(null, "Close GuideStrap first", "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "OK");
-                return;
+                ThemedDialog.Prompt(owner, "Close GuideStrap first", "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "OK");
+                return false;
             }
-            if (ThemedDialog.Prompt(null, "Uninstall GuideStrap?",
-                    "This removes GuideStrap, its copy of Roblox, your settings, mods and saved logins. Normal Roblox stays installed.",
-                    "Uninstall", "Cancel") != 0) return;
+            bool keep;
+            using (var ask = new ThemedDialog("Uninstall GuideStrap?",
+                       "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.",
+                       new[] { "Uninstall", "Cancel" },
+                       "Keep my settings, accounts and mods in case I reinstall"))
+            {
+                if (owner == null) ask.StartPosition = FormStartPosition.CenterScreen;
+                ask.ShowDialog(owner);
+                if (ask.Choice != 0) return false;
+                keep = ask.Checked;
+            }
 
+            SetStartup(false);
             try { if (LinkHandler.PointsTo(InstallExe)) LinkHandler.Restore(settings); } catch { }
             foreach (var link in new[] { StartMenuLink, DesktopLink })
                 try { if (File.Exists(link)) File.Delete(link); } catch { }
             try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); } catch { }
 
-            ThemedDialog.Prompt(null, "GuideStrap", "GuideStrap was uninstalled.", "OK");
-            // the folder (including this .exe) is deleted a moment after we exit
-            Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 2 /nobreak >nul & rmdir /s /q \"{Paths.Base}\"")
+            ThemedDialog.Prompt(owner, "GuideStrap", keep
+                ? "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time."
+                : "GuideStrap was uninstalled.", "OK");
+            // deleted a moment after we exit (this .exe can't delete itself while running).
+            // Keeping settings: only the app, its copy of Roblox and downloaded caches go.
+            string q(string path) => "\"" + path + "\"";
+            string remove = keep
+                ? $"del /f /q {q(InstallExe)} & del /f /q {q(InstallExe + ".old")} & rmdir /s /q {q(Paths.Versions)} & rmdir /s /q {q(Paths.Downloads)}" +
+                  $" & rmdir /s /q {q(Paths.Avatars)} & rmdir /s /q {q(Paths.Icons)}"
+                : $"rmdir /s /q {q(Paths.Base)}";
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 2 /nobreak >nul & {remove}")
             {
                 CreateNoWindow = true,
                 UseShellExecute = false,
                 WorkingDirectory = Path.GetTempPath(),
             });
+            return true;
         }
     }
 
@@ -5445,7 +8627,7 @@ namespace GuideStrap
         readonly bool repair;
         readonly List<(Control Control, string English)> texts = new();
         readonly DarkCombo langCombo = new();
-        readonly ToggleSwitch desktopToggle = new(), linksToggle = new(), robloxToggle = new();
+        readonly ToggleSwitch desktopToggle = new(), linksToggle = new(), robloxToggle = new(), startupToggle = new();
         readonly Label status = new();
         readonly RoundButton install, cancel;
 
@@ -5456,7 +8638,7 @@ namespace GuideStrap
             string titleText = repair ? "Reinstall GuideStrap" : "GuideStrap Setup";
             Text = "GuideStrap Setup";
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(D(520), D(repair ? 510 : 430));
+            ClientSize = new Size(D(520), D(repair ? 570 : 490));
             int W = ClientSize.Width;
 
             var bar = BuildTitleBar(titleText, minimize: true);
@@ -5493,7 +8675,8 @@ namespace GuideStrap
             langCombo.ItemHeight = D(22);
             langCombo.Width = D(170);
             langCombo.SelectedIndex = Math.Max(0, Array.FindIndex(L.Languages, x => x.Code == L.Lang));
-            desktopToggle.Size = linksToggle.Size = robloxToggle.Size = new Size(D(40), D(20));
+            desktopToggle.Size = linksToggle.Size = robloxToggle.Size = startupToggle.Size = new Size(D(40), D(20));
+            startupToggle.Checked = repair && Setup.StartsWithWindows;
             desktopToggle.Checked = !repair || Setup.HasDesktopShortcut;
             linksToggle.Checked = !repair || LinkHandler.PointsTo(Setup.InstallExe);
             robloxToggle.Checked = false;
@@ -5501,6 +8684,7 @@ namespace GuideStrap
             Controls.Add(Row(y, "Language", null, langCombo)); y += D(60);
             Controls.Add(Row(y, "Desktop shortcut", "Add a GuideStrap icon to your desktop.", desktopToggle)); y += D(60);
             Controls.Add(Row(y, "Open Roblox links with GuideStrap", "Play buttons on roblox.com open GuideStrap.", linksToggle)); y += D(60);
+            Controls.Add(Row(y, "Start with Windows", "Opens quietly in the tray when your PC starts.", startupToggle)); y += D(60);
             if (repair)
             {
                 Controls.Add(Row(y, "Also repair Roblox", "Downloads a fresh copy of Roblox next time you launch.", robloxToggle));
@@ -5575,10 +8759,10 @@ namespace GuideStrap
             install.Enabled = cancel.Enabled = langCombo.Enabled = false;
             status.Text = L.T(repair ? "Reinstalling..." : "Installing...");
             string language = L.Lang;
-            bool desktop = desktopToggle.Checked, links = linksToggle.Checked, fixRoblox = repair && robloxToggle.Checked;
+            bool desktop = desktopToggle.Checked, links = linksToggle.Checked, fixRoblox = repair && robloxToggle.Checked, startup = startupToggle.Checked;
             try
             {
-                await Task.Run(() => Setup.Install(language, desktop, links, fixRoblox));
+                await Task.Run(() => Setup.Install(language, desktop, links, fixRoblox, startup));
             }
             catch (Exception ex)
             {

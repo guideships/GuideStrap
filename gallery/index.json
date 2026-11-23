@@ -1,0 +1,39 @@
+{
+  "items": [
+    {
+      "name": "Neon cross",
+      "type": "crosshair",
+      "author": "Guide",
+      "description": "A thin cyan cross with a dark outline. Easy to see on any map.",
+      "url": "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/crosshairs/neon-cross.png"
+    },
+    {
+      "name": "Red dot",
+      "type": "crosshair",
+      "author": "Guide",
+      "description": "A small red dot for shift lock aiming.",
+      "url": "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/crosshairs/red-dot.png"
+    },
+    {
+      "name": "Green circle",
+      "type": "crosshair",
+      "author": "Guide",
+      "description": "A green ring with a dot in the middle.",
+      "url": "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/crosshairs/green-circle.png"
+    },
+    {
+      "name": "Neon arrow",
+      "type": "cursor",
+      "author": "Guide",
+      "description": "A cyan arrow cursor with a dark outline.",
+      "url": "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/cursors/neon-arrow.png"
+    },
+    {
+      "name": "White ring",
+      "type": "cursor",
+      "author": "Guide",
+      "description": "A small white ring instead of an arrow.",
+      "url": "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/cursors/white-ring.png"
+    }
+  ]
+}

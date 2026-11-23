@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Join on Roblox · GuideStrap</title>
+<link rel="icon" href="favicon.png">
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: #120d1c; color: #f0ecf7; font-family: "Segoe UI", system-ui, sans-serif; }
+  .card { width: min(420px, 90vw); padding: 32px; border-radius: 14px; background: #1b1428;
+          border: 1px solid #2e2442; text-align: center; }
+  img { width: 72px; height: 72px; }
+  h1 { font-size: 20px; font-weight: 600; margin: 16px 0 8px; }
+  p { color: #a99fbb; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+  a.btn { display: inline-block; padding: 10px 22px; border-radius: 6px; background: #6d3fd6; color: #fff;
+          text-decoration: none; font-weight: 600; font-size: 14px; }
+  a.btn:hover { background: #7d52e0; }
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <img src="logo.png" alt="">
+  <h1 id="title">Opening Roblox…</h1>
+  <p id="text">Your friend's server should open in Roblox. If nothing happens, press the button.</p>
+  <a id="open" class="btn" href="#">Open Roblox</a>
+</div>
+<script>
+  // Only a place ID (digits) and a server ID (a GUID) are accepted, nothing else is put in the link.
+  var q = new URLSearchParams(location.search);
+  var place = q.get("placeId") || "";
+  var server = q.get("gameInstanceId") || "";
+  var okPlace = /^\d{1,20}$/.test(place);
+  var okServer = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(server);
+  var btn = document.getElementById("open");
+  if (okPlace && okServer) {
+    var link = "roblox://experiences/start?placeId=" + place + "&gameInstanceId=" + server;
+    btn.href = link;
+    setTimeout(function () { location.href = link; }, 300);
+  } else {
+    document.getElementById("title").textContent = "This join link isn't valid";
+    document.getElementById("text").textContent = "Ask your friend for a new one from their Discord status.";
+    btn.className = "btn hidden";
+  }
+</script>
+</body>
+</html>
