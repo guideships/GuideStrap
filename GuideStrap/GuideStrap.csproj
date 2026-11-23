@@ -19,7 +19,16 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
+    <!-- pre-compiled code: GuideStrap opens faster and uses less CPU while starting -->
+    <PublishReadyToRun>true</PublishReadyToRun>
   </PropertyGroup>
+
+  <!-- every window is built in code, so open the .cs files as code instead of in the designer -->
+  <ItemGroup>
+    <Compile Update="**\*.cs">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />
