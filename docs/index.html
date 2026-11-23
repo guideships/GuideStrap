@@ -4,12 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>GuideStrap - Roblox launcher</title>
-<meta name="description" content="A Roblox launcher for Windows with graphics presets, FastFlags, mods, account switching and Discord status.">
+<meta name="description" content="A free Roblox launcher for Windows: more FPS, mods, friends, one-click server joins, Discord status and a crash helper.">
 <link rel="icon" href="favicon.png">
 <style>
   :root {
-    --bg: #0e0b16; --card: #18132a; --border: #271f3d; --text: #f1edfa;
-    --sub: #9b91b4; --accent: #7c48e8; --accent-hover: #8f60f2;
+    --bg: #0b0b0b; --card: #151515; --border: #262626; --text: #f0f0f0;
+    --sub: #a3a3a3; --accent: #f0f0f0; --accent-hover: #ffffff;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI", system-ui, sans-serif; }
@@ -27,7 +27,7 @@
   .hero p { color: var(--sub); font-size: 18px; margin: 18px 0 30px; max-width: 480px; }
   .hero img { width: 100%; max-width: 300px; justify-self: center; }
   .btn { display: inline-block; padding: 12px 22px; border-radius: 6px; font-weight: 600; text-decoration: none; transition: background .15s; }
-  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.primary { background: var(--accent); color: #0b0b0b; }
   .btn.primary:hover { background: var(--accent-hover); }
   .btn.ghost { border: 1px solid var(--border); margin-left: 10px; }
   .btn.ghost:hover { background: var(--card); }
@@ -69,7 +69,7 @@
   <div class="hero">
     <div>
       <h1>Roblox, set up the way you like it.</h1>
-      <p>GuideStrap is a launcher for Roblox on Windows. Pick your graphics, swap the death sound and cursor, switch accounts, and show what you're playing on Discord.</p>
+      <p>GuideStrap is a free launcher for Roblox on Windows. Get more FPS, add mods, jump into your friends' servers in one click, and show what you're playing on Discord.</p>
       <a class="btn primary" href="https://github.com/guideships/GuideStrap/releases/latest">Download for Windows</a>
       <a class="btn ghost" href="https://github.com/guideships/GuideStrap">View source</a>
       <div class="small">Free and open source. Made by <a href="https://github.com/guideships">guideships</a>.</div>
@@ -80,15 +80,24 @@
   <section id="features">
     <h2>What's inside</h2>
     <div class="grid">
+      <div class="card"><h3>Recommended settings</h3><p>Checks your PC and picks graphics settings that fit it.</p></div>
       <div class="card"><h3>Graphics presets</h3><p>One slider from Max FPS to Max Graphics, or change every setting yourself.</p></div>
-      <div class="card"><h3>FastFlags</h3><p>An editor for Roblox's allowed flags. Paste JSON, and it asks before replacing ones you already have.</p></div>
-      <div class="card"><h3>Mods</h3><p>Custom death sound, cursors, sky packs and an in-game font.</p></div>
+      <div class="card"><h3>Potato mode</h3><p>Blurry textures, no grass, low-detail models and more, all at once or one by one.</p></div>
+      <div class="card"><h3>FPS cap and priority</h3><p>Any frame rate you want, and more CPU time for Roblox.</p></div>
+      <div class="card"><h3>FastFlags</h3><p>An editor for Roblox's allowed flags. It asks before replacing ones you already have.</p></div>
+      <div class="card"><h3>Mod gallery</h3><p>Crosshairs, cursors, skies and sound packs, installed in one click.</p></div>
+      <div class="card"><h3>Mods</h3><p>Death sound, footsteps, jump sound, shift lock crosshair, cursors, skies and an in-game font.</p></div>
+      <div class="card"><h3>Setups</h3><p>Save your graphics and mods as a setup, and link it to a game so it turns on by itself.</p></div>
       <div class="card"><h3>Accounts</h3><p>Log in once, then switch accounts in one click.</p></div>
-      <div class="card"><h3>Discord status</h3><p>Shows the game you're in, its icon and a link to it.</p></div>
-      <div class="card"><h3>Server location</h3><p>Tells you where the server you joined is.</p></div>
-      <div class="card"><h3>Recent games</h3><p>Jump back into the last games you played.</p></div>
-      <div class="card"><h3>Profiles</h3><p>Export your setup as a file and share it.</p></div>
-      <div class="card"><h3>Auto updates</h3><p>GuideStrap updates itself when a new version is out.</p></div>
+      <div class="card"><h3>Friends</h3><p>See who's online and what they're playing, join them, and get alerts when they start a game.</p></div>
+      <div class="card"><h3>Server tools</h3><p>Rejoin your last server, hop to another one, or find the emptiest server.</p></div>
+      <div class="card"><h3>Discord status</h3><p>Show your game, the account you're using and a Join button for friends. Off until you turn it on.</p></div>
+      <div class="card"><h3>Streamer mode</h3><p>Hides account names and server location in GuideStrap and on Discord.</p></div>
+      <div class="card"><h3>Crash helper</h3><p>If Roblox crashes, it explains why and gives you one-click fixes.</p></div>
+      <div class="card"><h3>Roblox status check</h3><p>Tells you if Roblox is down, or you're offline, before you launch.</p></div>
+      <div class="card"><h3>7 languages</h3><p>English, Español, Português, Français, Deutsch, Türkçe and Filipino.</p></div>
+      <div class="card"><h3>Light on your PC</h3><p>Steps aside while you play, and can start quietly with Windows.</p></div>
+      <div class="card"><h3>Auto updates</h3><p>Updates itself, and shows what's new after every update.</p></div>
     </div>
   </section>
 
@@ -101,6 +110,14 @@
     <details>
       <summary>Does it change my normal Roblox?</summary>
       <p>No. Everything happens in GuideStrap's own copy of Roblox. Opening Roblox without GuideStrap always gives you the original game, sounds and settings.</p>
+    </details>
+    <details>
+      <summary>Will it make my PC lag?</summary>
+      <p>GuideStrap itself barely uses anything while you play. If your PC lags, check Graphics: keep Roblox priority on Normal or Above normal, use a normal FPS cap (like your screen's refresh rate), or press "Load recommended" to pick settings for your PC.</p>
+    </details>
+    <details>
+      <summary>Do my friends need GuideStrap to join me?</summary>
+      <p>No. If you turn on "Let friends join you" in the Discord tab, the Join button on your Discord status works for anyone with Roblox.</p>
     </details>
     <details>
       <summary>Windows says it's unrecognized. Is that normal?</summary>

@@ -19,7 +19,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.6.6";
+        public const string Version = "4.7";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -27,10 +27,10 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
+            "\u2022 GuideStrap can check your PC and recommend graphics settings (Graphics > Recommended)\n" +
+            "\u2022 Long descriptions no longer run under buttons and dropdowns\n" +
             "\u2022 GuideStrap now steps aside while you play, so Roblox and your PC stay smooth\n" +
-            "\u2022 A warning before High priority or a very high FPS cap, which can slow your PC\n" +
-            "\u2022 Set your FPS cap to any number you want (Graphics > FPS cap)\n" +
-            "\u2022 Dropdowns and scrollbars now match the dark theme";
+            "\u2022 Set your FPS cap to any number you want (Graphics > FPS cap)";
 
         public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo-black.png";   // new name so Discord doesn't show its cached old picture
         public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";

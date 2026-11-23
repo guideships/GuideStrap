@@ -311,7 +311,15 @@ namespace GuideStrap
         {
             var card = new Card { Size = new Size(CW, D(height)) };
             card.Controls.Add(At(Lbl(title, 9.75f), D(16), D(10)));
-            card.Controls.Add(At(Lbl(desc, 8.5f, Theme.SubText), D(16), D(31)));
+            // the description wraps before the control on the right instead of running under it
+            var d = Lbl(desc, 8.5f, Theme.SubText);
+            d.AutoSize = false;
+            int textW = CW - D(32) - (control != null ? control.Width + D(16) : 0);
+            var size = TextRenderer.MeasureText(d.Text, d.Font, new Size(textW, 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            d.Size = new Size(textW, size.Height + D(2));
+            d.Location = new Point(D(16), D(31));
+            card.Controls.Add(d);
+            card.Height = Math.Max(D(height), d.Bottom + D(10));
             if (control != null)
             {
                 control.Location = new Point(card.Width - D(16) - control.Width, (card.Height - control.Height) / 2);
@@ -346,6 +354,7 @@ namespace GuideStrap
             nav.Select(key, animate);
             if (key == "Home") RefreshHome();
             if (key == "Friends" && DateTime.Now - friendsLoaded > TimeSpan.FromSeconds(30)) _ = RefreshFriendsAsync();
+            if (key == "Graphics" && !settings.RecommendAsked) BeginInvoke(new Action(() => OfferRecommended(firstVisit: true)));
             if (ContainsFocus) Presence.Screen("Editing settings", nav.TextOf(key));
 
             bool canAnimate = animate && prev != null && prev.Visible && IsHandleCreated && pageHost.Width > 0 && pageHost.Height > 0;

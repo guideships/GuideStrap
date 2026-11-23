@@ -54,6 +54,7 @@ namespace GuideStrap
         public bool ShowServerLocation { get; set; } = true;
         public bool MultiInstance { get; set; }
         public bool CrashHelper { get; set; } = true;
+        public bool RecommendAsked { get; set; }
         public string? DeathSoundFile { get; set; }
         public string CursorPreset { get; set; } = "default";
         public string CrosshairPreset { get; set; } = "default";

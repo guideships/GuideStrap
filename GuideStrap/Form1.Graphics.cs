@@ -173,7 +173,13 @@ namespace GuideStrap
                 settings.Priority = level;
                 settings.Save();
             };
-            Add(page, SettingCard("Roblox priority", "Gives Roblox more CPU time. High can slow OBS while streaming.", priorityCombo), 0);
+            Add(page, SettingCard("Roblox priority", "Gives Roblox more CPU time. High can slow OBS while streaming.", priorityCombo));
+
+            Section(page, "Recommended");
+            var recommend = Secondary("Load recommended", "\uE9D9", D(170), D(30));
+            recommend.Click += (_, _) => OfferRecommended(firstVisit: false);
+            Add(page, SettingCard("Recommended settings",
+                "Checks your PC and picks graphics settings that fit it. Only changes graphics and the FPS cap, nothing else.", recommend), 0);
 
             presetSlider.ValueChanged += (_, _) => { if (!syncing) ApplyPreset(presetSlider.Value); };
             presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != presetSlider.Value) ApplyPreset(presetSlider.Value); };
@@ -212,6 +218,48 @@ namespace GuideStrap
             var (title, desc) = PresetInfo(settings.Preset);
             presetTitle.Text = L.T(title);
             presetDesc.Text = L.T(desc);
+        }
+
+        // PC CHECK: suggests a graphics preset and FPS cap for this PC
+        void OfferRecommended(bool firstVisit)
+        {
+            if (firstVisit)
+            {
+                if (settings.RecommendAsked) return;
+                settings.RecommendAsked = true;
+                settings.Save();
+            }
+            PcInfo pc;
+            try { pc = PcCheck.Read(); }
+            catch { pc = new PcInfo(); }
+            var (preset, cap) = PcCheck.Recommend(pc);
+            string presetName = L.T(preset switch { 0 => "Max FPS", 1 => "Performance", 3 => "Quality", _ => "Balanced" });
+            string capText = cap > 0 ? L.F("{0} FPS (your screen's refresh rate)", cap) : L.T("Roblox default");
+
+            var lines = new List<string>();
+            if (pc.Gpu.Length > 0)
+                lines.Add(pc.VramGb >= 1 ? L.F("Graphics card: {0} ({1} GB)", pc.Gpu, Math.Round(pc.VramGb)) : L.F("Graphics card: {0}", pc.Gpu));
+            if (pc.RamGb > 0) lines.Add(L.F("Memory: {0} GB", Math.Round(pc.RamGb)));
+            lines.Add(L.F("Processor: {0} threads", pc.Threads));
+            if (pc.RefreshHz > 0) lines.Add(L.F("Screen: {0} Hz", pc.RefreshHz));
+            lines.Add("");
+            lines.Add(L.F("Recommended graphics: {0}", presetName));
+            lines.Add(L.F("Recommended FPS cap: {0}", capText));
+            lines.Add("");
+            lines.Add(L.T("This only changes your graphics settings and FPS cap. Your mods, accounts and other settings stay the same."));
+
+            int choice = Ask(firstVisit ? "Use recommended settings for your PC?" : "Recommended settings for your PC",
+                string.Join("\n", lines), "Use recommended", firstVisit ? "Keep mine" : "Cancel");
+            if (choice != 0) return;
+
+            syncing = true;
+            presetSlider.Value = preset;
+            syncing = false;
+            ApplyPreset(preset);
+            settings.FpsCap = cap;
+            settings.Save();
+            SyncFpsCombo();
+            SetStatus(L.F("Recommended settings loaded: {0} graphics.", presetName), null, StatusKind.Idle);
         }
 
         void ApplyPreset(int p)

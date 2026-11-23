@@ -5,7 +5,7 @@
 <h1 align="center">GuideStrap</h1>
 
 <p align="center">
-  A Roblox launcher for Windows with graphics presets, FastFlags, mods, account switching and Discord status.
+  A free Roblox launcher for Windows: more FPS, mods, friends, one-click server joins, Discord status and a crash helper.
   <br><br>
   <a href="https://github.com/guideships/GuideStrap/releases/latest"><b>Download the latest version</b></a>
   ·
@@ -18,36 +18,44 @@
 
 GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from Roblox's own servers, keeps it updated, and starts it with your settings applied.
 
-**Graphics**
-- A slider from *Max FPS* to *Max Graphics* for people who just want it to run well
-- Every setting on its own if you want control: quality level, textures, anti-aliasing, rendering API, grass, sky and more
+**Graphics and FPS**
+- **Recommended settings:** checks your PC (graphics card, memory, screen) and picks graphics settings for it
+- A slider from *Max FPS* to *Max Graphics*, or every setting on its own
+- **Potato mode:** blurry textures, no grass, low-detail models, gray sky and no anti-aliasing, all at once or one by one
+- **FPS cap:** any number you want, set in Roblox's own settings
+- **Roblox priority:** give Roblox more CPU time
 
 **FastFlags**
 - An editor for flags on Roblox's official allowlist (anything else is skipped, since Roblox ignores it)
 - Paste a whole JSON list at once; if a flag is already set, you choose whether to overwrite or keep it
 
 **Mods**
-- Custom death sound (`.ogg`)
-- Mouse cursors: built-in GuideStrap arrow, a small dot for aiming, or your own image
-- Custom sky packs
-- A custom font for all in-game text
+- **Mod gallery:** crosshairs, cursors, skies and sound packs in one click ([add your own](gallery/README.md))
+- Death sound, footstep and jump sounds (muted or your own), and sound packs
+- Shift lock crosshair and mouse cursors: presets or your own image
+- Custom sky packs and a custom font for all in-game text
+- **Setups:** save your graphics and mods as e.g. "BedWars", and link a setup to a game so it turns on by itself
 - A mods folder for anything else
 
-**Accounts**
-- Log in once with the real Roblox login page, then switch accounts in one click
-- Join a game as any saved account by pasting its link
+**Playing**
+- **Rejoin last server**, **Server hop** and **Small server** (the emptiest one)
+- **Friends:** see who's online and what they're playing, join them, and get a popup when they start a game
+- Recent games on the Play page, and switching between saved accounts in one click
+- **Roblox status check:** tells you if Roblox is down (or you're offline) before launching
 
-**While you play**
-- Discord status showing the game you're in, with its icon and a link to it
-- Server location when you join ("Connected to a server in Dallas, Texas, US")
-- Recent games on the Play page for quick rejoining
-- A tray menu to relaunch, switch accounts or turn the Discord status off
+**Discord and streaming**
+- Discord status (off until you turn it on): show your game, the account you're using, and a **Join server** button for friends
+- **Streamer mode:** hides account names and server location in GuideStrap and on Discord
+- Session summary after you close Roblox
 
 **Other**
-- Settings profiles you can export and share
-- Cache cleaner and a one-click Roblox repair
-- Accent colors
-- Updates itself when a new release comes out
+- **Crash helper:** if Roblox crashes, it explains why and gives one-click fixes
+- 7 languages: English, Español, Português, Français, Deutsch, Türkçe and Filipino
+- Black and Purple themes, and your own picture on the start screen
+- Starts quietly with Windows if you want, and steps aside while you play
+- Settings profiles you can export and share, cache cleaner and one-click Roblox repair
+- Updates itself, with a "What's new" list after every update
+- Uninstall from Settings, with the option to keep your settings for a reinstall
 
 ## Is it safe?
 
@@ -60,7 +68,8 @@ GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from 
 
 1. Download `GuideStrap.exe` from [Releases](https://github.com/guideships/GuideStrap/releases/latest).
 2. Run it. Windows may warn you because the app isn't signed yet; click **More info → Run anyway**.
-3. Press **Launch Roblox**. The first launch downloads Roblox, which takes a minute.
+3. Pick your language and options, then press **Install**.
+4. Press **Launch Roblox**. The first launch downloads Roblox, which takes a minute.
 
 Optional: in **Settings**, turn on **Open Roblox links with GuideStrap** so Play buttons on roblox.com use it too.
 
@@ -74,7 +83,15 @@ cd GuideStrap
 dotnet build
 ```
 
-To make a single `.exe`: right-click the project in Visual Studio → **Publish → Folder**, then set *Self-contained*, *win-x64* and *Produce single file*.
+To make the single `GuideStrap.exe` used for releases:
+
+```
+dotnet publish GuideStrap -c Release
+```
+
+It ends up in `GuideStrap/bin/Release/net10.0-windows/win-x64/publish/`.
+
+The code is split by area: `Form1.*.cs` (settings window, one file per page), `Forms/` (other windows), `UI/` (theme and controls), `Roblox/` (installing, launching, mods, Discord, friends), `Core/` (settings, accounts, setup, updates) and `Localization/` (languages).
 
 ## Credits
 
