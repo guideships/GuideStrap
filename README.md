@@ -78,6 +78,6 @@ To make a single `.exe`: right-click the project in Visual Studio → **Publish 
 
 ## Credits
 
-Made by **Guide**. Inspired by [Bloxstrap](https://github.com/bloxstraplabs/bloxstrap) and [Fishstrap](https://github.com/fishstrap/fishstrap).
+Made by **[guideships](https://github.com/guideships)**. Inspired by [Bloxstrap](https://github.com/bloxstraplabs/bloxstrap) and [Fishstrap](https://github.com/fishstrap/fishstrap).
 
 GuideStrap is a fan project and isn't affiliated with or endorsed by Roblox Corporation. Released under the [MIT License](LICENSE.txt).
