@@ -1234,7 +1234,20 @@ namespace GuideStrap
                 if (Ask("Restart to apply", "The new color shows after GuideStrap restarts.", "Restart now", "Later") == 0)
                     Application.Restart();
             };
-            Add(page, SettingCard("Accent color", "The color used for buttons, switches and highlights.", picker));
+            var themeCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
+            foreach (var t in Theme.Themes) themeCombo.Items.Add(L.T(t));
+            themeCombo.SelectedIndex = Math.Max(0, Array.IndexOf(Theme.Themes, settings.ThemeName));
+            themeCombo.SelectedIndexChanged += (_, _) =>
+            {
+                string pick = Theme.Themes[themeCombo.SelectedIndex];
+                if (pick == settings.ThemeName) return;
+                settings.ThemeName = pick;
+                settings.Save();
+                if (Ask("Restart to apply", "The new theme shows after GuideStrap restarts.", "Restart now", "Later") == 0)
+                    Application.Restart();
+            };
+            Add(page, SettingCard("Theme", "Purple, or plain black with no color.", themeCombo));
+            Add(page, SettingCard("Accent color", "Used by the Purple theme for buttons, switches and highlights.", picker));
 
             var langCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
             foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
@@ -2074,14 +2087,14 @@ namespace GuideStrap
     // THEME
     public static class Theme
     {
-        public static readonly Color Bg = Color.FromArgb(14, 11, 22);
-        public static readonly Color Bar = Color.FromArgb(18, 14, 29);
-        public static readonly Color Card = Color.FromArgb(24, 19, 38);
-        public static readonly Color Input = Color.FromArgb(16, 12, 26);
-        public static readonly Color ButtonBg = Color.FromArgb(35, 28, 55);
-        public static readonly Color ButtonHover = Color.FromArgb(47, 38, 73);
-        public static readonly Color Border = Color.FromArgb(39, 31, 61);
-        public static readonly Color Track = Color.FromArgb(62, 50, 94);
+        public static Color Bg = Color.FromArgb(14, 11, 22);
+        public static Color Bar = Color.FromArgb(18, 14, 29);
+        public static Color Card = Color.FromArgb(24, 19, 38);
+        public static Color Input = Color.FromArgb(16, 12, 26);
+        public static Color ButtonBg = Color.FromArgb(35, 28, 55);
+        public static Color ButtonHover = Color.FromArgb(47, 38, 73);
+        public static Color Border = Color.FromArgb(39, 31, 61);
+        public static Color Track = Color.FromArgb(62, 50, 94);
         public static Color Accent = Color.FromArgb(124, 72, 232);
         public static Color AccentHover = Color.FromArgb(143, 96, 242);
         public static Color AccentLight = Color.FromArgb(185, 156, 255);
@@ -2095,6 +2108,39 @@ namespace GuideStrap
             ("Amber", Color.FromArgb(222, 142, 28)),
         };
 
+        public static Color LogoDark = Color.FromArgb(22, 14, 40);
+        public static Color LogoLight = Color.FromArgb(52, 32, 96);
+
+        public static readonly string[] Themes = { "Purple", "Black" };
+
+        // Call once at startup, before any window is made.
+        public static void Apply(string theme, string accent)
+        {
+            if (theme == "Black")
+            {
+                // plain dark greys, no tint. Text kept bright for contrast.
+                Bg = Color.FromArgb(10, 10, 10);
+                Bar = Color.FromArgb(15, 15, 15);
+                Card = Color.FromArgb(21, 21, 21);
+                Input = Color.FromArgb(13, 13, 13);
+                ButtonBg = Color.FromArgb(34, 34, 34);
+                ButtonHover = Color.FromArgb(46, 46, 46);
+                Border = Color.FromArgb(40, 40, 40);
+                Track = Color.FromArgb(52, 52, 52);
+                NavHover = Color.FromArgb(19, 19, 19);
+                NavSelected = Color.FromArgb(30, 30, 30);
+                Text = Color.FromArgb(240, 240, 240);
+                SubText = Color.FromArgb(165, 165, 165);
+                Accent = Color.FromArgb(100, 100, 100);       // white text on it stays readable
+                AccentHover = Color.FromArgb(120, 120, 120);
+                AccentLight = Color.FromArgb(215, 215, 215);
+                Magenta = Color.FromArgb(120, 120, 120);
+                LogoDark = Color.FromArgb(24, 24, 24);
+                LogoLight = Color.FromArgb(50, 50, 50);
+            }
+            else SetAccent(accent);
+        }
+
         public static void SetAccent(string name)
         {
             var a = Accents.FirstOrDefault(x => x.Name == name);
@@ -2103,12 +2149,12 @@ namespace GuideStrap
             AccentHover = Mix(a.Color, Color.White, 0.14f);
             AccentLight = Mix(a.Color, Color.White, 0.42f);
         }
-        public static readonly Color Magenta = Color.FromArgb(168, 56, 214);
+        public static Color Magenta = Color.FromArgb(168, 56, 214);
         public static readonly Color Gold = Color.FromArgb(242, 194, 88);
-        public static readonly Color Text = Color.FromArgb(241, 237, 250);
-        public static readonly Color SubText = Color.FromArgb(155, 145, 180);
-        public static readonly Color NavHover = Color.FromArgb(23, 18, 37);
-        public static readonly Color NavSelected = Color.FromArgb(33, 26, 53);
+        public static Color Text = Color.FromArgb(241, 237, 250);
+        public static Color SubText = Color.FromArgb(155, 145, 180);
+        public static Color NavHover = Color.FromArgb(23, 18, 37);
+        public static Color NavSelected = Color.FromArgb(33, 26, 53);
         public static readonly Color Danger = Color.FromArgb(214, 62, 86);
         public static readonly Color Success = Color.FromArgb(92, 214, 140);
 
@@ -2151,9 +2197,9 @@ namespace GuideStrap
             float rad = side * 0.10f;
             using (var path = Round(tile, rad))
             {
-                using (var b = new SolidBrush(Color.FromArgb(22, 14, 40))) g.FillPath(b, path);
+                using (var b = new SolidBrush(LogoDark)) g.FillPath(b, path);
                 g.SetClip(path, CombineMode.Intersect);
-                using (var lb = new SolidBrush(Color.FromArgb(52, 32, 96)))
+                using (var lb = new SolidBrush(LogoLight))
                     g.FillPolygon(lb, new[] { new PointF(tile.Left, tile.Top), new PointF(tile.Right, tile.Top), new PointF(tile.Left, tile.Bottom) });
                 g.ResetClip();
             }
@@ -2970,6 +3016,7 @@ namespace GuideStrap
         public string CursorPreset { get; set; } = "default";
         public bool CustomSky { get; set; }
         public string Accent { get; set; } = "Purple";
+        public string ThemeName { get; set; } = "Purple";
         public string Language { get; set; } = "";
         public Dictionary<string, string> PreviousLinkHandlers { get; set; } = new();
         public DateTime LastUpdateCheck { get; set; }
@@ -3440,7 +3487,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.1";
+        public const string Version = "4.2";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -3480,17 +3527,21 @@ namespace GuideStrap
             Current = this;
             string? launchUri = args.FirstOrDefault(a => a.StartsWith("roblox", StringComparison.OrdinalIgnoreCase));
 
-            // brand-new user (nothing installed yet): show setup and nothing else
+            // Not the installed copy (e.g. the downloaded .exe): show setup.
+            // If GuideStrap is already installed, setup opens in Reinstall / Repair mode.
             if (launchUri == null && Setup.NeedsSetup())
             {
-                L.Lang = L.SystemLanguage();
-                Open(new SetupForm(this));
+                bool repair = Setup.IsInstalled;
+                var current = AppSettings.Load();
+                L.Lang = repair && current.Language.Length > 0 ? current.Language : L.SystemLanguage();
+                if (repair) Theme.Apply(current.ThemeName, current.Accent);
+                Open(new SetupForm(this, repair));
                 return;
             }
 
             var settings = AppSettings.Load();
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
-            Theme.SetAccent(settings.Accent);
+            Theme.Apply(settings.ThemeName, settings.Accent);
             Setup.RefreshEntry();
             Updater.CleanupOld();
             Presence.Enable(settings.DiscordPresence);
@@ -5195,11 +5246,29 @@ namespace GuideStrap
             new[] { "Close GuideStrap first", "Cierra GuideStrap primero", "Feche o GuideStrap primeiro" },
             new[] { "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "GuideStrap sigue abierto (revisa la bandeja junto al reloj). Ciérralo e inténtalo de nuevo.", "O GuideStrap ainda está aberto (veja a bandeja perto do relógio). Feche e tente de novo." },
             new[] { "GuideStrap was uninstalled.", "GuideStrap se desinstaló.", "O GuideStrap foi desinstalado." },
-            new[] { "GuideStrap is a Roblox launcher made by Guide. It downloads Roblox from Roblox's own servers, keeps it updated, and starts it with your settings applied.\n\nBesides launching, it handles graphics presets, FastFlags (only the ones Roblox allows), a custom in-game font, and switching between saved accounts.\n\nIt never touches the game while it's running. It only changes launch files and settings that Roblox reads on its own, so it isn't an exploit. Saved logins are encrypted for your Windows user.\n\nEverything happens in GuideStrap's own copy of Roblox. Your normal Roblox install is never changed, so launching Roblox without GuideStrap always gives you the original game, sounds and settings.\n\nGuideStrap is a fan project and isn't affiliated with Roblox Corporation.", "GuideStrap es un launcher de Roblox hecho por Guide. Descarga Roblox desde los servidores de Roblox, lo mantiene actualizado y lo abre con tus ajustes aplicados.\n\nAdemás de iniciar el juego, maneja preajustes de gráficos, FastFlags (solo los que Roblox permite), una fuente personalizada en el juego y el cambio entre cuentas guardadas.\n\nNunca toca el juego mientras está abierto. Solo cambia archivos de inicio y ajustes que Roblox lee por su cuenta, así que no es un exploit. Los inicios de sesión guardados están cifrados para tu usuario de Windows.\n\nTodo pasa en la copia de Roblox de GuideStrap. Tu instalación normal de Roblox nunca se modifica, así que abrir Roblox sin GuideStrap siempre te da el juego, los sonidos y los ajustes originales.\n\nGuideStrap es un proyecto de fans y no está afiliado a Roblox Corporation.", "O GuideStrap é um launcher de Roblox feito pelo Guide. Ele baixa o Roblox direto dos servidores do Roblox, mantém tudo atualizado e abre o jogo com as suas configurações.\n\nAlém de abrir o jogo, ele cuida de predefinições de gráficos, FastFlags (só as que o Roblox permite), uma fonte personalizada no jogo e a troca entre contas salvas.\n\nEle nunca mexe no jogo enquanto está aberto. Só altera arquivos de inicialização e configurações que o próprio Roblox lê, então não é um exploit. Os logins salvos são criptografados para o seu usuário do Windows.\n\nTudo acontece na cópia do Roblox do GuideStrap. Sua instalação normal do Roblox nunca é alterada, então abrir o Roblox sem o GuideStrap sempre traz o jogo, os sons e as configurações originais.\n\nO GuideStrap é um projeto de fã e não tem ligação com a Roblox Corporation." }
+            new[] { "GuideStrap is a Roblox launcher made by Guide. It downloads Roblox from Roblox's own servers, keeps it updated, and starts it with your settings applied.\n\nBesides launching, it handles graphics presets, FastFlags (only the ones Roblox allows), a custom in-game font, and switching between saved accounts.\n\nIt never touches the game while it's running. It only changes launch files and settings that Roblox reads on its own, so it isn't an exploit. Saved logins are encrypted for your Windows user.\n\nEverything happens in GuideStrap's own copy of Roblox. Your normal Roblox install is never changed, so launching Roblox without GuideStrap always gives you the original game, sounds and settings.\n\nGuideStrap is a fan project and isn't affiliated with Roblox Corporation.", "GuideStrap es un launcher de Roblox hecho por Guide. Descarga Roblox desde los servidores de Roblox, lo mantiene actualizado y lo abre con tus ajustes aplicados.\n\nAdemás de iniciar el juego, maneja preajustes de gráficos, FastFlags (solo los que Roblox permite), una fuente personalizada en el juego y el cambio entre cuentas guardadas.\n\nNunca toca el juego mientras está abierto. Solo cambia archivos de inicio y ajustes que Roblox lee por su cuenta, así que no es un exploit. Los inicios de sesión guardados están cifrados para tu usuario de Windows.\n\nTodo pasa en la copia de Roblox de GuideStrap. Tu instalación normal de Roblox nunca se modifica, así que abrir Roblox sin GuideStrap siempre te da el juego, los sonidos y los ajustes originales.\n\nGuideStrap es un proyecto de fans y no está afiliado a Roblox Corporation.", "O GuideStrap é um launcher de Roblox feito pelo Guide. Ele baixa o Roblox direto dos servidores do Roblox, mantém tudo atualizado e abre o jogo com as suas configurações.\n\nAlém de abrir o jogo, ele cuida de predefinições de gráficos, FastFlags (só as que o Roblox permite), uma fonte personalizada no jogo e a troca entre contas salvas.\n\nEle nunca mexe no jogo enquanto está aberto. Só altera arquivos de inicialização e configurações que o próprio Roblox lê, então não é um exploit. Os logins salvos são criptografados para o seu usuário do Windows.\n\nTudo acontece na cópia do Roblox do GuideStrap. Sua instalação normal do Roblox nunca é alterada, então abrir o Roblox sem o GuideStrap sempre traz o jogo, os sons e as configurações originais.\n\nO GuideStrap é um projeto de fã e não tem ligação com a Roblox Corporation." },
+            new[] { "Reinstall GuideStrap", "Reinstalar GuideStrap", "Reinstalar o GuideStrap" },
+            new[] { "GuideStrap is already installed. Reinstalling replaces it with this copy and keeps your settings, accounts and mods.", "GuideStrap ya está instalado. Reinstalar lo reemplaza con esta copia y conserva tus ajustes, cuentas y mods.", "O GuideStrap já está instalado. Reinstalar troca ele por esta cópia e mantém suas configurações, contas e mods." },
+            new[] { "Installed: {0}  ·  This file: {1}", "Instalado: {0}  ·  Este archivo: {1}", "Instalado: {0}  ·  Este arquivo: {1}" },
+            new[] { "Also repair Roblox", "Reparar Roblox también", "Reparar o Roblox também" },
+            new[] { "Downloads a fresh copy of Roblox next time you launch.", "Descarga una copia nueva de Roblox la próxima vez que inicies.", "Baixa uma cópia nova do Roblox na próxima vez que você iniciar." },
+            new[] { "Reinstall", "Reinstalar", "Reinstalar" },
+            new[] { "Reinstalling...", "Reinstalando...", "Reinstalando..." },
+            new[] { "GuideStrap is open", "GuideStrap está abierto", "O GuideStrap está aberto" },
+            new[] { "GuideStrap is open right now. Close it and continue?", "GuideStrap está abierto ahora. ¿Cerrarlo y continuar?", "O GuideStrap está aberto agora. Fechar e continuar?" },
+            new[] { "Close and continue", "Cerrar y continuar", "Fechar e continuar" },
+            new[] { "Theme", "Tema", "Tema" },
+            new[] { "Purple", "Morado", "Roxo" },
+            new[] { "Black", "Negro", "Preto" },
+            new[] { "Purple, or plain black with no color.", "Morado, o negro sin color.", "Roxo, ou preto sem cor." },
+            new[] { "The new theme shows after GuideStrap restarts.", "El nuevo tema se verá cuando GuideStrap se reinicie.", "O novo tema aparece depois que o GuideStrap reiniciar." },
+            new[] { "Used by the Purple theme for buttons, switches and highlights.", "Lo usa el tema Morado para botones, interruptores y resaltados.", "Usada pelo tema Roxo em botões, chaves e destaques." }
         };
     }
 
-    // Install / update / uninstall. Setup only ever shows for brand-new users.
+    // Install / reinstall / uninstall.
+    // The installed copy (Start menu, desktop shortcut, Roblox links) never shows setup.
+    // Running any other copy (like the downloaded .exe) shows setup, or Reinstall/Repair if already installed.
     static class Setup
     {
         const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuideStrap";
@@ -5210,7 +5279,7 @@ namespace GuideStrap
         static bool RunningInstalled =>
             string.Equals(Path.GetFullPath(Environment.ProcessPath ?? ""), Path.GetFullPath(InstallExe), StringComparison.OrdinalIgnoreCase);
 
-        static string? InstalledVersion()
+        public static string? InstalledVersion()
         {
             try
             {
@@ -5220,38 +5289,26 @@ namespace GuideStrap
             catch { return null; }
         }
 
-        static bool IsInstalled => File.Exists(InstallExe) && InstalledVersion() != null;
+        public static bool IsInstalled => File.Exists(InstallExe) && InstalledVersion() != null;
+        public static bool HasDesktopShortcut => File.Exists(DesktopLink);
 
-        static bool IsNewer(string mine, string? theirs) =>
-            theirs == null || (System.Version.TryParse(mine, out var a) && System.Version.TryParse(theirs, out var b) && a > b);
-
-        // True only for someone running the downloaded file on a PC where GuideStrap isn't installed yet.
         public static bool NeedsSetup()
         {
 #if DEBUG
             return false;   // never while developing in Visual Studio
 #else
-            return !RunningInstalled && !IsInstalled;
+            return !RunningInstalled;
 #endif
         }
 
-        // Already installed but this is a different copy (e.g. a fresh download): update the installed
-        // copy if this one is newer, open the installed copy, and let this one exit. No setup screen.
+        // A Roblox link opened a copy that isn't the installed one: pass the link to the installed copy.
         public static bool HandOffIfInstalled(string[] args)
         {
 #if DEBUG
             return false;
 #else
-            if (RunningInstalled || !IsInstalled) return false;
-            try
-            {
-                if (IsNewer(AppInfo.Version, InstalledVersion()))
-                {
-                    File.Copy(Environment.ProcessPath!, InstallExe, true);
-                    WriteEntry();
-                }
-            }
-            catch { /* installed copy is probably running; just open it */ }
+            bool hasLink = args.Any(a => a.StartsWith("roblox", StringComparison.OrdinalIgnoreCase));
+            if (!hasLink || RunningInstalled || !IsInstalled) return false;
             var psi = new ProcessStartInfo(InstallExe) { UseShellExecute = false, WorkingDirectory = Paths.Base };
             foreach (var a in args) psi.ArgumentList.Add(a);
             Process.Start(psi);
@@ -5259,17 +5316,51 @@ namespace GuideStrap
 #endif
         }
 
-        public static void Install(string language, bool desktopShortcut, bool openLinks)
+        public static bool OtherCopiesRunning()
+        {
+            int me = Environment.ProcessId;
+            return Process.GetProcessesByName("GuideStrap").Any(p => { using (p) return p.Id != me; });
+        }
+
+        public static void CloseOtherCopies()
+        {
+            int me = Environment.ProcessId;
+            foreach (var p in Process.GetProcessesByName("GuideStrap"))
+            {
+                using (p)
+                {
+                    if (p.Id == me) continue;
+                    try { p.Kill(); p.WaitForExit(4000); } catch { }
+                }
+            }
+        }
+
+        public static void Install(string language, bool desktopShortcut, bool openLinks, bool repairRoblox)
         {
             Directory.CreateDirectory(Paths.Base);
-            if (!RunningInstalled) File.Copy(Environment.ProcessPath!, InstallExe, true);
+            if (!RunningInstalled)
+            {
+                // the old copy can stay locked for a moment after closing, so retry briefly
+                for (int attempt = 0; ; attempt++)
+                {
+                    try { File.Copy(Environment.ProcessPath!, InstallExe, true); break; }
+                    catch (IOException) when (attempt < 10) { Thread.Sleep(300); }
+                }
+            }
+
             CreateShortcut(StartMenuLink);
             if (desktopShortcut) CreateShortcut(DesktopLink);
+            else try { if (File.Exists(DesktopLink)) File.Delete(DesktopLink); } catch { }
             WriteEntry();
+
             var settings = AppSettings.Load();
             settings.Language = language;
             if (openLinks) LinkHandler.Register(settings, InstallExe);
+            else if (LinkHandler.PointsTo(InstallExe)) LinkHandler.Restore(settings);
             settings.Save();
+
+            if (repairRoblox)
+                try { if (Directory.Exists(Paths.Versions)) Directory.Delete(Paths.Versions, true); } catch { }
         }
 
         public static void StartInstalled() =>
@@ -5319,11 +5410,9 @@ namespace GuideStrap
         {
             var settings = AppSettings.Load();
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
-            Theme.SetAccent(settings.Accent);
+            Theme.Apply(settings.ThemeName, settings.Accent);
 
-            int me = Environment.ProcessId;
-            bool othersRunning = Process.GetProcessesByName("GuideStrap").Any(p => { using (p) return p.Id != me; });
-            if (othersRunning)
+            if (OtherCopiesRunning())
             {
                 ThemedDialog.Prompt(null, "Close GuideStrap first", "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "OK");
                 return;
@@ -5348,58 +5437,90 @@ namespace GuideStrap
         }
     }
 
-    // First-run setup window: pick a language, choose a couple of options, install, open the app.
+    // Setup window. New users: pick a language and options, install, open the app.
+    // Already installed: same window in Reinstall / Repair mode, keeping settings, accounts and mods.
     class SetupForm : ThemedForm
     {
         readonly GuideStrapContext context;
+        readonly bool repair;
         readonly List<(Control Control, string English)> texts = new();
         readonly DarkCombo langCombo = new();
-        readonly ToggleSwitch desktopToggle = new(), linksToggle = new();
+        readonly ToggleSwitch desktopToggle = new(), linksToggle = new(), robloxToggle = new();
         readonly Label status = new();
         readonly RoundButton install, cancel;
 
-        public SetupForm(GuideStrapContext context)
+        public SetupForm(GuideStrapContext context, bool repair)
         {
             this.context = context;
+            this.repair = repair;
+            string titleText = repair ? "Reinstall GuideStrap" : "GuideStrap Setup";
             Text = "GuideStrap Setup";
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(D(520), D(430));
+            ClientSize = new Size(D(520), D(repair ? 510 : 430));
             int W = ClientSize.Width;
 
-            var bar = BuildTitleBar("GuideStrap Setup", minimize: true);
+            var bar = BuildTitleBar(titleText, minimize: true);
             var barTitle = bar.Controls.OfType<Label>().FirstOrDefault();
-            if (barTitle != null) texts.Add((barTitle, "GuideStrap Setup"));
+            if (barTitle != null) texts.Add((barTitle, titleText));
 
+            string heading = repair ? "Reinstall GuideStrap" : "Welcome to GuideStrap";
+            string intro = repair
+                ? "GuideStrap is already installed. Reinstalling replaces it with this copy and keeps your settings, accounts and mods."
+                : "Pick your language, then install. It only takes a few seconds.";
             var logo = new LogoMark { Size = new Size(D(68), D(68)), Location = new Point(D(24), D(54)) };
-            var title = Track(At(Lbl("Welcome to GuideStrap", 15f, semibold: true), D(104), D(58)), "Welcome to GuideStrap");
-            var sub = Track(Lbl("Pick your language, then install. It only takes a few seconds.", 9f, Theme.SubText), "Pick your language, then install. It only takes a few seconds.");
+            var title = Track(At(Lbl(heading, 15f, semibold: true), D(104), D(56)), heading);
+            var sub = Track(Lbl(intro, 9f, Theme.SubText), intro);
             sub.MaximumSize = new Size(W - D(128), 0);
-            sub.Location = new Point(D(106), D(92));
+            sub.Location = new Point(D(106), D(90));
+            Controls.AddRange(new Control[] { logo, title, sub });
+
+            int y = D(146);
+            if (repair)
+            {
+                var versions = new Label
+                {
+                    AutoSize = true,
+                    Font = Theme.F("Segoe UI", 8.5f),
+                    ForeColor = Theme.SubText,
+                    Location = new Point(D(26), D(146)),
+                    Text = L.F("Installed: {0}  ·  This file: {1}", Setup.InstalledVersion() ?? "?", AppInfo.Version),
+                };
+                Controls.Add(versions);
+                y = D(172);
+            }
 
             foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
             langCombo.ItemHeight = D(22);
             langCombo.Width = D(170);
             langCombo.SelectedIndex = Math.Max(0, Array.FindIndex(L.Languages, x => x.Code == L.Lang));
-            desktopToggle.Size = linksToggle.Size = new Size(D(40), D(20));
-            desktopToggle.Checked = true;
-            linksToggle.Checked = true;
+            desktopToggle.Size = linksToggle.Size = robloxToggle.Size = new Size(D(40), D(20));
+            desktopToggle.Checked = !repair || Setup.HasDesktopShortcut;
+            linksToggle.Checked = !repair || LinkHandler.PointsTo(Setup.InstallExe);
+            robloxToggle.Checked = false;
 
-            var row1 = Row(D(146), "Language", null, langCombo);
-            var row2 = Row(D(206), "Desktop shortcut", "Add a GuideStrap icon to your desktop.", desktopToggle);
-            var row3 = Row(D(266), "Open Roblox links with GuideStrap", "Play buttons on roblox.com open GuideStrap.", linksToggle);
+            Controls.Add(Row(y, "Language", null, langCombo)); y += D(60);
+            Controls.Add(Row(y, "Desktop shortcut", "Add a GuideStrap icon to your desktop.", desktopToggle)); y += D(60);
+            Controls.Add(Row(y, "Open Roblox links with GuideStrap", "Play buttons on roblox.com open GuideStrap.", linksToggle)); y += D(60);
+            if (repair)
+            {
+                Controls.Add(Row(y, "Also repair Roblox", "Downloads a fresh copy of Roblox next time you launch.", robloxToggle));
+                y += D(60);
+            }
 
             var note = Track(Lbl("Installs for your Windows user only. Remove it any time from Settings > Apps.", 8.25f, Theme.SubText),
                 "Installs for your Windows user only. Remove it any time from Settings > Apps.");
             note.MaximumSize = new Size(W - D(48), 0);
-            note.Location = new Point(D(26), D(334));
+            note.Location = new Point(D(26), y + D(8));
+            Controls.Add(note);
 
             var footer = new Panel { Dock = DockStyle.Bottom, Height = D(56), BackColor = Theme.Bar };
             footer.Paint += (_, e) => { using var p = new Pen(Theme.Border); e.Graphics.DrawLine(p, 0, 0, footer.Width, 0); };
-            install = Primary("Install", "", D(120), D(32));
+            string action = repair ? "Reinstall" : "Install";
+            install = Primary(action, repair ? "" : "", D(130), D(32));
             cancel = Secondary("Cancel", "", D(96), D(32));
             install.Location = new Point(W - D(20) - install.Width, D(12));
             cancel.Location = new Point(install.Left - D(8) - cancel.Width, D(12));
-            texts.Add((install, "Install"));
+            texts.Add((install, action));
             texts.Add((cancel, "Cancel"));
             status.AutoSize = false;
             status.Size = new Size(cancel.Left - D(36), D(22));
@@ -5410,7 +5531,6 @@ namespace GuideStrap
 
             Controls.Add(footer);
             Controls.Add(bar);
-            Controls.AddRange(new Control[] { logo, title, sub, row1, row2, row3, note });
 
             langCombo.SelectedIndexChanged += (_, _) =>
             {
@@ -5446,13 +5566,19 @@ namespace GuideStrap
 
         async Task InstallAsync()
         {
+            if (Setup.OtherCopiesRunning())
+            {
+                if (Ask("GuideStrap is open", "GuideStrap is open right now. Close it and continue?", "Close and continue", "Cancel") != 0) return;
+                await Task.Run(Setup.CloseOtherCopies);
+            }
+
             install.Enabled = cancel.Enabled = langCombo.Enabled = false;
-            status.Text = L.T("Installing...");
+            status.Text = L.T(repair ? "Reinstalling..." : "Installing...");
             string language = L.Lang;
-            bool desktop = desktopToggle.Checked, links = linksToggle.Checked;
+            bool desktop = desktopToggle.Checked, links = linksToggle.Checked, fixRoblox = repair && robloxToggle.Checked;
             try
             {
-                await Task.Run(() => Setup.Install(language, desktop, links));
+                await Task.Run(() => Setup.Install(language, desktop, links, fixRoblox));
             }
             catch (Exception ex)
             {
