@@ -2871,12 +2871,17 @@ namespace GuideStrap
 
         static Icon MakeIcon()
         {
+            // the taskbar/tray icon always uses the black logo (same as the .exe icon), whatever the theme
+            var (dark, light) = (LogoDark, LogoLight);
+            LogoDark = Color.FromArgb(24, 24, 24);
+            LogoLight = Color.FromArgb(50, 50, 50);
             using var bmp = new Bitmap(64, 64);
             using (var g = Graphics.FromImage(bmp))
             {
                 g.Clear(Color.Transparent);
                 DrawLogo(g, new RectangleF(0, 0, 64, 64));
             }
+            (LogoDark, LogoLight) = (dark, light);
             return Icon.FromHandle(bmp.GetHicon());
         }
 
@@ -4439,7 +4444,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.6.2";
+        public const string Version = "4.6.3";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -4447,14 +4452,11 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
-            "\u2022 GuideStrap checks if Roblox is down before launching\n" +
-            "\u2022 Pick your own picture for the start screen (Settings > Appearance)\n" +
-            "\u2022 Start GuideStrap with Windows, quietly in the tray (Settings)\n" +
-            "\u2022 Uninstall GuideStrap from Settings > Tools\n" +
-            "\u2022 New languages: Fran\u00e7ais, Deutsch, T\u00fcrk\u00e7e and Filipino\n" +
-            "\u2022 This window, after every update";
+            "\u2022 Black is now the default theme (Purple is still in Settings > Appearance)\n" +
+            "\u2022 New black logo for the app, the taskbar, Discord and the website\n" +
+            "\u2022 Uninstalling can now keep your settings, accounts and mods for a reinstall";
 
-        public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo.png";
+        public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo-black.png";   // new name so Discord doesn't show its cached old picture
         public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";
 
         public const string AboutText =
@@ -7837,7 +7839,8 @@ namespace GuideStrap
             new[] { "• GuideStrap checks if Roblox is down before launching\n• Pick your own picture for the start screen (Settings > Appearance)\n• Start GuideStrap with Windows, quietly in the tray (Settings)\n• Uninstall GuideStrap from Settings > Tools\n• New languages: Français, Deutsch, Türkçe and Filipino\n• This window, after every update", "• GuideStrap revisa si Roblox está caído antes de abrirlo\n• Elige tu propia imagen para la pantalla de inicio (Ajustes > Apariencia)\n• Inicia GuideStrap con Windows, en silencio en la bandeja (Ajustes)\n• Desinstala GuideStrap desde Ajustes > Herramientas\n• Idiomas nuevos: Français, Deutsch, Türkçe y Filipino\n• Esta ventana, después de cada actualización", "• O GuideStrap verifica se o Roblox está fora do ar antes de abrir\n• Escolha sua própria imagem para a tela inicial (Configurações > Aparência)\n• Inicie o GuideStrap com o Windows, discretamente na bandeja (Configurações)\n• Desinstale o GuideStrap em Configurações > Ferramentas\n• Idiomas novos: Français, Deutsch, Türkçe e Filipino\n• Esta janela, depois de cada atualização" },
             new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Esto quita GuideStrap y su copia de Roblox. Roblox normal sigue instalado.", "Isso remove o GuideStrap e a cópia do Roblox dele. O Roblox normal continua instalado." },
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Guardar mis ajustes, cuentas y mods por si lo reinstalo", "Manter minhas configurações, contas e mods caso eu reinstale" },
-            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap se desinstaló. Tus ajustes, cuentas y mods se guardan para la próxima vez.", "O GuideStrap foi desinstalado. Suas configurações, contas e mods ficam guardados para a próxima vez." }
+            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap se desinstaló. Tus ajustes, cuentas y mods se guardan para la próxima vez.", "O GuideStrap foi desinstalado. Suas configurações, contas e mods ficam guardados para a próxima vez." },
+            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" }
         };
 
         // English, Français, Deutsch, Türkçe, Filipino
@@ -8398,7 +8401,8 @@ namespace GuideStrap
             new[] { "• GuideStrap checks if Roblox is down before launching\n• Pick your own picture for the start screen (Settings > Appearance)\n• Start GuideStrap with Windows, quietly in the tray (Settings)\n• Uninstall GuideStrap from Settings > Tools\n• New languages: Français, Deutsch, Türkçe and Filipino\n• This window, after every update", "• GuideStrap vérifie si Roblox est en panne avant de le lancer\n• Choisis ta propre image pour l'écran d'accueil (Réglages > Apparence)\n• Démarre GuideStrap avec Windows, discrètement dans la zone de notification (Réglages)\n• Désinstalle GuideStrap depuis Réglages > Outils\n• Nouvelles langues : Français, Deutsch, Türkçe et Filipino\n• Cette fenêtre, après chaque mise à jour", "• GuideStrap prüft vor dem Start, ob Roblox down ist\n• Wähle dein eigenes Bild für den Startbildschirm (Einstellungen > Aussehen)\n• Starte GuideStrap mit Windows, leise im Infobereich (Einstellungen)\n• Deinstalliere GuideStrap unter Einstellungen > Werkzeuge\n• Neue Sprachen: Français, Deutsch, Türkçe und Filipino\n• Dieses Fenster, nach jedem Update", "• GuideStrap başlatmadan önce Roblox'un çöküp çökmediğini kontrol eder\n• Başlangıç ekranı için kendi resmini seç (Ayarlar > Görünüm)\n• GuideStrap'i Windows ile, tepside sessizce başlat (Ayarlar)\n• GuideStrap'i Ayarlar > Araçlar'dan kaldır\n• Yeni diller: Français, Deutsch, Türkçe ve Filipino\n• Her güncellemeden sonra bu pencere", "• Tinitingnan ng GuideStrap kung down ang Roblox bago mag-launch\n• Pumili ng sarili mong larawan para sa start screen (Settings > Itsura)\n• Simulan ang GuideStrap kasabay ng Windows, tahimik sa tray (Settings)\n• I-uninstall ang GuideStrap sa Settings > Mga tool\n• Mga bagong wika: Français, Deutsch, Türkçe at Filipino\n• Ang window na ito, pagkatapos ng bawat update" },
             new[] { "This removes GuideStrap and its copy of Roblox. Normal Roblox stays installed.", "Ceci supprime GuideStrap et sa copie de Roblox. Roblox normal reste installé.", "Das entfernt GuideStrap und seine Kopie von Roblox. Normales Roblox bleibt installiert.", "Bu, GuideStrap'i ve Roblox kopyasını kaldırır. Normal Roblox kurulu kalır.", "Tatanggalin nito ang GuideStrap at ang kopya nito ng Roblox. Mananatiling naka-install ang normal na Roblox." },
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Garder mes réglages, comptes et mods au cas où je réinstalle", "Meine Einstellungen, Konten und Mods behalten, falls ich neu installiere", "Yeniden kurarsam diye ayarlarımı, hesaplarımı ve modlarımı sakla", "Itabi ang settings, account at mods ko kung sakaling mag-reinstall ako" },
-            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap a été désinstallé. Tes réglages, comptes et mods sont gardés pour la prochaine fois.", "GuideStrap wurde deinstalliert. Deine Einstellungen, Konten und Mods bleiben fürs nächste Mal erhalten.", "GuideStrap kaldırıldı. Ayarların, hesapların ve modların bir dahaki sefer için saklandı.", "Na-uninstall na ang GuideStrap. Naitabi ang settings, account at mods mo para sa susunod." }
+            new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap a été désinstallé. Tes réglages, comptes et mods sont gardés pour la prochaine fois.", "GuideStrap wurde deinstalliert. Deine Einstellungen, Konten und Mods bleiben fürs nächste Mal erhalten.", "GuideStrap kaldırıldı. Ayarların, hesapların ve modların bir dahaki sefer için saklandı.", "Na-uninstall na ang GuideStrap. Naitabi ang settings, account at mods mo para sa susunod." },
+            new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" }
         };
     }
 
