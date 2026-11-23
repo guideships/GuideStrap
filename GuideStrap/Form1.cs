@@ -90,6 +90,7 @@ namespace GuideStrap
         readonly ToggleSwitch potatoAll = new(), potatoBlur = new(), potatoGrass = new(), potatoMesh = new(), potatoSky = new(), potatoMsaa = new();
         bool potatoSyncing;
         readonly DarkCombo fpsCombo = new(), priorityCombo = new();
+        bool fpsSyncing;
         static readonly int[] FpsCaps = { 0, 60, 120, 144, 165, 240 };
 
         // ---------- discord / friends / setups ----------
@@ -287,6 +288,7 @@ namespace GuideStrap
             s.Margin = new Padding(D(2), D(1), 0, D(14));
             page.Controls.Add(t);
             page.Controls.Add(s);
+            Theme.DarkScroll(page);
             pageHost.Controls.Add(page);
             pages[key] = page;
             return page;
@@ -833,14 +835,32 @@ namespace GuideStrap
             Add(page, adv, 0);
 
             Section(page, "Performance");
-            SetupCombo(fpsCombo, D(170), "Roblox default", "60 FPS", "120 FPS", "144 FPS", "165 FPS", "240 FPS");
-            fpsCombo.SelectedIndex = Math.Max(0, Array.IndexOf(FpsCaps, settings.FpsCap));
+            SetupCombo(fpsCombo, D(170), "Roblox default", "60 FPS", "120 FPS", "144 FPS", "165 FPS", "240 FPS", "Custom...");
+            SyncFpsCombo();
             fpsCombo.SelectedIndexChanged += (_, _) =>
             {
-                settings.FpsCap = FpsCaps[Math.Clamp(fpsCombo.SelectedIndex, 0, FpsCaps.Length - 1)];
-                settings.Save();
+                if (fpsSyncing) return;
+                int idx = fpsCombo.SelectedIndex;
+                if (idx == FpsCaps.Length)   // Custom...
+                {
+                    string? text = AskText("Custom FPS cap", "Type any frame rate, like 75, 200 or 360. Roblox saves it in its own settings file (GlobalBasicSettings_13.xml).",
+                        settings.FpsCap > 0 ? settings.FpsCap.ToString() : "360", "Set");
+                    if (text != null && int.TryParse(text.Trim(), out int fps) && fps >= 1 && fps <= 10000)
+                    {
+                        settings.FpsCap = fps;
+                        settings.Save();
+                    }
+                    else if (text != null)
+                        Ask("That isn't a frame rate", "Type a whole number from 1 to 10000.", "OK");
+                }
+                else
+                {
+                    settings.FpsCap = FpsCaps[Math.Clamp(idx, 0, FpsCaps.Length - 1)];
+                    settings.Save();
+                }
+                SyncFpsCombo();
             };
-            Add(page, SettingCard("FPS cap", "Sets Roblox's own max frame rate before it opens. Normal Roblox keeps it too.", fpsCombo));
+            Add(page, SettingCard("FPS cap", "Any frame rate you want, set in Roblox's own settings before it opens. Normal Roblox keeps it too.", fpsCombo));
             SetupCombo(priorityCombo, D(170), "Normal", "Above normal", "High");
             priorityCombo.SelectedIndex = Math.Clamp(settings.Priority, 0, 2);
             priorityCombo.SelectedIndexChanged += (_, _) =>
@@ -932,6 +952,17 @@ namespace GuideStrap
         }
 
         // Potato switches drive the same controls as Advanced settings, so both always agree.
+        // Shows the saved FPS cap: a preset, or "Custom (N FPS)" for any other number
+        void SyncFpsCombo()
+        {
+            fpsSyncing = true;
+            int preset = Array.IndexOf(FpsCaps, settings.FpsCap);
+            int custom = FpsCaps.Length;
+            fpsCombo.Items[custom] = preset < 0 && settings.FpsCap > 0 ? L.F("Custom ({0} FPS)", settings.FpsCap) : L.T("Custom...");
+            fpsCombo.SelectedIndex = preset >= 0 ? preset : settings.FpsCap > 0 ? custom : 0;
+            fpsSyncing = false;
+        }
+
         void ApplyPotatoToControls()
         {
             syncing = true;
@@ -1579,7 +1610,7 @@ namespace GuideStrap
             s.ApplyTo(settings);
             settings.LastSetup = name;
             settings.Save();
-            fpsCombo.SelectedIndex = Math.Max(0, Array.IndexOf(FpsCaps, settings.FpsCap));
+            SyncFpsCombo();
             priorityCombo.SelectedIndex = Math.Clamp(settings.Priority, 0, 2);
             RefreshGraphicsControls();
             RefreshFlagSummary();
@@ -2167,6 +2198,7 @@ namespace GuideStrap
             list.WrapContents = false;
             list.AutoScroll = true;
             list.BackColor = Theme.Bg;
+            Theme.DarkScroll(list);
 
             body.Controls.Add(list);
             body.Controls.Add(importPanel);
@@ -2953,6 +2985,15 @@ namespace GuideStrap
                 g.DrawImage(img, new Rectangle(-c.Left, -c.Top, img.Width, img.Height));
         }
 
+        // Dark scrollbars (Windows 10 1809+ and Windows 11) instead of the bright default ones
+        public static T DarkScroll<T>(T c) where T : Control
+        {
+            void Set() { try { NativeMethods.SetWindowTheme(c.Handle, "DarkMode_Explorer", null); } catch { } }
+            if (c.IsHandleCreated) Set();
+            c.HandleCreated += (_, _) => Set();
+            return c;
+        }
+
         public static void Solidify(Control root)
         {
             foreach (Control c in root.Controls)
@@ -3559,6 +3600,37 @@ namespace GuideStrap
             Cursor = Cursors.Hand;
         }
 
+        // Windows draws a light border and arrow button on flat combo boxes; paint over them in the theme's colors
+        protected override void WndProc(ref Message m)
+        {
+            base.WndProc(ref m);
+            if (m.Msg != 0x000F || !IsHandleCreated) return;   // WM_PAINT
+            try
+            {
+                using var g = Graphics.FromHwnd(Handle);
+                var r = ClientRectangle;
+                int aw = SystemInformation.HorizontalScrollBarArrowWidth + 2;
+                using (var bg = new SolidBrush(Theme.Input))
+                {
+                    g.FillRectangle(bg, r.Right - aw - 1, 1, aw, r.Height - 2);
+                    using var inner = new Pen(Theme.Input);
+                    g.DrawRectangle(inner, 1, 1, r.Width - 3, r.Height - 3);
+                }
+                float cx = r.Right - aw / 2f - 1, cy = r.Height / 2f;
+                float a = Math.Max(3f, r.Height / 8f);
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                using (var chevron = new Pen(Theme.SubText, 1.5f))
+                    g.DrawLines(chevron, new[] { new PointF(cx - a, cy - a / 2), new PointF(cx, cy + a / 2), new PointF(cx + a, cy - a / 2) });
+                g.SmoothingMode = SmoothingMode.None;
+                using var border = new Pen(Focused || DroppedDown ? Theme.Accent : Theme.Border);
+                g.DrawRectangle(border, 0, 0, r.Width - 1, r.Height - 1);
+            }
+            catch { }
+        }
+
+        protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
+        protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+
         protected override void OnDrawItem(DrawItemEventArgs e)
         {
             if (e.Index < 0) return;
@@ -3884,6 +3956,7 @@ namespace GuideStrap
         [DllImport("winmm.dll")] public static extern uint timeBeginPeriod(uint ms);
         [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
         [DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
+        [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hWnd, string? appName, string? idList);
     }
 
     // FASTFLAGS (Roblox's allowlist only)
@@ -4439,7 +4512,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.6.4";
+        public const string Version = "4.6.5";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -4447,11 +4520,10 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
+            "\u2022 Set your FPS cap to any number you want (Graphics > FPS cap)\n" +
+            "\u2022 Dropdowns and scrollbars now match the dark theme\n" +
             "\u2022 The logo is now black in every theme, Purple included\n" +
-            "\u2022 Fixed desktop and Start menu icons keeping the old look after an update\n" +
-            "\u2022 Black is now the default theme (Purple is still in Settings > Appearance)\n" +
-            "\u2022 New black logo for the app, the taskbar, Discord and the website\n" +
-            "\u2022 Uninstalling can now keep your settings, accounts and mods for a reinstall";
+            "\u2022 Fixed desktop and Start menu icons keeping the old look after an update";
 
         public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo-black.png";   // new name so Discord doesn't show its cached old picture
         public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";
@@ -5977,7 +6049,7 @@ namespace GuideStrap
             status.Location = new Point(pad, y);
             Controls.Add(status);
             y += D(28);
-            list = new Panel { Location = new Point(pad, y), Size = new Size(w - pad * 2, D(390)), AutoScroll = true, BackColor = Theme.Bg };
+            list = Theme.DarkScroll(new Panel { Location = new Point(pad, y), Size = new Size(w - pad * 2, D(390)), AutoScroll = true, BackColor = Theme.Bg });
             Controls.Add(list);
             y += list.Height + D(10);
             var note = Lbl("Only cosmetic files: images, skies and sounds. Everything installs into GuideStrap's copy of Roblox.", 8.5f, Theme.SubText);
@@ -6315,7 +6387,7 @@ namespace GuideStrap
             y += D(30);
 
             var fixes = BuildFixes(info);
-            var list = new Panel { Location = new Point(pad, y), Width = w - pad * 2, AutoScroll = true, BackColor = Theme.Bg };
+            var list = Theme.DarkScroll(new Panel { Location = new Point(pad, y), Width = w - pad * 2, AutoScroll = true, BackColor = Theme.Bg });
             int total = fixes.Sum(f => { using var probe = FixCard(f, list.Width); return probe.Height + D(8); });
             int cardW = total > D(400) ? list.Width - SystemInformation.VerticalScrollBarWidth - D(4) : list.Width;
             int ly = 0;
@@ -7838,7 +7910,16 @@ namespace GuideStrap
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Guardar mis ajustes, cuentas y mods por si lo reinstalo", "Manter minhas configurações, contas e mods caso eu reinstale" },
             new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap se desinstaló. Tus ajustes, cuentas y mods se guardan para la próxima vez.", "O GuideStrap foi desinstalado. Suas configurações, contas e mods ficam guardados para a próxima vez." },
             new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" },
-            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• El logo ahora es negro en todos los temas, incluido Morado\n• Arreglado: los iconos del escritorio y del menú Inicio ya no se quedan con el aspecto viejo tras actualizar\n• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• O logo agora é preto em todos os temas, incluindo o Roxo\n• Corrigido: os ícones da área de trabalho e do menu Iniciar não ficam mais com a aparência antiga depois de atualizar\n• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" }
+            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• El logo ahora es negro en todos los temas, incluido Morado\n• Arreglado: los iconos del escritorio y del menú Inicio ya no se quedan con el aspecto viejo tras actualizar\n• Negro es ahora el tema predeterminado (Morado sigue en Ajustes > Apariencia)\n• Nuevo logo negro para la app, la barra de tareas, Discord y la web\n• Al desinstalar ahora puedes guardar tus ajustes, cuentas y mods para reinstalar", "• O logo agora é preto em todos os temas, incluindo o Roxo\n• Corrigido: os ícones da área de trabalho e do menu Iniciar não ficam mais com a aparência antiga depois de atualizar\n• Preto agora é o tema padrão (Roxo continua em Configurações > Aparência)\n• Novo logo preto no app, na barra de tarefas, no Discord e no site\n• Ao desinstalar, agora dá para manter suas configurações, contas e mods para reinstalar" },
+            new[] { "Custom...", "Personalizado...", "Personalizado..." },
+            new[] { "Custom ({0} FPS)", "Personalizado ({0} FPS)", "Personalizado ({0} FPS)" },
+            new[] { "Custom FPS cap", "Límite de FPS personalizado", "Limite de FPS personalizado" },
+            new[] { "Type any frame rate, like 75, 200 or 360. Roblox saves it in its own settings file (GlobalBasicSettings_13.xml).", "Escribe cualquier cantidad de FPS, como 75, 200 o 360. Roblox lo guarda en su propio archivo de ajustes (GlobalBasicSettings_13.xml).", "Digite qualquer taxa de quadros, como 75, 200 ou 360. O Roblox salva no próprio arquivo de configurações (GlobalBasicSettings_13.xml)." },
+            new[] { "Set", "Aplicar", "Definir" },
+            new[] { "That isn't a frame rate", "Eso no es una cantidad de FPS", "Isso não é uma taxa de quadros" },
+            new[] { "Type a whole number from 1 to 10000.", "Escribe un número entero del 1 al 10000.", "Digite um número inteiro de 1 a 10000." },
+            new[] { "Any frame rate you want, set in Roblox's own settings before it opens. Normal Roblox keeps it too.", "La cantidad de FPS que quieras, puesta en los ajustes propios de Roblox antes de abrirlo. Roblox normal también la conserva.", "A taxa de quadros que você quiser, definida nas configurações do próprio Roblox antes de abrir. O Roblox normal também mantém." },
+            new[] { "• Set your FPS cap to any number you want (Graphics > FPS cap)\n• Dropdowns and scrollbars now match the dark theme\n• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update", "• Pon el límite de FPS que quieras (Gráficos > Límite de FPS)\n• Los menús desplegables y las barras de desplazamiento ahora combinan con el tema oscuro\n• El logo ahora es negro en todos los temas, incluido Morado\n• Arreglado: los iconos del escritorio y del menú Inicio ya no se quedan con el aspecto viejo tras actualizar", "• Defina o limite de FPS que quiser (Gráficos > Limite de FPS)\n• Os menus suspensos e as barras de rolagem agora combinam com o tema escuro\n• O logo agora é preto em todos os temas, incluindo o Roxo\n• Corrigido: os ícones da área de trabalho e do menu Iniciar não ficam mais com a aparência antiga depois de atualizar" }
         };
 
         // English, Français, Deutsch, Türkçe, Filipino
@@ -8401,7 +8482,16 @@ namespace GuideStrap
             new[] { "Keep my settings, accounts and mods in case I reinstall", "Garder mes réglages, comptes et mods au cas où je réinstalle", "Meine Einstellungen, Konten und Mods behalten, falls ich neu installiere", "Yeniden kurarsam diye ayarlarımı, hesaplarımı ve modlarımı sakla", "Itabi ang settings, account at mods ko kung sakaling mag-reinstall ako" },
             new[] { "GuideStrap was uninstalled. Your settings, accounts and mods are kept for next time.", "GuideStrap a été désinstallé. Tes réglages, comptes et mods sont gardés pour la prochaine fois.", "GuideStrap wurde deinstalliert. Deine Einstellungen, Konten und Mods bleiben fürs nächste Mal erhalten.", "GuideStrap kaldırıldı. Ayarların, hesapların ve modların bir dahaki sefer için saklandı.", "Na-uninstall na ang GuideStrap. Naitabi ang settings, account at mods mo para sa susunod." },
             new[] { "• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" },
-            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Le logo est maintenant noir dans tous les thèmes, Violet compris\n• Corrigé : les icônes du bureau et du menu Démarrer ne gardent plus l'ancien look après une mise à jour\n• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Das Logo ist jetzt in jedem Design schwarz, auch in Lila\n• Behoben: Desktop- und Startmenü-Symbole behalten nach einem Update nicht mehr das alte Aussehen\n• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Logo artık Mor dahil her temada siyah\n• Düzeltildi: masaüstü ve Başlat menüsü simgeleri güncellemeden sonra eski görünümde kalmıyor\n• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang logo sa bawat tema, pati sa Purple\n• Naayos: hindi na naiiwan sa lumang itsura ang mga icon sa desktop at Start menu pagkatapos ng update\n• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" }
+            new[] { "• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update\n• Black is now the default theme (Purple is still in Settings > Appearance)\n• New black logo for the app, the taskbar, Discord and the website\n• Uninstalling can now keep your settings, accounts and mods for a reinstall", "• Le logo est maintenant noir dans tous les thèmes, Violet compris\n• Corrigé : les icônes du bureau et du menu Démarrer ne gardent plus l'ancien look après une mise à jour\n• Noir est maintenant le thème par défaut (Violet reste dans Réglages > Apparence)\n• Nouveau logo noir pour l'app, la barre des tâches, Discord et le site\n• La désinstallation peut maintenant garder tes réglages, comptes et mods pour une réinstallation", "• Das Logo ist jetzt in jedem Design schwarz, auch in Lila\n• Behoben: Desktop- und Startmenü-Symbole behalten nach einem Update nicht mehr das alte Aussehen\n• Schwarz ist jetzt das Standard-Design (Lila gibt es weiter unter Einstellungen > Aussehen)\n• Neues schwarzes Logo für die App, die Taskleiste, Discord und die Website\n• Beim Deinstallieren kannst du jetzt Einstellungen, Konten und Mods für eine Neuinstallation behalten", "• Logo artık Mor dahil her temada siyah\n• Düzeltildi: masaüstü ve Başlat menüsü simgeleri güncellemeden sonra eski görünümde kalmıyor\n• Siyah artık varsayılan tema (Mor hâlâ Ayarlar > Görünüm'de)\n• Uygulama, görev çubuğu, Discord ve web sitesi için yeni siyah logo\n• Kaldırırken artık ayarlarını, hesaplarını ve modlarını yeniden kurulum için saklayabilirsin", "• Itim na ang logo sa bawat tema, pati sa Purple\n• Naayos: hindi na naiiwan sa lumang itsura ang mga icon sa desktop at Start menu pagkatapos ng update\n• Itim na ang default na tema (nasa Settings > Itsura pa rin ang Purple)\n• Bagong itim na logo para sa app, taskbar, Discord at website\n• Puwede mo nang itabi ang settings, account at mods mo pag nag-uninstall, para sa reinstall" },
+            new[] { "Custom...", "Personnalisé...", "Eigener Wert...", "Özel...", "Custom..." },
+            new[] { "Custom ({0} FPS)", "Personnalisé ({0} FPS)", "Eigener Wert ({0} FPS)", "Özel ({0} FPS)", "Custom ({0} FPS)" },
+            new[] { "Custom FPS cap", "Limite de FPS personnalisée", "Eigenes FPS-Limit", "Özel FPS sınırı", "Custom na FPS cap" },
+            new[] { "Type any frame rate, like 75, 200 or 360. Roblox saves it in its own settings file (GlobalBasicSettings_13.xml).", "Tape n'importe quelle fréquence d'images, comme 75, 200 ou 360. Roblox l'enregistre dans son propre fichier de réglages (GlobalBasicSettings_13.xml).", "Gib eine beliebige Bildrate ein, z. B. 75, 200 oder 360. Roblox speichert sie in seiner eigenen Einstellungsdatei (GlobalBasicSettings_13.xml).", "75, 200 veya 360 gibi istediğin bir kare hızını yaz. Roblox bunu kendi ayar dosyasına kaydeder (GlobalBasicSettings_13.xml).", "Mag-type ng kahit anong frame rate, gaya ng 75, 200 o 360. Sine-save ito ng Roblox sa sarili nitong settings file (GlobalBasicSettings_13.xml)." },
+            new[] { "Set", "Appliquer", "Übernehmen", "Ayarla", "I-set" },
+            new[] { "That isn't a frame rate", "Ce n'est pas une fréquence d'images", "Das ist keine Bildrate", "Bu bir kare hızı değil", "Hindi iyan frame rate" },
+            new[] { "Type a whole number from 1 to 10000.", "Tape un nombre entier de 1 à 10000.", "Gib eine ganze Zahl von 1 bis 10000 ein.", "1 ile 10000 arasında bir tam sayı yaz.", "Mag-type ng buong numero mula 1 hanggang 10000." },
+            new[] { "Any frame rate you want, set in Roblox's own settings before it opens. Normal Roblox keeps it too.", "La fréquence d'images que tu veux, réglée dans les réglages de Roblox avant qu'il s'ouvre. Roblox normal la garde aussi.", "Jede Bildrate, die du willst, gesetzt in Roblox' eigenen Einstellungen, bevor es startet. Normales Roblox behält sie auch.", "İstediğin kare hızı, Roblox açılmadan önce Roblox'un kendi ayarlarına yazılır. Normal Roblox da bunu korur.", "Kahit anong frame rate na gusto mo, naka-set sa sariling settings ng Roblox bago ito bumukas. Mananatili rin ito sa normal na Roblox." },
+            new[] { "• Set your FPS cap to any number you want (Graphics > FPS cap)\n• Dropdowns and scrollbars now match the dark theme\n• The logo is now black in every theme, Purple included\n• Fixed desktop and Start menu icons keeping the old look after an update", "• Règle la limite de FPS que tu veux (Graphismes > Limite de FPS)\n• Les listes déroulantes et les barres de défilement suivent maintenant le thème sombre\n• Le logo est maintenant noir dans tous les thèmes, Violet compris\n• Corrigé : les icônes du bureau et du menu Démarrer ne gardent plus l'ancien look après une mise à jour", "• Setz dein FPS-Limit auf jede beliebige Zahl (Grafik > FPS-Limit)\n• Auswahllisten und Bildlaufleisten passen jetzt zum dunklen Design\n• Das Logo ist jetzt in jedem Design schwarz, auch in Lila\n• Behoben: Desktop- und Startmenü-Symbole behalten nach einem Update nicht mehr das alte Aussehen", "• FPS sınırını istediğin sayıya ayarla (Grafikler > FPS sınırı)\n• Açılır menüler ve kaydırma çubukları artık koyu temaya uyuyor\n• Logo artık Mor dahil her temada siyah\n• Düzeltildi: masaüstü ve Başlat menüsü simgeleri güncellemeden sonra eski görünümde kalmıyor", "• I-set ang FPS cap sa kahit anong numero (Graphics > FPS cap)\n• Bagay na sa dark na tema ang mga dropdown at scrollbar\n• Itim na ang logo sa bawat tema, pati sa Purple\n• Naayos: hindi na naiiwan sa lumang itsura ang mga icon sa desktop at Start menu pagkatapos ng update" }
         };
     }
 
