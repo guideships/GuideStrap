@@ -3,16 +3,23 @@ namespace GuideStrap
     internal static class Program
     {
         /// <summary>
-        ///  The main entry point for the application.
-        ///  Opens the small launcher window first. If Roblox's website started us
-        ///  (roblox-player: link), the launcher launches straight away.
+        ///  Entry point.
+        ///  --uninstall         : remove GuideStrap (used by Windows' Installed apps list)
+        ///  already installed   : hand off to the installed copy (no setup screen)
+        ///  brand-new user      : setup screen (handled inside GuideStrapContext)
+        ///  otherwise           : launcher, or straight to Roblox for roblox:// links
         /// </summary>
         [STAThread]
         static void Main(string[] args)
         {
             ApplicationConfiguration.Initialize();
-            string? launchUri = args.FirstOrDefault(a => a.StartsWith("roblox", StringComparison.OrdinalIgnoreCase));
-            Application.Run(new GuideStrapContext(launchUri));
+            if (args.Contains("--uninstall"))
+            {
+                Setup.Uninstall();
+                return;
+            }
+            if (Setup.HandOffIfInstalled(args)) return;
+            Application.Run(new GuideStrapContext(args));
         }
     }
 }

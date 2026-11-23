@@ -347,7 +347,7 @@ namespace GuideStrap
 
         void SetStatus(string text, float? value = null, StatusKind kind = StatusKind.Busy)
         {
-            statusLabel.Text = text;
+            statusLabel.Text = L.T(text);
             statusLabel.ForeColor = kind == StatusKind.Error ? Theme.Danger : Theme.SubText;
             statusIcon.Text = kind switch { StatusKind.Idle => "\uE73E", StatusKind.Error => "\uE783", _ => "\uE895" };
             statusIcon.ForeColor = kind switch { StatusKind.Idle => Theme.Success, StatusKind.Error => Theme.Danger, _ => Theme.AccentLight };
@@ -481,17 +481,18 @@ namespace GuideStrap
             }
             else
             {
-                homeGreeting.Text = "No account selected";
-                homeSub.Text = "Roblox will use whoever is logged in on the website.";
+                homeGreeting.Text = L.T("No account selected");
+                homeSub.Text = L.T("Roblox will use whoever is logged in on the website.");
                 homeAvatar.Fallback = "G";
                 homeAvatar.Image = null;
-                chipName.Text = "Roblox login";
-                chipSub.Text = "Add accounts";
+                chipName.Text = L.T("Roblox login");
+                chipSub.Text = L.T("Add accounts");
                 chipAvatar.Fallback = "G";
                 chipAvatar.Image = null;
             }
-            string font = settings.FontFile != null ? settings.FontDisplayName ?? "custom font" : "default font";
-            statGraphics.Text = $"{PresetInfo(settings.Preset).Title} graphics  ·  {font}  ·  {settings.Flags.Count} FastFlag{(settings.Flags.Count == 1 ? "" : "s")}";
+            string font = settings.FontFile != null ? settings.FontDisplayName ?? L.T("custom font") : L.T("default font");
+            statGraphics.Text = L.F("{0} graphics  ·  {1}  ·  {2} FastFlag{3}",
+                L.T(PresetInfo(settings.Preset).Title), font, settings.Flags.Count, settings.Flags.Count == 1 ? "" : "s");
         }
 
         void StartLaunch()
@@ -718,7 +719,7 @@ namespace GuideStrap
             presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != presetSlider.Value) ApplyPreset(presetSlider.Value); };
             qualitySlider.ValueChanged += (_, _) =>
             {
-                qualityValue.Text = qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString();
+                qualityValue.Text = L.T(qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString());
                 OnGraphicsChanged();
             };
             foreach (var combo in new[] { textureCombo, msaaCombo, rendererCombo })
@@ -731,7 +732,7 @@ namespace GuideStrap
         {
             c.ItemHeight = D(22);
             c.Width = width;
-            c.Items.AddRange(items);
+            c.Items.AddRange(items.Select(L.T).ToArray<object>());
             c.SelectedIndex = 0;
             return c;
         }
@@ -749,8 +750,8 @@ namespace GuideStrap
         void UpdatePresetLabels()
         {
             var (title, desc) = PresetInfo(settings.Preset);
-            presetTitle.Text = title;
-            presetDesc.Text = desc;
+            presetTitle.Text = L.T(title);
+            presetDesc.Text = L.T(desc);
         }
 
         void ApplyPreset(int p)
@@ -822,7 +823,7 @@ namespace GuideStrap
 
             syncing = true;
             qualitySlider.Value = f.TryGetValue(FF.Quality, out var q) && int.TryParse(q, out var qi) ? Math.Clamp(qi, 1, 21) : 0;
-            qualityValue.Text = qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString();
+            qualityValue.Text = L.T(qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString());
             textureCombo.SelectedIndex = Is(FF.TexEnabled, "True") && f.TryGetValue(FF.Texture, out var tx) && int.TryParse(tx, out var ti)
                 ? Math.Clamp(ti, 0, 3) + 1 : 0;
             int msaaIdx = f.TryGetValue(FF.Msaa, out var ms) ? Array.IndexOf(MsaaValues, ms) : 0;
@@ -877,7 +878,7 @@ namespace GuideStrap
             else
             {
                 var lines = settings.Flags.OrderBy(k => k.Key).Take(10).Select(kv => $"{kv.Key} = {kv.Value}").ToList();
-                if (count > 10) lines.Add($"+ {count - 10} more");
+                if (count > 10) lines.Add(L.F("+ {0} more", count - 10));
                 flagPreview.Text = string.Join("\n", lines);
                 flagPreview.ForeColor = Theme.Text;
             }
@@ -948,7 +949,7 @@ namespace GuideStrap
 
         void ChooseFont()
         {
-            using var dlg = new OpenFileDialog { Filter = "Font files (*.ttf;*.otf)|*.ttf;*.otf", Title = "Pick a font" };
+            using var dlg = new OpenFileDialog { Filter = "Font files (*.ttf;*.otf)|*.ttf;*.otf", Title = L.T("Pick a font") };
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
             try
             {
@@ -983,10 +984,10 @@ namespace GuideStrap
 
             if (settings.FontFile == null || !File.Exists(settings.FontFile))
             {
-                fontName.Text = "Roblox default";
+                fontName.Text = L.T("Roblox default");
                 return;
             }
-            fontName.Text = settings.FontDisplayName ?? "Custom font";
+            fontName.Text = L.T(settings.FontDisplayName ?? "Custom font");
             try
             {
                 previewFonts = new PrivateFontCollection();
@@ -997,7 +998,7 @@ namespace GuideStrap
             }
             catch
             {
-                fontName.Text += "  (no preview, still works in-game)";
+                fontName.Text += L.T("  (no preview, still works in-game)");
             }
         }
 
@@ -1084,16 +1085,16 @@ namespace GuideStrap
         void RefreshMods()
         {
             modsSyncing = true;
-            deathStatus.Text = settings.DeathSoundFile != null && File.Exists(settings.DeathSoundFile)
-                ? "Custom sound" : "Roblox's default sound";
+            deathStatus.Text = L.T(settings.DeathSoundFile != null && File.Exists(settings.DeathSoundFile)
+                ? "Custom sound" : "Roblox's default sound");
             cursorCombo.SelectedIndex = settings.CursorPreset switch { "guidestrap" => 1, "dot" => 2, "custom" => 3, _ => 0 };
-            cursorStatus.Text = settings.CursorPreset switch
+            cursorStatus.Text = L.T(settings.CursorPreset switch
             {
                 "guidestrap" => "Purple arrow made for GuideStrap",
                 "dot" => "A small dot, easy to aim with",
                 "custom" => "Your own image",
                 _ => "Roblox's default cursor",
-            };
+            });
             string? dir = ModAssets.CursorDir(settings);
             var old = cursorPreview.Image;
             cursorPreview.Image = null;
@@ -1109,15 +1110,15 @@ namespace GuideStrap
                 catch { }
             }
             int skyFiles = Directory.Exists(Paths.Sky) ? Directory.GetFiles(Paths.Sky, "*.tex").Length : 0;
-            skyStatus.Text = settings.CustomSky && skyFiles > 0
+            skyStatus.Text = L.T(settings.CustomSky && skyFiles > 0
                 ? $"Custom sky pack ({skyFiles} files). Games with their own sky keep it."
-                : "Roblox's default sky. Gray sky is under Graphics.";
+                : "Roblox's default sky. Gray sky is under Graphics.");
             modsSyncing = false;
         }
 
         void ChooseDeathSound()
         {
-            using var dlg = new OpenFileDialog { Filter = "Ogg sound (*.ogg)|*.ogg", Title = "Pick a death sound" };
+            using var dlg = new OpenFileDialog { Filter = "Ogg sound (*.ogg)|*.ogg", Title = L.T("Pick a death sound") };
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
             try
             {
@@ -1144,7 +1145,7 @@ namespace GuideStrap
             string pick = cursorCombo.SelectedIndex switch { 1 => "guidestrap", 2 => "dot", 3 => "custom", _ => "default" };
             if (pick == "custom")
             {
-                using var dlg = new OpenFileDialog { Filter = "Images (*.png)|*.png", Title = "Pick a cursor image" };
+                using var dlg = new OpenFileDialog { Filter = "Images (*.png)|*.png", Title = L.T("Pick a cursor image") };
                 if (dlg.ShowDialog(this) != DialogResult.OK || !ModAssets.ImportCustomCursor(dlg.FileName))
                 {
                     RefreshMods();
@@ -1158,7 +1159,7 @@ namespace GuideStrap
 
         void ChooseSky()
         {
-            using var dlg = new FolderBrowserDialog { Description = "Pick a folder with sky .tex files (from a Roblox sky mod pack)", UseDescriptionForTitle = true };
+            using var dlg = new FolderBrowserDialog { Description = L.T("Pick a folder with sky .tex files (from a Roblox sky mod pack)"), UseDescriptionForTitle = true };
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
             var files = Directory.GetFiles(dlg.SelectedPath, "*.tex", SearchOption.AllDirectories);
             if (files.Length == 0)
@@ -1234,6 +1235,19 @@ namespace GuideStrap
                     Application.Restart();
             };
             Add(page, SettingCard("Accent color", "The color used for buttons, switches and highlights.", picker));
+
+            var langCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
+            foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
+            langCombo.SelectedIndex = Math.Max(0, Array.FindIndex(L.Languages, x => x.Code == L.Lang));
+            langCombo.SelectedIndexChanged += (_, _) =>
+            {
+                string code = L.Languages[langCombo.SelectedIndex].Code;
+                settings.Language = code;
+                settings.Save();
+                if (code != L.Lang && Ask("Restart to apply", "The new language shows after GuideStrap restarts.", "Restart now", "Later") == 0)
+                    Application.Restart();
+            };
+            Add(page, SettingCard("Language", "English, Español or Português.", langCombo));
 
             Section(page, "Profiles");
             var profileButtons = ButtonPair(
@@ -1429,7 +1443,7 @@ namespace GuideStrap
             pickDesc.BackColor = Color.Transparent;
             pickDesc.Font = new Font("Segoe UI", 8.75f);
             pickDesc.Location = new Point(D(16), D(52));
-            pickDesc.Text = FF.Describe(picker.SelectedItem as string);
+            pickDesc.Text = L.T(FF.Describe(picker.SelectedItem as string));
             var addHint = At(Lbl("Tip: press Enter in the value box to add.", 8f, Theme.SubText), D(16), D(73));
             ac.Controls.AddRange(new Control[] { picker, valueWrap, addConfirm, pickDesc, addHint });
 
@@ -1518,7 +1532,7 @@ namespace GuideStrap
                 ShowResult("All flags cleared.");
             };
             filterBox.TextChanged += (_, _) => RefreshList();
-            picker.SelectedIndexChanged += (_, _) => pickDesc.Text = FF.Describe(picker.SelectedItem as string);
+            picker.SelectedIndexChanged += (_, _) => pickDesc.Text = L.T(FF.Describe(picker.SelectedItem as string));
             addConfirm.Click += (_, _) => AddFromPicker();
             valueBox.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; AddFromPicker(); } };
             importConfirm.Click += (_, _) => ImportJson();
@@ -1529,7 +1543,7 @@ namespace GuideStrap
 
         void ShowResult(string text)
         {
-            resultLabel.Text = text;
+            resultLabel.Text = L.T(text);
             Anim.Run((resultLabel, "flash"), 0f, 1f, 500, v => resultLabel.ForeColor = Theme.Mix(Theme.Bar, Theme.Gold, v));
         }
 
@@ -1596,12 +1610,12 @@ namespace GuideStrap
             public string Summary(int skipped)
             {
                 var parts = new List<string>();
-                if (Added > 0) parts.Add($"Added {Added}");
-                if (Updated > 0) parts.Add($"Overwrote {Updated}");
-                if (Kept > 0) parts.Add($"Kept {Kept} original");
-                if (Same > 0) parts.Add($"{Same} already the same");
-                if (skipped > 0) parts.Add($"Skipped {skipped} not on the allowlist");
-                return parts.Count == 0 ? "Nothing changed." : string.Join("  •  ", parts);
+                if (Added > 0) parts.Add(L.F("Added {0}", Added));
+                if (Updated > 0) parts.Add(L.F("Overwrote {0}", Updated));
+                if (Kept > 0) parts.Add(L.F("Kept {0} original", Kept));
+                if (Same > 0) parts.Add(L.F("{0} already the same", Same));
+                if (skipped > 0) parts.Add(L.F("Skipped {0} not on the allowlist", skipped));
+                return parts.Count == 0 ? L.T("Nothing changed.") : string.Join("  •  ", parts);
             }
         }
 
@@ -1705,7 +1719,7 @@ namespace GuideStrap
                     Anim.Run((row, "glow"), 1f, 0f, 1600, v => { row.BorderColor = Theme.Mix(Theme.Border, Theme.Gold, v); row.Invalidate(); });
             }
 
-            countLabel.Text = $"{flags.Count} flag{(flags.Count == 1 ? "" : "s")}";
+            countLabel.Text = L.T($"{flags.Count} flag{(flags.Count == 1 ? "" : "s")}");
             list.ResumeLayout();
         }
     }
@@ -1719,6 +1733,10 @@ namespace GuideStrap
 
         public ThemedDialog(string title, string message, string[] buttons, string? checkText = null)
         {
+            title = L.T(title);
+            message = L.T(message);
+            buttons = buttons.Select(L.T).ToArray();
+            if (checkText != null) checkText = L.T(checkText);
             StartPosition = FormStartPosition.CenterParent;
             ShowInTaskbar = false;
             CloseOnEscape = true;
@@ -1779,6 +1797,7 @@ namespace GuideStrap
         public static int Prompt(IWin32Window? owner, string title, string message, params string[] buttons)
         {
             using var d = new ThemedDialog(title, message, buttons);
+            if (owner == null) d.StartPosition = FormStartPosition.CenterScreen;
             d.ShowDialog(owner);
             return d.Choice;
         }
@@ -1830,6 +1849,7 @@ namespace GuideStrap
 
         protected override void OnLoad(EventArgs e)
         {
+            L.Apply(this);
             Theme.Solidify(this);
             base.OnLoad(e);
         }
@@ -1877,7 +1897,7 @@ namespace GuideStrap
             var logo = new LogoMark { Size = new Size(D(20), D(20)), Location = new Point(D(10), D(8)) };
             var t = new Label
             {
-                Text = title, AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent,
+                Text = L.T(title), AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent,
                 Font = new Font("Segoe UI", 9f), Location = new Point(D(36), D(9)),
             };
             if (minimize)
@@ -1907,7 +1927,7 @@ namespace GuideStrap
 
         public static Label Lbl(string text, float size = 10f, Color? color = null, bool semibold = false) => new()
         {
-            Text = text,
+            Text = L.T(text),
             AutoSize = true,
             UseMnemonic = false,
             Font = Theme.F(semibold ? "Segoe UI Semibold" : "Segoe UI", size),
@@ -1928,12 +1948,12 @@ namespace GuideStrap
 
         protected RoundButton Primary(string text, string icon, int w, int h) => new()
         {
-            Text = text, Icon = icon, Size = new Size(w, h),
+            Text = L.T(text), Icon = icon, Size = new Size(w, h),
         };
 
         protected RoundButton Secondary(string text, string icon, int w, int h) => new()
         {
-            Text = text, Icon = icon, Size = new Size(w, h),
+            Text = L.T(text), Icon = icon, Size = new Size(w, h),
             BaseColor = Theme.ButtonBg, HoverColor = Theme.ButtonHover, BorderColor = Theme.Border, ForeColor = Theme.Text,
         };
 
@@ -2231,6 +2251,7 @@ namespace GuideStrap
         {
             base.OnControlAdded(e);
             if (e.Control is Label l && l.BackColor == Color.Transparent) l.BackColor = BackColor;
+            if (e.Control != null) L.Apply(e.Control);
         }
 
         protected override void OnPaintBackground(PaintEventArgs e)
@@ -2493,7 +2514,7 @@ namespace GuideStrap
 
         public void Add(string key, string icon, string text, string keywords)
         {
-            items.Add(new Item(key, icon, text, keywords));
+            items.Add(new Item(key, icon, L.T(text), keywords));
             visible = Enumerable.Range(0, items.Count).ToList();
             hoverT = new float[items.Count];
         }
@@ -2949,6 +2970,7 @@ namespace GuideStrap
         public string CursorPreset { get; set; } = "default";
         public bool CustomSky { get; set; }
         public string Accent { get; set; } = "Purple";
+        public string Language { get; set; } = "";
         public Dictionary<string, string> PreviousLinkHandlers { get; set; } = new();
         public DateTime LastUpdateCheck { get; set; }
 
@@ -3097,7 +3119,7 @@ namespace GuideStrap
         };
 
         public static bool IsAllowed(string name) => Allowed.Any(a => a.Name == name);
-        public static string Describe(string? name) => Allowed.FirstOrDefault(a => a.Name == name).Desc ?? "";
+        public static string Describe(string? name) => L.T(Allowed.FirstOrDefault(a => a.Name == name).Desc ?? "");
     }
 
     // MODS: write FastFlags + custom font into the Roblox install
@@ -3418,7 +3440,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.0";
+        public const string Version = "4.1";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -3453,18 +3475,30 @@ namespace GuideStrap
         public static GuideStrapContext? Current { get; private set; }
         public int OpenCount => open;
 
-        public GuideStrapContext(string? launchUri)
+        public GuideStrapContext(string[] args)
         {
             Current = this;
+            string? launchUri = args.FirstOrDefault(a => a.StartsWith("roblox", StringComparison.OrdinalIgnoreCase));
+
+            // brand-new user (nothing installed yet): show setup and nothing else
+            if (launchUri == null && Setup.NeedsSetup())
+            {
+                L.Lang = L.SystemLanguage();
+                Open(new SetupForm(this));
+                return;
+            }
+
             var settings = AppSettings.Load();
+            L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
             Theme.SetAccent(settings.Accent);
+            Setup.RefreshEntry();
             Updater.CleanupOld();
             Presence.Enable(settings.DiscordPresence);
             Presence.WatchEnded += OnWatchEnded;
             Presence.ServerLocated += location =>
             {
                 if (tray != null && AppSettings.Load().ShowServerLocation)
-                    tray.ShowBalloonTip(4000, "GuideStrap", $"Connected to a server in {location}", ToolTipIcon.None);
+                    tray.ShowBalloonTip(4000, "GuideStrap", L.F("Connected to a server in {0}", location), ToolTipIcon.None);
             };
             if (launchUri != null)
                 Open(new LoadingForm(this, settings, AccountStore.Load(), launchUri, ""));
@@ -3503,9 +3537,9 @@ namespace GuideStrap
             var settings = AppSettings.Load();
             var accounts = AccountStore.Load();
 
-            menu.Items.Add("Launch Roblox", null, (_, _) => Open(new LoadingForm(this, AppSettings.Load(), AccountStore.Load(), null, "")));
+            menu.Items.Add(L.T("Launch Roblox"), null, (_, _) => Open(new LoadingForm(this, AppSettings.Load(), AccountStore.Load(), null, "")));
 
-            var accountMenu = new ToolStripMenuItem("Account") { ForeColor = Theme.Text };
+            var accountMenu = new ToolStripMenuItem(L.T("Account")) { ForeColor = Theme.Text };
             if (accountMenu.DropDown is ToolStripDropDownMenu dd) { dd.ShowImageMargin = false; dd.ShowCheckMargin = true; dd.Renderer = menu.Renderer; }
             void AddAccount(string label, long? id)
             {
@@ -3513,11 +3547,11 @@ namespace GuideStrap
                 item.Click += (_, _) => { var s = AppSettings.Load(); s.ActiveAccountId = id; s.Save(); };
                 accountMenu.DropDownItems.Add(item);
             }
-            AddAccount("Roblox login", null);
+            AddAccount(L.T("Roblox login"), null);
             foreach (var a in accounts) AddAccount(a.DisplayName, a.UserId);
             menu.Items.Add(accountMenu);
 
-            var discord = new ToolStripMenuItem("Discord status") { Checked = settings.DiscordPresence, ForeColor = Theme.Text };
+            var discord = new ToolStripMenuItem(L.T("Discord status")) { Checked = settings.DiscordPresence, ForeColor = Theme.Text };
             discord.Click += (_, _) =>
             {
                 var s = AppSettings.Load();
@@ -3527,8 +3561,8 @@ namespace GuideStrap
             };
             menu.Items.Add(discord);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("Open GuideStrap", null, (_, _) => Open(new LauncherForm(this)));
-            menu.Items.Add("Exit", null, (_, _) => { Presence.StopWatching(); ExitThread(); });
+            menu.Items.Add(L.T("Open GuideStrap"), null, (_, _) => Open(new LauncherForm(this)));
+            menu.Items.Add(L.T("Exit"), null, (_, _) => { Presence.StopWatching(); ExitThread(); });
             foreach (ToolStripItem i in menu.Items) i.ForeColor = Theme.Text;
         }
 
@@ -3903,10 +3937,10 @@ namespace GuideStrap
             var logo = new LogoMark { Size = new Size(D(84), D(84)), Location = new Point(D(34), D(66)) };
             var name = At(Lbl("GuideStrap", 19f, semibold: true), D(122), D(78));
             var ver = At(Lbl($"Version {AppInfo.Version}", 9f, Theme.SubText), D(125), D(113));
-            var about = new LinkText { Icon = "\uE946", Text = "About GuideStrap" };
+            var about = new LinkText { Icon = "\uE946", Text = L.T("About GuideStrap") };
             about.Location = new Point(D(160) - about.Width / 2, D(176));
             about.Click += (_, _) => OpenSettings("About");
-            var folder = new LinkText { Icon = "\uE8B7", Text = "Open GuideStrap folder" };
+            var folder = new LinkText { Icon = "\uE8B7", Text = L.T("Open GuideStrap folder") };
             folder.Location = new Point(D(160) - folder.Width / 2, D(208));
             folder.Click += (_, _) =>
             {
@@ -3987,7 +4021,7 @@ namespace GuideStrap
             int W = ClientSize.Width;
 
             var acc = accounts.FirstOrDefault(a => a.UserId == settings.ActiveAccountId);
-            var left = At(Lbl("Account: " + (acc != null ? acc.Username : "Roblox login"), 8.25f, Theme.SubText), D(12), D(10));
+            var left = At(Lbl(L.F("Account: {0}", acc != null ? acc.Username : L.T("Roblox login")), 8.25f, Theme.SubText), D(12), D(10));
             var right = new Label
             {
                 Text = $"GuideStrap {AppInfo.Version}", AutoSize = false, TextAlign = ContentAlignment.TopRight,
@@ -4005,7 +4039,7 @@ namespace GuideStrap
             status.Font = Theme.F("Segoe UI", 13f);
             status.ForeColor = Theme.Text;
             status.BackColor = Theme.Bg;
-            status.Text = "Starting...";
+            status.Text = L.T("Starting...");
 
             bar.Location = new Point(D(36), D(194));
             bar.Size = new Size(W - D(72), D(8));
@@ -4026,14 +4060,14 @@ namespace GuideStrap
         {
             if (finished) return;
             cancel.Enabled = false;
-            status.Text = "Cancelling...";
+            status.Text = L.T("Cancelling...");
             cts.Cancel();
         }
 
         void Report(string text, float progress)
         {
             if (finished || IsDisposed) return;
-            status.Text = text;
+            status.Text = L.T(text);
             if (progress < 0) bar.Indeterminate = true;
             else
             {
@@ -4059,7 +4093,7 @@ namespace GuideStrap
                 cancel.Enabled = false;
                 if (proc == null)
                 {
-                    status.Text = "Opened the game page in your browser";
+                    status.Text = L.T("Opened the game page in your browser");
                     await Task.Delay(1500);
                 }
                 else
@@ -4498,16 +4532,19 @@ namespace GuideStrap
 
         public static bool IsOurs() => Protocols.All(p => ReadCommand(p).Contains(Exe, StringComparison.OrdinalIgnoreCase));
 
-        public static void Register(AppSettings settings)
+        public static void Register(AppSettings settings, string? exePath = null)
         {
+            string exe = exePath ?? Exe;
             foreach (var p in Protocols)
             {
                 string old = ReadCommand(p);
                 if (old.Length > 0 && !old.Contains("GuideStrap", StringComparison.OrdinalIgnoreCase))
                     settings.PreviousLinkHandlers[p] = old;
-                WriteCommand(p, $"\"{Exe}\" \"%1\"");
+                WriteCommand(p, $"\"{exe}\" \"%1\"");
             }
         }
+
+        public static bool PointsTo(string exePath) => Protocols.Any(p => ReadCommand(p).Contains(exePath, StringComparison.OrdinalIgnoreCase));
 
         public static void Restore(AppSettings settings)
         {
@@ -4759,6 +4796,673 @@ namespace GuideStrap
             var textRect = new Rectangle(pad, (int)iconRect.Bottom + LogicalToDeviceUnits(4), Width - pad * 2, Height - (int)iconRect.Bottom - LogicalToDeviceUnits(6));
             TextRenderer.DrawText(g, Text, Font, textRect, Theme.Text,
                 TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix);
+        }
+    }
+
+    // Translations: English text is the key. Text with {0}, {1}... is matched as a template.
+    static class L
+    {
+        public static readonly (string Code, string Native)[] Languages = { ("en", "English"), ("es", "Español"), ("pt", "Português") };
+        static string lang = "en";
+        static Dictionary<string, string>? table;
+        static readonly List<(Regex Pattern, string Translation)> templates = new();
+
+        public static string Lang
+        {
+            get => lang;
+            set
+            {
+                string v = Languages.Any(x => x.Code == value) ? value : "en";
+                if (v == lang) return;
+                lang = v;
+                table = null;
+                templates.Clear();
+            }
+        }
+
+        public static string SystemLanguage()
+        {
+            string c = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+            return c is "es" or "pt" ? c : "en";
+        }
+
+        static void Load()
+        {
+            if (table != null) return;
+            table = Translations.For(lang);
+            foreach (var (key, value) in table.Where(kv => kv.Key.Contains("{0}")).OrderByDescending(kv => kv.Key.Length))
+            {
+                string pattern = "^" + Regex.Replace(Regex.Escape(key), @"\\\{(\d+)}", m => $"(?<g{m.Groups[1].Value}>.*?)") + "$";
+                templates.Add((new Regex(pattern, RegexOptions.Singleline), value));
+            }
+        }
+
+        public static string T(string text)
+        {
+            if (lang == "en" || string.IsNullOrEmpty(text)) return text;
+            Load();
+            if (table!.TryGetValue(text, out var hit)) return hit;
+            foreach (var (pattern, translation) in templates)
+            {
+                var m = pattern.Match(text);
+                if (m.Success) return Regex.Replace(translation, @"\{(\d+)\}", g => m.Groups["g" + g.Groups[1].Value].Value);
+            }
+            return text;
+        }
+
+        public static string F(string template, params object[] args) => string.Format(T(template), args);
+
+        // Translates text that was set directly on controls (labels, buttons, placeholders).
+        public static void Apply(Control root)
+        {
+            if (lang == "en") return;
+            switch (root)
+            {
+                case TextBox tb: tb.PlaceholderText = T(tb.PlaceholderText); break;
+                case Label or RoundButton or LauncherButton or LinkText: root.Text = T(root.Text); break;
+            }
+            foreach (Control child in root.Controls) Apply(child);
+        }
+    }
+
+    static class Translations
+    {
+        public static Dictionary<string, string> For(string lang)
+        {
+            int col = lang == "es" ? 1 : 2;
+            var d = new Dictionary<string, string>(Data.Length);
+            foreach (var row in Data) d[row[0]] = row[col];
+            return d;
+        }
+
+        // English, Español, Português
+        static readonly string[][] Data =
+        {
+            new[] { "Join a game (optional)", "Unirse a un juego (opcional)", "Entrar em um jogo (opcional)" },
+            new[] { "Paste a game link or place ID. Leave it empty to just open Roblox.", "Pega el enlace de un juego o su ID. Déjalo vacío para solo abrir Roblox.", "Cole o link de um jogo ou o ID. Deixe vazio para só abrir o Roblox." },
+            new[] { "Games you join show up here so you can jump back in.", "Los juegos a los que entres aparecen aquí para volver rápido.", "Os jogos em que você entrar aparecem aqui para voltar rápido." },
+            new[] { "Logins are encrypted and only work for your Windows user on this PC. Don't press \"Log out\" on the Roblox website for a saved account, or its saved login stops working.", "Los inicios de sesión están cifrados y solo funcionan para tu usuario de Windows en esta PC. No pulses \"Cerrar sesión\" en la web de Roblox para una cuenta guardada, o dejará de funcionar.", "Os logins são criptografados e só funcionam para o seu usuário do Windows neste PC. Não clique em \"Sair\" no site do Roblox em uma conta salva, ou o login salvo para de funcionar." },
+            new[] { "Preset", "Preajuste", "Predefinição" },
+            new[] { "Max FPS", "Máx. FPS", "Máx. FPS" },
+            new[] { "Roblox only reads flags on its allowlist, so anything else gets skipped automatically.", "Roblox solo lee los flags de su lista permitida, así que los demás se omiten automáticamente.", "O Roblox só lê as flags da lista permitida, então o resto é ignorado automaticamente." },
+            new[] { "Current font", "Fuente actual", "Fonte atual" },
+            new[] { "Works with .ttf and .otf files (free fonts: fonts.google.com). Emoji keep their normal look. Applies next time you press Play.", "Funciona con archivos .ttf y .otf (fuentes gratis: fonts.google.com). Los emoji no cambian. Se aplica la próxima vez que juegues.", "Funciona com arquivos .ttf e .otf (fontes grátis: fonts.google.com). Os emojis não mudam. Vale na próxima vez que você jogar." },
+            new[] { "Normal Roblox is never touched. Launching Roblox without GuideStrap always uses the original files, sounds and settings.", "El Roblox normal nunca se modifica. Abrir Roblox sin GuideStrap siempre usa los archivos, sonidos y ajustes originales.", "O Roblox normal nunca é alterado. Abrir o Roblox sem o GuideStrap sempre usa os arquivos, sons e configurações originais." },
+            new[] { "Version {0}  ·  by Guide", "Versión {0}  ·  por Guide", "Versão {0}  ·  por Guide" },
+            new[] { "FastFlag editor", "Editor de FastFlags", "Editor de FastFlags" },
+            new[] { "Only flags on Roblox's allowlist are kept. Adding one you already have asks before replacing it.", "Solo se guardan los flags de la lista permitida de Roblox. Si agregas uno que ya tienes, te pregunta antes de reemplazarlo.", "Só ficam as flags da lista permitida do Roblox. Se adicionar uma que já existe, ele pergunta antes de substituir." },
+            new[] { "Tip: press Enter in the value box to add.", "Consejo: pulsa Enter en el valor para agregar.", "Dica: aperte Enter no valor para adicionar." },
+            new[] { "Paste FastFlags JSON", "Pega el JSON de FastFlags", "Cole o JSON de FastFlags" },
+            new[] { "Flags that aren't on Roblox's allowlist are skipped.", "Los flags que no están en la lista permitida se omiten.", "Flags fora da lista permitida são ignoradas." },
+            new[] { "Account: {0}", "Cuenta: {0}", "Conta: {0}" },
+            new[] { "Launch Roblox", "Iniciar Roblox", "Iniciar Roblox" },
+            new[] { "Add account", "Agregar cuenta", "Adicionar conta" },
+            new[] { "Use", "Usar", "Usar" },
+            new[] { "Open editor", "Abrir editor", "Abrir editor" },
+            new[] { "Choose font file", "Elegir fuente", "Escolher fonte" },
+            new[] { "Add flag", "Agregar flag", "Adicionar flag" },
+            new[] { "Add", "Agregar", "Adicionar" },
+            new[] { "Import", "Importar", "Importar" },
+            new[] { "Done", "Listo", "Pronto" },
+            new[] { "Main menu", "Menú principal", "Menu principal" },
+            new[] { "Close", "Cerrar", "Fechar" },
+            new[] { "Switch account", "Cambiar cuenta", "Trocar conta" },
+            new[] { "Active", "Activa", "Ativa" },
+            new[] { "Use default font", "Usar fuente normal", "Usar fonte padrão" },
+            new[] { "Choose .ogg", "Elegir .ogg", "Escolher .ogg" },
+            new[] { "Reset", "Restablecer", "Redefinir" },
+            new[] { "Choose sky folder", "Elegir carpeta de cielo", "Escolher pasta do céu" },
+            new[] { "Open mods folder", "Abrir carpeta de mods", "Abrir pasta de mods" },
+            new[] { "Export", "Exportar", "Exportar" },
+            new[] { "Open folder", "Abrir carpeta", "Abrir pasta" },
+            new[] { "Clear cache", "Borrar caché", "Limpar cache" },
+            new[] { "Repair", "Reparar", "Reparar" },
+            new[] { "Check now", "Buscar ahora", "Verificar agora" },
+            new[] { "Import JSON", "Importar JSON", "Importar JSON" },
+            new[] { "Copy JSON", "Copiar JSON", "Copiar JSON" },
+            new[] { "Clear all", "Borrar todo", "Limpar tudo" },
+            new[] { "Cancel", "Cancelar", "Cancelar" },
+            new[] { "Add an account", "Agregar una cuenta", "Adicionar uma conta" },
+            new[] { "Opens the Roblox login page.", "Abre la página de inicio de sesión de Roblox.", "Abre a página de login do Roblox." },
+            new[] { "Add, import or edit flags.", "Agrega, importa o edita flags.", "Adicione, importe ou edite flags." },
+            new[] { "Mods folder", "Carpeta de mods", "Pasta de mods" },
+            new[] { "Files here replace the matching files in Roblox (same folder layout).", "Los archivos de aquí reemplazan los mismos archivos en Roblox (misma estructura de carpetas).", "Os arquivos daqui substituem os mesmos arquivos no Roblox (mesma estrutura de pastas)." },
+            new[] { "Use my selected account for website joins", "Usar mi cuenta elegida al entrar desde la web", "Usar minha conta escolhida ao entrar pelo site" },
+            new[] { "Play buttons on roblox.com join as the account picked here.", "Los botones de Jugar en roblox.com entran con la cuenta elegida aquí.", "Os botões Jogar no roblox.com entram com a conta escolhida aqui." },
+            new[] { "Close this window when launching", "Cerrar esta ventana al iniciar", "Fechar esta janela ao iniciar" },
+            new[] { "Only the loading screen stays open while Roblox starts.", "Solo la pantalla de carga queda abierta mientras Roblox arranca.", "Só a tela de carregamento fica aberta enquanto o Roblox abre." },
+            new[] { "Stay in the tray while Roblox is open", "Quedarse en la bandeja mientras Roblox esté abierto", "Ficar na bandeja enquanto o Roblox estiver aberto" },
+            new[] { "Needed for Discord status, server location and recent games.", "Necesario para el estado de Discord, la ubicación del servidor y los juegos recientes.", "Necessário para o status do Discord, a localização do servidor e os jogos recentes." },
+            new[] { "Show server location", "Mostrar ubicación del servidor", "Mostrar localização do servidor" },
+            new[] { "Pops up where the server you joined is, like \"Dallas, Texas, US\".", "Muestra dónde está el servidor al que entraste, como \"Dallas, Texas, US\".", "Mostra onde fica o servidor em que você entrou, como \"Dallas, Texas, US\"." },
+            new[] { "Allow multiple Roblox windows", "Permitir varias ventanas de Roblox", "Permitir várias janelas do Roblox" },
+            new[] { "Run more than one account at once. Roblox sometimes blocks this.", "Usa más de una cuenta a la vez. Roblox a veces lo bloquea.", "Use mais de uma conta ao mesmo tempo. O Roblox às vezes bloqueia isso." },
+            new[] { "Open Roblox links with GuideStrap", "Abrir enlaces de Roblox con GuideStrap", "Abrir links do Roblox com o GuideStrap" },
+            new[] { "Off gives Play buttons on roblox.com back to normal Roblox.", "Desactivado, los botones de Jugar de roblox.com vuelven al Roblox normal.", "Desligado, os botões Jogar do roblox.com voltam para o Roblox normal." },
+            new[] { "Discord status", "Estado de Discord", "Status do Discord" },
+            new[] { "Shows on your profile what you're doing in GuideStrap and which game you're in.", "Muestra en tu perfil qué haces en GuideStrap y en qué juego estás.", "Mostra no seu perfil o que você está fazendo no GuideStrap e em qual jogo está." },
+            new[] { "Accent color", "Color de acento", "Cor de destaque" },
+            new[] { "The color used for buttons, switches and highlights.", "El color de botones, interruptores y resaltados.", "A cor dos botões, chaves e destaques." },
+            new[] { "Settings profile", "Perfil de ajustes", "Perfil de configurações" },
+            new[] { "Share your graphics, FastFlags, cursor and color as one file.", "Comparte tus gráficos, FastFlags, cursor y color en un solo archivo.", "Compartilhe seus gráficos, FastFlags, cursor e cor em um só arquivo." },
+            new[] { "GuideStrap folder", "Carpeta de GuideStrap", "Pasta do GuideStrap" },
+            new[] { "Settings, mods and the downloaded Roblox live here.", "Aquí están los ajustes, los mods y el Roblox descargado.", "Aqui ficam as configurações, os mods e o Roblox baixado." },
+            new[] { "Deletes Roblox's temporary files, old logs and cached pictures.", "Borra los archivos temporales de Roblox, registros viejos e imágenes en caché.", "Apaga os arquivos temporários do Roblox, logs antigos e imagens em cache." },
+            new[] { "Repair Roblox", "Reparar Roblox", "Reparar Roblox" },
+            new[] { "Fixes crashes or a broken install by downloading Roblox again.", "Arregla cierres o una instalación rota descargando Roblox de nuevo.", "Corrige travamentos ou uma instalação quebrada baixando o Roblox de novo." },
+            new[] { "Updates", "Actualizaciones", "Atualizações" },
+            new[] { "You're on GuideStrap {0}.", "Tienes GuideStrap {0}.", "Você está no GuideStrap {0}." },
+            new[] { "Recent games", "Juegos recientes", "Jogos recentes" },
+            new[] { "Active flags", "Flags activos", "Flags ativas" },
+            new[] { "Your own mods", "Tus propios mods", "Seus próprios mods" },
+            new[] { "Behavior", "Comportamiento", "Comportamento" },
+            new[] { "Discord", "Discord", "Discord" },
+            new[] { "Appearance", "Apariencia", "Aparência" },
+            new[] { "Profiles", "Perfiles", "Perfis" },
+            new[] { "Tools", "Herramientas", "Ferramentas" },
+            new[] { "Play", "Jugar", "Jogar" },
+            new[] { "Start Roblox with your settings.", "Abre Roblox con tus ajustes.", "Abra o Roblox com suas configurações." },
+            new[] { "Accounts", "Cuentas", "Contas" },
+            new[] { "Saved Roblox accounts.", "Cuentas de Roblox guardadas.", "Contas do Roblox salvas." },
+            new[] { "Graphics", "Gráficos", "Gráficos" },
+            new[] { "Pick a preset, or change settings one by one.", "Elige un preajuste o cambia los ajustes uno por uno.", "Escolha uma predefinição ou mude as configurações uma por uma." },
+            new[] { "FastFlags", "FastFlags", "FastFlags" },
+            new[] { "Flags from Roblox's allowlist.", "Flags de la lista permitida de Roblox.", "Flags da lista permitida do Roblox." },
+            new[] { "Text & Font", "Texto y fuente", "Texto e fonte" },
+            new[] { "The font Roblox uses in-game.", "La fuente que Roblox usa en el juego.", "A fonte que o Roblox usa no jogo." },
+            new[] { "Mods", "Mods", "Mods" },
+            new[] { "Cosmetic file swaps. Only GuideStrap's copy of Roblox is changed.", "Cambios estéticos de archivos. Solo cambia la copia de Roblox de GuideStrap.", "Trocas visuais de arquivos. Só a cópia do Roblox do GuideStrap muda." },
+            new[] { "Settings", "Ajustes", "Configurações" },
+            new[] { "Launcher options.", "Opciones del launcher.", "Opções do launcher." },
+            new[] { "About", "Acerca de", "Sobre" },
+            new[] { "What GuideStrap is.", "Qué es GuideStrap.", "O que é o GuideStrap." },
+            new[] { "Remove account?", "¿Quitar cuenta?", "Remover conta?" },
+            new[] { "Remove {0} (@{1}) from GuideStrap?", "¿Quitar a {0} (@{1}) de GuideStrap?", "Remover {0} (@{1}) do GuideStrap?" },
+            new[] { "Remove", "Quitar", "Remover" },
+            new[] { "That isn't an Ogg file", "Eso no es un archivo Ogg", "Isso não é um arquivo Ogg" },
+            new[] { "Roblox only plays .ogg sounds here. Convert your sound to .ogg first (any free online converter works).", "Roblox solo reproduce sonidos .ogg aquí. Convierte tu sonido a .ogg primero (cualquier conversor gratis en línea sirve).", "O Roblox só toca sons .ogg aqui. Converta seu som para .ogg antes (qualquer conversor online grátis serve)." },
+            new[] { "No sky files found", "No se encontraron archivos de cielo", "Nenhum arquivo de céu encontrado" },
+            new[] { "Sky packs are .tex files like sky512_up.tex. Pick the folder that contains them.", "Los paquetes de cielo son archivos .tex como sky512_up.tex. Elige la carpeta que los tiene.", "Pacotes de céu são arquivos .tex como sky512_up.tex. Escolha a pasta que os contém." },
+            new[] { "Restart to apply", "Reinicia para aplicar", "Reinicie para aplicar" },
+            new[] { "The new color shows after GuideStrap restarts.", "El nuevo color se verá cuando GuideStrap se reinicie.", "A nova cor aparece depois que o GuideStrap reiniciar." },
+            new[] { "The new language shows after GuideStrap restarts.", "El nuevo idioma se verá cuando GuideStrap se reinicie.", "O novo idioma aparece depois que o GuideStrap reiniciar." },
+            new[] { "Repair Roblox?", "¿Reparar Roblox?", "Reparar o Roblox?" },
+            new[] { "This deletes GuideStrap's copy of Roblox. It downloads a fresh one next time you launch.", "Esto borra la copia de Roblox de GuideStrap. Se descargará una nueva la próxima vez que inicies.", "Isso apaga a cópia do Roblox do GuideStrap. Uma nova é baixada na próxima vez que você iniciar." },
+            new[] { "Updates aren't set up yet", "Las actualizaciones aún no están configuradas", "As atualizações ainda não estão configuradas" },
+            new[] { "Once GuideStrap is published on GitHub, set UpdateRepo in the code and it will update itself.", "Cuando GuideStrap esté publicado en GitHub, pon UpdateRepo en el código y se actualizará solo.", "Quando o GuideStrap estiver publicado no GitHub, defina UpdateRepo no código e ele vai se atualizar sozinho." },
+            new[] { "Update available", "Actualización disponible", "Atualização disponível" },
+            new[] { "GuideStrap {0} is out. Update now?", "Salió GuideStrap {0}. ¿Actualizar ahora?", "Saiu o GuideStrap {0}. Atualizar agora?" },
+            new[] { "That profile can't be read", "No se puede leer ese perfil", "Não dá para ler esse perfil" },
+            new[] { "The file is damaged or isn't a GuideStrap profile.", "El archivo está dañado o no es un perfil de GuideStrap.", "O arquivo está danificado ou não é um perfil do GuideStrap." },
+            new[] { "Use this profile?", "¿Usar este perfil?", "Usar este perfil?" },
+            new[] { "Use profile", "Usar perfil", "Usar perfil" },
+            new[] { "Your graphics, FastFlags, cursor and accent color will be replaced.", "Se reemplazarán tus gráficos, FastFlags, cursor y color de acento.", "Seus gráficos, FastFlags, cursor e cor de destaque serão substituídos." },
+            new[] { "The profile's color shows after GuideStrap restarts.", "El color del perfil se verá cuando GuideStrap se reinicie.", "A cor do perfil aparece depois que o GuideStrap reiniciar." },
+            new[] { "Clear every flag?", "¿Borrar todos los flags?", "Limpar todas as flags?" },
+            new[] { "This removes all {0} flags (and resets Graphics to Balanced).", "Esto quita los {0} flags (y pone Gráficos en Equilibrado).", "Isso remove todas as {0} flags (e volta Gráficos para Equilibrado)." },
+            new[] { "That isn't valid JSON", "Eso no es un JSON válido", "Isso não é um JSON válido" },
+            new[] { "Make sure it looks like { \"FlagName\": \"Value\", ... } with quotes around names.", "Asegúrate de que se vea así: { \"NombreFlag\": \"Valor\", ... } con comillas en los nombres.", "Confira se está assim: { \"NomeFlag\": \"Valor\", ... } com aspas nos nomes." },
+            new[] { "That isn't a flag list", "Eso no es una lista de flags", "Isso não é uma lista de flags" },
+            new[] { "The JSON should be an object like { \"FlagName\": \"Value\" }.", "El JSON debe ser un objeto como { \"NombreFlag\": \"Valor\" }.", "O JSON deve ser um objeto como { \"NomeFlag\": \"Valor\" }." },
+            new[] { "Changes are saved automatically.", "Los cambios se guardan automáticamente.", "As alterações são salvas automaticamente." },
+            new[] { "Wait for Roblox to finish launching first.", "Espera a que Roblox termine de iniciar.", "Espere o Roblox terminar de abrir." },
+            new[] { "That doesn't look like a game link or place ID.", "Eso no parece un enlace de juego ni un ID.", "Isso não parece um link de jogo nem um ID." },
+            new[] { "Added {0}.", "Se agregó {0}.", "{0} adicionado." },
+            new[] { "Font reset to Roblox's default.", "Fuente restablecida a la de Roblox.", "Fonte voltou para a padrão do Roblox." },
+            new[] { "Font set to {0}.", "Fuente cambiada a {0}.", "Fonte alterada para {0}." },
+            new[] { "Death sound set. It applies next time you launch Roblox.", "Sonido de muerte listo. Se aplica la próxima vez que inicies Roblox.", "Som de morte definido. Vale na próxima vez que você abrir o Roblox." },
+            new[] { "Cleared {0} MB of old Roblox cache and logs.", "Se borraron {0} MB de caché y registros viejos de Roblox.", "{0} MB de cache e logs antigos do Roblox apagados." },
+            new[] { "Roblox will re-download next time you launch.", "Roblox se descargará de nuevo la próxima vez que inicies.", "O Roblox vai ser baixado de novo na próxima vez que você iniciar." },
+            new[] { "GuideStrap is up to date.", "GuideStrap está actualizado.", "O GuideStrap está atualizado." },
+            new[] { "Downloading the update...", "Descargando la actualización...", "Baixando a atualização..." },
+            new[] { "Profile saved.", "Perfil guardado.", "Perfil salvo." },
+            new[] { "Profile loaded.", "Perfil cargado.", "Perfil carregado." },
+            new[] { "Nothing to copy yet.", "Aún no hay nada que copiar.", "Ainda não há nada para copiar." },
+            new[] { "Copied {0} flags to your clipboard.", "Se copiaron {0} flags al portapapeles.", "{0} flags copiadas para a área de transferência." },
+            new[] { "All flags cleared.", "Se borraron todos los flags.", "Todas as flags foram removidas." },
+            new[] { "Type a value first.", "Escribe un valor primero.", "Digite um valor primeiro." },
+            new[] { "Paste some JSON first.", "Pega un JSON primero.", "Cole um JSON primeiro." },
+            new[] { "Updated {0}.", "Se actualizó {0}.", "{0} atualizada." },
+            new[] { "Removed {0}.", "Se quitó {0}.", "{0} removida." },
+            new[] { "Play Roblox", "Jugar Roblox", "Jogar Roblox" },
+            new[] { "No account selected", "Ninguna cuenta elegida", "Nenhuma conta escolhida" },
+            new[] { "Roblox will use whoever is logged in on the website.", "Roblox usará la cuenta con la que hayas iniciado sesión en la web.", "O Roblox vai usar a conta que estiver logada no site." },
+            new[] { "Roblox login", "Sesión de Roblox", "Login do Roblox" },
+            new[] { "Add accounts", "Agregar cuentas", "Adicionar contas" },
+            new[] { "{0} graphics  ·  {1}  ·  {2} FastFlag{3}", "Gráficos: {0}  ·  {1}  ·  {2} FastFlag{3}", "Gráficos: {0}  ·  {1}  ·  {2} FastFlag{3}" },
+            new[] { "custom font", "fuente personalizada", "fonte personalizada" },
+            new[] { "default font", "fuente normal", "fonte padrão" },
+            new[] { "Custom font", "Fuente personalizada", "Fonte personalizada" },
+            new[] { "  (no preview, still works in-game)", "  (sin vista previa, igual funciona en el juego)", "  (sem prévia, mas funciona no jogo)" },
+            new[] { "Balanced", "Equilibrado", "Equilibrado" },
+            new[] { "Max graphics", "Máx. gráficos", "Máx. gráficos" },
+            new[] { "No flags yet. Pick a graphics preset or open the editor.", "Aún no hay flags. Elige un preajuste de gráficos o abre el editor.", "Ainda não há flags. Escolha uma predefinição de gráficos ou abra o editor." },
+            new[] { "The quick brown fox jumps over the lazy dog\n0123456789  !?  Hello from GuideStrap", "El veloz murciélago hindú comía feliz cardillo y kiwi\n0123456789  ¡!¿?  Hola desde GuideStrap", "Um pequeno jabuti xereta viu dez cegonhas felizes\n0123456789  !?  Olá do GuideStrap" },
+            new[] { "Roblox default", "Normal de Roblox", "Padrão do Roblox" },
+            new[] { "{0} flag{1}", "{0} flag{1}", "{0} flag{1}" },
+            new[] { "+ {0} more", "+ {0} más", "+ {0} mais" },
+            new[] { "About GuideStrap", "Acerca de GuideStrap", "Sobre o GuideStrap" },
+            new[] { "Open GuideStrap folder", "Abrir carpeta de GuideStrap", "Abrir pasta do GuideStrap" },
+            new[] { "Configure settings", "Configurar ajustes", "Configurar" },
+            new[] { "Accounts  ·  {0}", "Cuentas  ·  {0}", "Contas  ·  {0}" },
+            new[] { "Starting...", "Iniciando...", "Iniciando..." },
+            new[] { "Cancelling...", "Cancelando...", "Cancelando..." },
+            new[] { "Opened the game page in your browser", "Se abrió la página del juego en tu navegador", "A página do jogo foi aberta no navegador" },
+            new[] { "Roblox didn't return a version.", "Roblox no devolvió una versión.", "O Roblox não devolveu uma versão." },
+            new[] { "Roblox said no (HTTP {0}).", "Roblox lo rechazó (HTTP {0}).", "O Roblox recusou (HTTP {0})." },
+            new[] { "This account's saved login expired. Remove it and add it again.", "El inicio de sesión guardado de esta cuenta expiró. Quítala y agrégala de nuevo.", "O login salvo desta conta expirou. Remova e adicione de novo." },
+            new[] { "Couldn't log in this account (HTTP {0}).", "No se pudo iniciar sesión con esta cuenta (HTTP {0}).", "Não deu para entrar com esta conta (HTTP {0})." },
+            new[] { "Couldn't log in this account. Try again.", "No se pudo iniciar sesión con esta cuenta. Inténtalo de nuevo.", "Não deu para entrar com esta conta. Tente de novo." },
+            new[] { "{0} downloaded corrupted. Try again.", "{0} se descargó dañado. Inténtalo de nuevo.", "{0} foi baixado corrompido. Tente de novo." },
+            new[] { "Getting the latest Roblox...", "Obteniendo lo último de Roblox...", "Pegando o Roblox mais recente..." },
+            new[] { "Installing Roblox... {0}%", "Instalando Roblox... {0}%", "Instalando o Roblox... {0}%" },
+            new[] { "Connecting to Roblox...", "Conectando con Roblox...", "Conectando ao Roblox..." },
+            new[] { "Applying your settings...", "Aplicando tus ajustes...", "Aplicando suas configurações..." },
+            new[] { "Signing in as {0}...", "Iniciando sesión como {0}...", "Entrando como {0}..." },
+            new[] { "Starting Roblox...", "Abriendo Roblox...", "Abrindo o Roblox..." },
+            new[] { "Death sound", "Sonido de muerte", "Som de morte" },
+            new[] { "Mouse cursor", "Cursor del mouse", "Cursor do mouse" },
+            new[] { "Sky", "Cielo", "Céu" },
+            new[] { "Custom sound", "Sonido personalizado", "Som personalizado" },
+            new[] { "Roblox's default sound", "Sonido normal de Roblox", "Som padrão do Roblox" },
+            new[] { "Roblox's default cursor", "Cursor normal de Roblox", "Cursor padrão do Roblox" },
+            new[] { "Purple arrow made for GuideStrap", "Flecha morada hecha para GuideStrap", "Seta roxa feita para o GuideStrap" },
+            new[] { "A small dot, easy to aim with", "Un punto pequeño, fácil para apuntar", "Um pontinho, fácil de mirar" },
+            new[] { "Your own image", "Tu propia imagen", "Sua própria imagem" },
+            new[] { "Custom sky pack ({0} files). Games with their own sky keep it.", "Paquete de cielo personalizado ({0} archivos). Los juegos con cielo propio lo mantienen.", "Pacote de céu personalizado ({0} arquivos). Jogos com céu próprio mantêm o deles." },
+            new[] { "Roblox's default sky. Gray sky is under Graphics.", "Cielo normal de Roblox. El cielo gris está en Gráficos.", "Céu padrão do Roblox. O céu cinza fica em Gráficos." },
+            new[] { "Lowest quality, flat lighting, no grass. For weak PCs or pure frames.", "Calidad mínima, luz plana, sin pasto. Para PCs débiles o máximo de FPS.", "Qualidade mínima, luz chapada, sem grama. Para PCs fracos ou só FPS." },
+            new[] { "Performance", "Rendimiento", "Desempenho" },
+            new[] { "Low settings that still look okay. Great for laptops.", "Ajustes bajos que aún se ven bien. Ideal para laptops.", "Configurações baixas que ainda ficam boas. Ótimo para notebooks." },
+            new[] { "Roblox's normal automatic settings. Nothing changed.", "Los ajustes automáticos normales de Roblox. Sin cambios.", "As configurações automáticas normais do Roblox. Nada mudou." },
+            new[] { "Quality", "Calidad", "Qualidade" },
+            new[] { "Sharper textures and smoother edges. Needs a decent PC.", "Texturas más nítidas y bordes más suaves. Necesita una PC decente.", "Texturas mais nítidas e bordas mais suaves. Precisa de um PC razoável." },
+            new[] { "Max Graphics", "Gráficos máximos", "Gráficos máximos" },
+            new[] { "Everything maxed out. Best looks, lowest FPS.", "Todo al máximo. Se ve mejor, con menos FPS.", "Tudo no máximo. Visual melhor, FPS menor." },
+            new[] { "Custom", "Personalizado", "Personalizado" },
+            new[] { "You changed settings yourself. Move the slider to pick a preset again.", "Cambiaste ajustes por tu cuenta. Mueve el control para elegir un preajuste otra vez.", "Você mudou configurações por conta própria. Mova o controle para escolher uma predefinição de novo." },
+            new[] { "Pick a font", "Elige una fuente", "Escolha uma fonte" },
+            new[] { "Pick a death sound", "Elige un sonido de muerte", "Escolha um som de morte" },
+            new[] { "Pick a cursor image", "Elige una imagen de cursor", "Escolha uma imagem de cursor" },
+            new[] { "Pick a folder with sky .tex files (from a Roblox sky mod pack)", "Elige una carpeta con archivos .tex de cielo (de un paquete de mods)", "Escolha uma pasta com arquivos .tex de céu (de um pacote de mods)" },
+            new[] { "Overwrite", "Sobrescribir", "Substituir" },
+            new[] { "Keep original", "Mantener original", "Manter original" },
+            new[] { "Auto", "Auto", "Auto" },
+            new[] { "Lowest", "Mínima", "Mínima" },
+            new[] { "Low", "Baja", "Baixa" },
+            new[] { "Medium", "Media", "Média" },
+            new[] { "High", "Alta", "Alta" },
+            new[] { "Off (1x)", "Apagado (1x)", "Desligado (1x)" },
+            new[] { "Default", "Predeterminado", "Padrão" },
+            new[] { "GuideStrap arrow", "Flecha de GuideStrap", "Seta do GuideStrap" },
+            new[] { "Small dot", "Punto pequeño", "Pontinho" },
+            new[] { "Custom image...", "Imagen propia...", "Imagem própria..." },
+            new[] { "Couldn't add that account", "No se pudo agregar esa cuenta", "Não deu para adicionar essa conta" },
+            new[] { "Couldn't use that font", "No se pudo usar esa fuente", "Não deu para usar essa fonte" },
+            new[] { "Couldn't use that sound", "No se pudo usar ese sonido", "Não deu para usar esse som" },
+            new[] { "Couldn't use that sky", "No se pudo usar ese cielo", "Não deu para usar esse céu" },
+            new[] { "Couldn't change that", "No se pudo cambiar eso", "Não deu para mudar isso" },
+            new[] { "Restart now", "Reiniciar ahora", "Reiniciar agora" },
+            new[] { "Later", "Después", "Depois" },
+            new[] { "Close Roblox first", "Cierra Roblox primero", "Feche o Roblox primeiro" },
+            new[] { "Update", "Actualizar", "Atualizar" },
+            new[] { "Update failed", "La actualización falló", "A atualização falhou" },
+            new[] { "Couldn't launch Roblox", "No se pudo iniciar Roblox", "Não deu para abrir o Roblox" },
+            new[] { "Something went wrong", "Algo salió mal", "Algo deu errado" },
+            new[] { "Graphics quality level, 1 (lowest) to 21 (highest)", "Nivel de calidad gráfica, 1 (mínimo) a 21 (máximo)", "Nível de qualidade gráfica, 1 (mínimo) a 21 (máximo)" },
+            new[] { "True = use the texture quality flag", "True = usar el flag de calidad de texturas", "True = usar a flag de qualidade de textura" },
+            new[] { "Texture quality: 0 lowest, 1 low, 2 medium, 3 high", "Calidad de texturas: 0 mínima, 1 baja, 2 media, 3 alta", "Qualidade de textura: 0 mínima, 1 baixa, 2 média, 3 alta" },
+            new[] { "Anti-aliasing samples: 1, 2, 4 or 8", "Muestras de antialiasing: 1, 2, 4 u 8", "Amostras de anti-aliasing: 1, 2, 4 ou 8" },
+            new[] { "True = render with Direct3D 11", "True = renderizar con Direct3D 11", "True = renderizar com Direct3D 11" },
+            new[] { "True = render with Vulkan", "True = renderizar con Vulkan", "True = renderizar com Vulkan" },
+            new[] { "True = render with OpenGL", "True = renderizar con OpenGL", "True = renderizar com OpenGL" },
+            new[] { "Grass draw distance (min). 0 with max = no grass", "Distancia del pasto (mín.). 0 con máx. = sin pasto", "Distância da grama (mín.). 0 com máx. = sem grama" },
+            new[] { "Grass draw distance (max). 0 = no grass", "Distancia del pasto (máx.). 0 = sin pasto", "Distância da grama (máx.). 0 = sem grama" },
+            new[] { "True = gray sky instead of the skybox", "True = cielo gris en vez del skybox", "True = céu cinza no lugar do skybox" },
+            new[] { "True = freeze lighting updates (faster)", "True = congelar la iluminación (más rápido)", "True = congelar a iluminação (mais rápido)" },
+            new[] { "Grass movement. 0 = still grass", "Movimiento del pasto. 0 = pasto quieto", "Movimento da grama. 0 = grama parada" },
+            new[] { "True = turn off DPI scaling", "True = desactivar el escalado DPI", "True = desligar a escala de DPI" },
+            new[] { "False = Alt+Enter uses exclusive fullscreen", "False = Alt+Enter usa pantalla completa exclusiva", "False = Alt+Enter usa tela cheia exclusiva" },
+            new[] { "Mesh detail switching distance", "Distancia de cambio de detalle de mallas", "Distância de troca de detalhe das malhas" },
+            new[] { "Mesh detail distance, level 1 to 2", "Distancia de detalle de mallas, nivel 1 a 2", "Distância de detalhe das malhas, nível 1 a 2" },
+            new[] { "Mesh detail distance, level 2 to 3", "Distancia de detalle de mallas, nivel 2 a 3", "Distância de detalhe das malhas, nível 2 a 3" },
+            new[] { "Mesh detail distance, level 3 to 4", "Distancia de detalle de mallas, nivel 3 a 4", "Distância de detalhe das malhas, nível 3 a 4" },
+            new[] { "Connected to a server in {0}", "Conectado a un servidor en {0}", "Conectado a um servidor em {0}" },
+            new[] { "Account", "Cuenta", "Conta" },
+            new[] { "Open GuideStrap", "Abrir GuideStrap", "Abrir o GuideStrap" },
+            new[] { "Exit", "Salir", "Sair" },
+            new[] { "Search", "Buscar", "Pesquisar" },
+            new[] { "Filter", "Filtrar", "Filtrar" },
+            new[] { "Value", "Valor", "Valor" },
+            new[] { "e.g. https://www.roblox.com/games/920587237", "p. ej. https://www.roblox.com/games/920587237", "ex.: https://www.roblox.com/games/920587237" },
+            new[] { "Saved accounts", "Cuentas guardadas", "Contas salvas" },
+            new[] { "Default (Roblox's own login)", "Predeterminada (sesión de Roblox)", "Padrão (login do Roblox)" },
+            new[] { "Uses whoever is logged in on the Roblox website", "Usa la cuenta con sesión iniciada en la web de Roblox", "Usa a conta logada no site do Roblox" },
+            new[] { "Using Roblox's own login.", "Usando la sesión de Roblox.", "Usando o login do Roblox." },
+            new[] { "Switched to {0}.", "Cambiaste a {0}.", "Trocado para {0}." },
+            new[] { "Advanced settings", "Ajustes avanzados", "Configurações avançadas" },
+            new[] { "Change every graphics setting yourself.", "Cambia cada ajuste gráfico por tu cuenta.", "Mude cada configuração gráfica você mesmo." },
+            new[] { "Graphics quality", "Calidad gráfica", "Qualidade gráfica" },
+            new[] { "Roblox's quality level (1-21). Auto = Roblox decides.", "Nivel de calidad de Roblox (1-21). Auto = decide Roblox.", "Nível de qualidade do Roblox (1-21). Auto = o Roblox decide." },
+            new[] { "Texture quality", "Calidad de texturas", "Qualidade de textura" },
+            new[] { "How sharp surfaces and decals look.", "Qué tan nítidas se ven las superficies y calcomanías.", "O quão nítidas ficam as superfícies e decalques." },
+            new[] { "Anti-aliasing", "Antialiasing", "Anti-aliasing" },
+            new[] { "Smooths jagged edges. Costs FPS.", "Suaviza los bordes dentados. Cuesta FPS.", "Suaviza bordas serrilhadas. Custa FPS." },
+            new[] { "Rendering API", "API de renderizado", "API de renderização" },
+            new[] { "Try Vulkan or D3D11 if you crash or stutter.", "Prueba Vulkan o D3D11 si se cierra o da tirones.", "Tente Vulkan ou D3D11 se travar ou engasgar." },
+            new[] { "Remove grass", "Quitar pasto", "Remover grama" },
+            new[] { "Hides terrain grass. Big FPS boost on grassy maps.", "Oculta el pasto del terreno. Mucho más FPS en mapas con pasto.", "Esconde a grama do terreno. Bem mais FPS em mapas com grama." },
+            new[] { "Gray sky", "Cielo gris", "Céu cinza" },
+            new[] { "Replaces the skybox with flat gray.", "Cambia el cielo por gris liso.", "Troca o céu por um cinza liso." },
+            new[] { "Low-detail meshes", "Mallas de bajo detalle", "Malhas de pouco detalhe" },
+            new[] { "Always uses the simplest version of models.", "Usa siempre la versión más simple de los modelos.", "Sempre usa a versão mais simples dos modelos." },
+            new[] { "Freeze lighting updates", "Congelar iluminación", "Congelar iluminação" },
+            new[] { "Faster, but lighting can look flat or wrong.", "Más rápido, pero la luz puede verse plana o rara.", "Mais rápido, mas a luz pode ficar chapada ou estranha." },
+            new[] { "Still grass", "Pasto quieto", "Grama parada" },
+            new[] { "Stops grass from waving around.", "Evita que el pasto se mueva.", "Impede a grama de balançar." },
+            new[] { "Disable DPI scaling", "Desactivar escalado DPI", "Desligar escala de DPI" },
+            new[] { "Sharper on high-res screens, UI gets smaller.", "Más nítido en pantallas de alta resolución; la interfaz se achica.", "Mais nítido em telas de alta resolução; a interface fica menor." },
+            new[] { "Alt+Enter real fullscreen", "Pantalla completa real con Alt+Enter", "Tela cheia real com Alt+Enter" },
+            new[] { "Exclusive fullscreen, can lower input lag.", "Pantalla completa exclusiva, puede bajar el retraso de entrada.", "Tela cheia exclusiva, pode diminuir o atraso de entrada." },
+            new[] { "Play buttons on roblox.com now open GuideStrap.", "Los botones de Jugar en roblox.com ahora abren GuideStrap.", "Os botões Jogar no roblox.com agora abrem o GuideStrap." },
+            new[] { "Play buttons on roblox.com open normal Roblox again.", "Los botones de Jugar en roblox.com vuelven a abrir el Roblox normal.", "Os botões Jogar no roblox.com voltam a abrir o Roblox normal." },
+            new[] { "Language", "Idioma", "Idioma" },
+            new[] { "English, Español or Português.", "English, Español o Português.", "English, Español ou Português." },
+            new[] { "Added {0}", "Agregados {0}", "{0} adicionadas" },
+            new[] { "Overwrote {0}", "Sobrescritos {0}", "{0} substituídas" },
+            new[] { "Kept {0} original", "Se mantuvieron {0} originales", "{0} originais mantidas" },
+            new[] { "{0} already the same", "{0} ya eran iguales", "{0} já eram iguais" },
+            new[] { "Skipped {0} not on the allowlist", "Omitidos {0} fuera de la lista permitida", "{0} ignoradas fora da lista permitida" },
+            new[] { "Nothing changed.", "No cambió nada.", "Nada mudou." },
+            new[] { "This flag is already in your list", "Este flag ya está en tu lista", "Esta flag já está na sua lista" },
+            new[] { "{0}\n\nCurrent value:   {1}\nNew value:   {2}\n\nDo you want to overwrite it with the new value, or keep the original?", "{0}\n\nValor actual:   {1}\nValor nuevo:   {2}\n\n¿Quieres sobrescribirlo con el valor nuevo o mantener el original?", "{0}\n\nValor atual:   {1}\nValor novo:   {2}\n\nQuer substituir pelo valor novo ou manter o original?" },
+            new[] { "Do the same for the other {0} duplicate{1}", "Hacer lo mismo con los otros {0} duplicado{1}", "Fazer o mesmo com as outras {0} duplicada{1}" },
+            new[] { "No flags yet. Press \"Add flag\" or \"Import JSON\" to get started.", "Aún no hay flags. Pulsa \"Agregar flag\" o \"Importar JSON\" para empezar.", "Ainda não há flags. Clique em \"Adicionar flag\" ou \"Importar JSON\" para começar." },
+            new[] { "No flags match your filter.", "Ningún flag coincide con tu filtro.", "Nenhuma flag combina com o filtro." },
+            new[] { "GuideStrap Setup", "Instalación de GuideStrap", "Instalação do GuideStrap" },
+            new[] { "Welcome to GuideStrap", "Bienvenido a GuideStrap", "Bem-vindo ao GuideStrap" },
+            new[] { "Pick your language, then install. It only takes a few seconds.", "Elige tu idioma y luego instala. Solo toma unos segundos.", "Escolha seu idioma e instale. Leva só alguns segundos." },
+            new[] { "Desktop shortcut", "Acceso directo en el escritorio", "Atalho na área de trabalho" },
+            new[] { "Add a GuideStrap icon to your desktop.", "Agrega un ícono de GuideStrap a tu escritorio.", "Coloca um ícone do GuideStrap na área de trabalho." },
+            new[] { "Play buttons on roblox.com open GuideStrap.", "Los botones de Jugar en roblox.com abren GuideStrap.", "Os botões Jogar no roblox.com abrem o GuideStrap." },
+            new[] { "Install", "Instalar", "Instalar" },
+            new[] { "Installing...", "Instalando...", "Instalando..." },
+            new[] { "Setup failed", "La instalación falló", "A instalação falhou" },
+            new[] { "Installs for your Windows user only. Remove it any time from Settings > Apps.", "Se instala solo para tu usuario de Windows. Quítalo cuando quieras desde Configuración > Aplicaciones.", "Instala só para o seu usuário do Windows. Remova quando quiser em Configurações > Aplicativos." },
+            new[] { "Uninstall GuideStrap?", "¿Desinstalar GuideStrap?", "Desinstalar o GuideStrap?" },
+            new[] { "This removes GuideStrap, its copy of Roblox, your settings, mods and saved logins. Normal Roblox stays installed.", "Esto quita GuideStrap, su copia de Roblox, tus ajustes, mods e inicios de sesión guardados. El Roblox normal sigue instalado.", "Isso remove o GuideStrap, a cópia do Roblox dele, suas configurações, mods e logins salvos. O Roblox normal continua instalado." },
+            new[] { "Uninstall", "Desinstalar", "Desinstalar" },
+            new[] { "Close GuideStrap first", "Cierra GuideStrap primero", "Feche o GuideStrap primeiro" },
+            new[] { "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "GuideStrap sigue abierto (revisa la bandeja junto al reloj). Ciérralo e inténtalo de nuevo.", "O GuideStrap ainda está aberto (veja a bandeja perto do relógio). Feche e tente de novo." },
+            new[] { "GuideStrap was uninstalled.", "GuideStrap se desinstaló.", "O GuideStrap foi desinstalado." },
+            new[] { "GuideStrap is a Roblox launcher made by Guide. It downloads Roblox from Roblox's own servers, keeps it updated, and starts it with your settings applied.\n\nBesides launching, it handles graphics presets, FastFlags (only the ones Roblox allows), a custom in-game font, and switching between saved accounts.\n\nIt never touches the game while it's running. It only changes launch files and settings that Roblox reads on its own, so it isn't an exploit. Saved logins are encrypted for your Windows user.\n\nEverything happens in GuideStrap's own copy of Roblox. Your normal Roblox install is never changed, so launching Roblox without GuideStrap always gives you the original game, sounds and settings.\n\nGuideStrap is a fan project and isn't affiliated with Roblox Corporation.", "GuideStrap es un launcher de Roblox hecho por Guide. Descarga Roblox desde los servidores de Roblox, lo mantiene actualizado y lo abre con tus ajustes aplicados.\n\nAdemás de iniciar el juego, maneja preajustes de gráficos, FastFlags (solo los que Roblox permite), una fuente personalizada en el juego y el cambio entre cuentas guardadas.\n\nNunca toca el juego mientras está abierto. Solo cambia archivos de inicio y ajustes que Roblox lee por su cuenta, así que no es un exploit. Los inicios de sesión guardados están cifrados para tu usuario de Windows.\n\nTodo pasa en la copia de Roblox de GuideStrap. Tu instalación normal de Roblox nunca se modifica, así que abrir Roblox sin GuideStrap siempre te da el juego, los sonidos y los ajustes originales.\n\nGuideStrap es un proyecto de fans y no está afiliado a Roblox Corporation.", "O GuideStrap é um launcher de Roblox feito pelo Guide. Ele baixa o Roblox direto dos servidores do Roblox, mantém tudo atualizado e abre o jogo com as suas configurações.\n\nAlém de abrir o jogo, ele cuida de predefinições de gráficos, FastFlags (só as que o Roblox permite), uma fonte personalizada no jogo e a troca entre contas salvas.\n\nEle nunca mexe no jogo enquanto está aberto. Só altera arquivos de inicialização e configurações que o próprio Roblox lê, então não é um exploit. Os logins salvos são criptografados para o seu usuário do Windows.\n\nTudo acontece na cópia do Roblox do GuideStrap. Sua instalação normal do Roblox nunca é alterada, então abrir o Roblox sem o GuideStrap sempre traz o jogo, os sons e as configurações originais.\n\nO GuideStrap é um projeto de fã e não tem ligação com a Roblox Corporation." }
+        };
+    }
+
+    // Install / update / uninstall. Setup only ever shows for brand-new users.
+    static class Setup
+    {
+        const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\GuideStrap";
+        public static string InstallExe => Path.Combine(Paths.Base, "GuideStrap.exe");
+        static string StartMenuLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Programs), "GuideStrap.lnk");
+        static string DesktopLink => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), "GuideStrap.lnk");
+
+        static bool RunningInstalled =>
+            string.Equals(Path.GetFullPath(Environment.ProcessPath ?? ""), Path.GetFullPath(InstallExe), StringComparison.OrdinalIgnoreCase);
+
+        static string? InstalledVersion()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(UninstallKey);
+                return key?.GetValue("DisplayVersion") as string;
+            }
+            catch { return null; }
+        }
+
+        static bool IsInstalled => File.Exists(InstallExe) && InstalledVersion() != null;
+
+        static bool IsNewer(string mine, string? theirs) =>
+            theirs == null || (System.Version.TryParse(mine, out var a) && System.Version.TryParse(theirs, out var b) && a > b);
+
+        // True only for someone running the downloaded file on a PC where GuideStrap isn't installed yet.
+        public static bool NeedsSetup()
+        {
+#if DEBUG
+            return false;   // never while developing in Visual Studio
+#else
+            return !RunningInstalled && !IsInstalled;
+#endif
+        }
+
+        // Already installed but this is a different copy (e.g. a fresh download): update the installed
+        // copy if this one is newer, open the installed copy, and let this one exit. No setup screen.
+        public static bool HandOffIfInstalled(string[] args)
+        {
+#if DEBUG
+            return false;
+#else
+            if (RunningInstalled || !IsInstalled) return false;
+            try
+            {
+                if (IsNewer(AppInfo.Version, InstalledVersion()))
+                {
+                    File.Copy(Environment.ProcessPath!, InstallExe, true);
+                    WriteEntry();
+                }
+            }
+            catch { /* installed copy is probably running; just open it */ }
+            var psi = new ProcessStartInfo(InstallExe) { UseShellExecute = false, WorkingDirectory = Paths.Base };
+            foreach (var a in args) psi.ArgumentList.Add(a);
+            Process.Start(psi);
+            return true;
+#endif
+        }
+
+        public static void Install(string language, bool desktopShortcut, bool openLinks)
+        {
+            Directory.CreateDirectory(Paths.Base);
+            if (!RunningInstalled) File.Copy(Environment.ProcessPath!, InstallExe, true);
+            CreateShortcut(StartMenuLink);
+            if (desktopShortcut) CreateShortcut(DesktopLink);
+            WriteEntry();
+            var settings = AppSettings.Load();
+            settings.Language = language;
+            if (openLinks) LinkHandler.Register(settings, InstallExe);
+            settings.Save();
+        }
+
+        public static void StartInstalled() =>
+            Process.Start(new ProcessStartInfo(InstallExe) { UseShellExecute = true, WorkingDirectory = Paths.Base });
+
+        // keeps the version shown in Windows' app list right after self-updates
+        public static void RefreshEntry()
+        {
+            try { if (RunningInstalled && InstalledVersion() != AppInfo.Version) WriteEntry(); } catch { }
+        }
+
+        static void WriteEntry()
+        {
+            using var key = Registry.CurrentUser.CreateSubKey(UninstallKey);
+            key.SetValue("DisplayName", "GuideStrap");
+            key.SetValue("DisplayVersion", AppInfo.Version);
+            key.SetValue("Publisher", "Guide");
+            key.SetValue("DisplayIcon", InstallExe);
+            key.SetValue("InstallLocation", Paths.Base);
+            key.SetValue("UninstallString", $"\"{InstallExe}\" --uninstall");
+            key.SetValue("URLInfoAbout", "https://github.com/guideships/GuideStrap");
+            key.SetValue("NoModify", 1, RegistryValueKind.DWord);
+            key.SetValue("NoRepair", 1, RegistryValueKind.DWord);
+            try { key.SetValue("EstimatedSize", (int)(new FileInfo(InstallExe).Length / 1024), RegistryValueKind.DWord); } catch { }
+        }
+
+        static void CreateShortcut(string path)
+        {
+            try
+            {
+                var type = Type.GetTypeFromProgID("WScript.Shell");
+                if (type == null) return;
+                dynamic shell = Activator.CreateInstance(type)!;
+                dynamic link = shell.CreateShortcut(path);
+                link.TargetPath = InstallExe;
+                link.WorkingDirectory = Paths.Base;
+                link.IconLocation = InstallExe + ",0";
+                link.Description = "GuideStrap";
+                link.Save();
+                Marshal.FinalReleaseComObject(link);
+                Marshal.FinalReleaseComObject(shell);
+            }
+            catch { }
+        }
+
+        public static void Uninstall()
+        {
+            var settings = AppSettings.Load();
+            L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
+            Theme.SetAccent(settings.Accent);
+
+            int me = Environment.ProcessId;
+            bool othersRunning = Process.GetProcessesByName("GuideStrap").Any(p => { using (p) return p.Id != me; });
+            if (othersRunning)
+            {
+                ThemedDialog.Prompt(null, "Close GuideStrap first", "GuideStrap is still running (check the tray near the clock). Close it, then try again.", "OK");
+                return;
+            }
+            if (ThemedDialog.Prompt(null, "Uninstall GuideStrap?",
+                    "This removes GuideStrap, its copy of Roblox, your settings, mods and saved logins. Normal Roblox stays installed.",
+                    "Uninstall", "Cancel") != 0) return;
+
+            try { if (LinkHandler.PointsTo(InstallExe)) LinkHandler.Restore(settings); } catch { }
+            foreach (var link in new[] { StartMenuLink, DesktopLink })
+                try { if (File.Exists(link)) File.Delete(link); } catch { }
+            try { Registry.CurrentUser.DeleteSubKeyTree(UninstallKey, false); } catch { }
+
+            ThemedDialog.Prompt(null, "GuideStrap", "GuideStrap was uninstalled.", "OK");
+            // the folder (including this .exe) is deleted a moment after we exit
+            Process.Start(new ProcessStartInfo("cmd.exe", $"/c timeout /t 2 /nobreak >nul & rmdir /s /q \"{Paths.Base}\"")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+                WorkingDirectory = Path.GetTempPath(),
+            });
+        }
+    }
+
+    // First-run setup window: pick a language, choose a couple of options, install, open the app.
+    class SetupForm : ThemedForm
+    {
+        readonly GuideStrapContext context;
+        readonly List<(Control Control, string English)> texts = new();
+        readonly DarkCombo langCombo = new();
+        readonly ToggleSwitch desktopToggle = new(), linksToggle = new();
+        readonly Label status = new();
+        readonly RoundButton install, cancel;
+
+        public SetupForm(GuideStrapContext context)
+        {
+            this.context = context;
+            Text = "GuideStrap Setup";
+            StartPosition = FormStartPosition.CenterScreen;
+            ClientSize = new Size(D(520), D(430));
+            int W = ClientSize.Width;
+
+            var bar = BuildTitleBar("GuideStrap Setup", minimize: true);
+            var barTitle = bar.Controls.OfType<Label>().FirstOrDefault();
+            if (barTitle != null) texts.Add((barTitle, "GuideStrap Setup"));
+
+            var logo = new LogoMark { Size = new Size(D(68), D(68)), Location = new Point(D(24), D(54)) };
+            var title = Track(At(Lbl("Welcome to GuideStrap", 15f, semibold: true), D(104), D(58)), "Welcome to GuideStrap");
+            var sub = Track(Lbl("Pick your language, then install. It only takes a few seconds.", 9f, Theme.SubText), "Pick your language, then install. It only takes a few seconds.");
+            sub.MaximumSize = new Size(W - D(128), 0);
+            sub.Location = new Point(D(106), D(92));
+
+            foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
+            langCombo.ItemHeight = D(22);
+            langCombo.Width = D(170);
+            langCombo.SelectedIndex = Math.Max(0, Array.FindIndex(L.Languages, x => x.Code == L.Lang));
+            desktopToggle.Size = linksToggle.Size = new Size(D(40), D(20));
+            desktopToggle.Checked = true;
+            linksToggle.Checked = true;
+
+            var row1 = Row(D(146), "Language", null, langCombo);
+            var row2 = Row(D(206), "Desktop shortcut", "Add a GuideStrap icon to your desktop.", desktopToggle);
+            var row3 = Row(D(266), "Open Roblox links with GuideStrap", "Play buttons on roblox.com open GuideStrap.", linksToggle);
+
+            var note = Track(Lbl("Installs for your Windows user only. Remove it any time from Settings > Apps.", 8.25f, Theme.SubText),
+                "Installs for your Windows user only. Remove it any time from Settings > Apps.");
+            note.MaximumSize = new Size(W - D(48), 0);
+            note.Location = new Point(D(26), D(334));
+
+            var footer = new Panel { Dock = DockStyle.Bottom, Height = D(56), BackColor = Theme.Bar };
+            footer.Paint += (_, e) => { using var p = new Pen(Theme.Border); e.Graphics.DrawLine(p, 0, 0, footer.Width, 0); };
+            install = Primary("Install", "", D(120), D(32));
+            cancel = Secondary("Cancel", "", D(96), D(32));
+            install.Location = new Point(W - D(20) - install.Width, D(12));
+            cancel.Location = new Point(install.Left - D(8) - cancel.Width, D(12));
+            texts.Add((install, "Install"));
+            texts.Add((cancel, "Cancel"));
+            status.AutoSize = false;
+            status.Size = new Size(cancel.Left - D(36), D(22));
+            status.Location = new Point(D(20), D(17));
+            status.ForeColor = Theme.SubText;
+            status.Font = Theme.F("Segoe UI", 9f);
+            footer.Controls.AddRange(new Control[] { status, cancel, install });
+
+            Controls.Add(footer);
+            Controls.Add(bar);
+            Controls.AddRange(new Control[] { logo, title, sub, row1, row2, row3, note });
+
+            langCombo.SelectedIndexChanged += (_, _) =>
+            {
+                L.Lang = L.Languages[langCombo.SelectedIndex].Code;
+                foreach (var (c, en) in texts) c.Text = L.T(en);
+            };
+            cancel.Click += (_, _) => Close();
+            install.Click += async (_, _) => await InstallAsync();
+        }
+
+        T Track<T>(T c, string english) where T : Control
+        {
+            texts.Add((c, english));
+            return c;
+        }
+
+        Card Row(int y, string title, string? desc, Control right)
+        {
+            var card = new Card { Location = new Point(D(24), y), Size = new Size(ClientSize.Width - D(48), D(52)) };
+            var t = Track(Lbl(title, 9.75f), title);
+            t.Location = new Point(D(16), desc == null ? (card.Height - D(18)) / 2 : D(8));
+            card.Controls.Add(t);
+            if (desc != null)
+            {
+                var d = Track(Lbl(desc, 8.25f, Theme.SubText), desc);
+                d.Location = new Point(D(16), D(28));
+                card.Controls.Add(d);
+            }
+            right.Location = new Point(card.Width - D(16) - right.Width, (card.Height - right.Height) / 2);
+            card.Controls.Add(right);
+            return card;
+        }
+
+        async Task InstallAsync()
+        {
+            install.Enabled = cancel.Enabled = langCombo.Enabled = false;
+            status.Text = L.T("Installing...");
+            string language = L.Lang;
+            bool desktop = desktopToggle.Checked, links = linksToggle.Checked;
+            try
+            {
+                await Task.Run(() => Setup.Install(language, desktop, links));
+            }
+            catch (Exception ex)
+            {
+                Ask("Setup failed", ex.Message, "OK");
+                install.Enabled = cancel.Enabled = langCombo.Enabled = true;
+                status.Text = "";
+                return;
+            }
+            Setup.StartInstalled();
+            Close();
         }
     }
 }
