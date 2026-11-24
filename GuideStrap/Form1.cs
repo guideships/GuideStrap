@@ -133,6 +133,7 @@ namespace GuideStrap
             BuildDiscordPage();
             BuildSettingsPage();
             BuildAboutPage();      // goes inside Settings
+            BuildHelpPage();
 
             RefreshAccounts();
             RefreshGraphicsControls();
@@ -222,7 +223,8 @@ namespace GuideStrap
             nav.Add("Friends", "\uE716", "Friends", "friends online join playing alerts");
             nav.Add("Discord", "\uE8F2", "Discord", "discord rich presence status join activity");
             nav.AddHeader("App");
-            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary theme glass about info version what help guide");
+            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary theme glass about info version");
+            nav.Add("Help", "\uE897", "Help", "help discord server bug report support question faq ban website guide");
             nav.Location = new Point(D(10), D(46));
             nav.Size = new Size(sw - D(20), nav.ContentHeight);
             nav.Navigate += key => ShowPage(key);
@@ -312,7 +314,7 @@ namespace GuideStrap
 
             static Bitmap Cut(Bitmap src, int cx, int cy, int cw, int ch)
             {
-                var b = new Bitmap(cw, ch);
+                var b = new Bitmap(cw, ch, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
                 using var cg = Graphics.FromImage(b);
                 cg.DrawImageUnscaled(src, -cx, -cy);
                 return b;
@@ -410,6 +412,8 @@ namespace GuideStrap
             ["Profiles"] = "\uE77B",
             ["Tools"] = "\uE90F",
             ["About"] = "\uE946",
+            ["Community"] = "\uE8F2",
+            ["Common questions"] = "\uE897",
         };
 
         Control Section(FlowLayoutPanel page, string text)

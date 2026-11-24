@@ -38,16 +38,22 @@ namespace GuideStrap
             var name = At(Lbl("GuideStrap", 19f, semibold: true), D(122), D(78));
             var ver = At(Lbl($"Version {AppInfo.Version}", 9f, Theme.SubText), D(125), D(113));
             var about = new LinkText { Icon = "\uE946", Text = L.T("About GuideStrap") };
-            about.Location = new Point(D(160) - about.Width / 2, D(176));
+            about.Location = new Point(D(160) - about.Width / 2, D(164));
             about.Click += (_, _) => OpenSettings("About");
             var folder = new LinkText { Icon = "\uE8B7", Text = L.T("Open GuideStrap folder") };
-            folder.Location = new Point(D(160) - folder.Width / 2, D(208));
+            folder.Location = new Point(D(160) - folder.Width / 2, D(192));
             folder.Click += (_, _) =>
             {
                 Directory.CreateDirectory(Paths.Base);
                 Process.Start(new ProcessStartInfo(Paths.Base) { UseShellExecute = true });
             };
-            Controls.AddRange(new Control[] { logo, name, ver, about, folder });
+            var discord = new LinkText { Icon = "\uE8F2", Text = L.T("Join our Discord") };
+            discord.Location = new Point(D(160) - discord.Width / 2, D(220));
+            discord.Click += (_, _) =>
+            {
+                try { Process.Start(new ProcessStartInfo(AppInfo.DiscordUrl) { UseShellExecute = true }); } catch { }
+            };
+            Controls.AddRange(new Control[] { logo, name, ver, about, folder, discord });
 
             // right: menu
             var area = new Rectangle(D(300), D(56), D(276), D(184));

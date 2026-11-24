@@ -1249,7 +1249,32 @@ namespace GuideStrap
         }
 
         protected override void OnScroll(ScrollEventArgs se) { base.OnScroll(se); Changed(); }
-        protected override void OnLayout(LayoutEventArgs levent) { base.OnLayout(levent); layoutVersion++; Scrolled?.Invoke(); }
+        protected override void OnLayout(LayoutEventArgs levent)
+        {
+            base.OnLayout(levent);
+            layoutVersion++;
+            FixScrollRange();
+            Scrolled?.Invoke();
+        }
+
+        // Windows works out how far a page can scroll while it's being built (hidden), and doesn't
+        // always update it afterwards, so some pages couldn't scroll to their last card.
+        // So: measure the bottom of the content ourselves and make sure the page can scroll that far.
+        void FixScrollRange()
+        {
+            int bottom = 0;
+            foreach (Control c in Controls)
+                if (c.Visible) bottom = Math.Max(bottom, c.Bottom + c.Margin.Bottom);
+            bottom += Offset + Padding.Bottom;   // children's positions are on-screen; add the scroll to get page positions
+            if (AutoScrollMinSize.Height != bottom) AutoScrollMinSize = new Size(0, bottom);
+        }
+
+        // shown again (switching tabs): re-measure, since things may have changed while it was hidden
+        protected override void OnVisibleChanged(EventArgs e)
+        {
+            base.OnVisibleChanged(e);
+            if (Visible) PerformLayout();
+        }
 
         // Tab key / focus jumps to a control: keep the thin scrollbar in sync
         protected override Point ScrollToControl(Control activeControl)

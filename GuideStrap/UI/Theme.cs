@@ -258,7 +258,7 @@ namespace GuideStrap
             {
                 using var fs = File.OpenRead(path);
                 using var src = Image.FromStream(fs);
-                var bmp = new Bitmap(w, h);
+                var bmp = new Bitmap(w, h, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);   // fastest format to draw
                 using var g = Graphics.FromImage(bmp);
                 g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                 float scale = Math.Max((float)w / src.Width, (float)h / src.Height);
@@ -286,8 +286,18 @@ namespace GuideStrap
                 parent = parent.Parent;
             }
             g.Clear(parent != null && parent.BackColor.A == 255 ? parent.BackColor : fallback);
-            if (parent?.BackgroundImage is Image img && parent.BackgroundImageLayout == ImageLayout.None)
-                g.DrawImage(img, new Rectangle(-ox, -oy, img.Width, img.Height));
+            if (parent?.BackgroundImage is not Image img || parent.BackgroundImageLayout != ImageLayout.None) return;
+
+            // Copy only the piece of the picture behind this control (not the whole picture, clipped).
+            // This runs for every switch, label and button on screen, so it has to be cheap.
+            var src = Rectangle.Intersect(new Rectangle(ox, oy, c.Width, c.Height), new Rectangle(0, 0, img.Width, img.Height));
+            if (src.Width <= 0 || src.Height <= 0) return;
+            var state = g.Save();
+            g.CompositingMode = CompositingMode.SourceCopy;
+            g.InterpolationMode = InterpolationMode.NearestNeighbor;
+            g.PixelOffsetMode = PixelOffsetMode.Half;
+            g.DrawImage(img, new Rectangle(src.X - ox, src.Y - oy, src.Width, src.Height), src, GraphicsUnit.Pixel);
+            g.Restore(state);
         }
 
         // the color behind a control, skipping see-through parents

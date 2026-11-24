@@ -7,7 +7,7 @@
 <p align="center">
   A free Roblox launcher for Windows: more FPS, mods, friends, one-click server joins, Discord status and a crash helper.
   <br><br>
-  <a href="https://github.com/guideships/GuideStrap/releases/latest"><b>Download the latest version</b></a>
+  <a href="https://github.com/guideships/GuideStrap/releases/latest"><b>Download the latest version</b></a> · <a href="https://discord.gg/ErEXCXvNf7"><b>Join the Discord</b></a>
   ·
   <a href="https://guideships.github.io/GuideStrap/">Website</a>
 </p>
