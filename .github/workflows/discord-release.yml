@@ -1,0 +1,45 @@
+# Posts new GuideStrap releases in the Discord #updates channel and pings @here.
+# The webhook link is NOT in this file: it's stored as a private repository secret
+# (Settings > Secrets and variables > Actions > DISCORD_UPDATES_WEBHOOK), so it can't leak.
+name: Discord release ping
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post the release in Discord
+        env:
+          WEBHOOK: ${{ secrets.DISCORD_UPDATES_WEBHOOK }}
+          NAME: ${{ github.event.release.name }}
+          TAG: ${{ github.event.release.tag_name }}
+          URL: ${{ github.event.release.html_url }}
+          BODY: ${{ github.event.release.body }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          tag = os.environ.get("TAG") or ""
+          body = os.environ.get("BODY") or ""
+          if len(body) > 3800:
+              body = body[:3800] + "..."
+          payload = {
+              "content": f"@here **GuideStrap {tag}** is out! Update from the app or download it below.",
+              "allowed_mentions": {"parse": ["everyone"]},
+              "embeds": [{
+                  "title": os.environ.get("NAME") or f"GuideStrap {tag}",
+                  "url": os.environ["URL"],
+                  "description": body,
+                  "color": 0x2B2D31,
+              }],
+          }
+          req = urllib.request.Request(
+              os.environ["WEBHOOK"],
+              data=json.dumps(payload).encode(),
+              headers={"Content-Type": "application/json", "User-Agent": "GuideStrap-Releases"},
+          )
+          urllib.request.urlopen(req)
+          print("Posted to Discord")
+          PY
