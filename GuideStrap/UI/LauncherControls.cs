@@ -177,7 +177,7 @@ namespace GuideStrap
         {
             SetStyle(Theme.PaintStyles, true);
             Cursor = Cursors.Hand;
-            Font = new Font("Segoe UI", 10f);
+            Font = Theme.F("Segoe UI", 10f);
             ForeColor = Theme.Text;
         }
 
@@ -220,7 +220,7 @@ namespace GuideStrap
         {
             SetStyle(Theme.PaintStyles, true);
             Cursor = Cursors.Hand;
-            Font = new Font("Segoe UI", 9.5f);
+            Font = Theme.F("Segoe UI", 9.5f);
         }
 
         protected override void OnTextChanged(EventArgs e)

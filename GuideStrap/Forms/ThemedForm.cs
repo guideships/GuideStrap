@@ -29,7 +29,7 @@ namespace GuideStrap
             ForeColor = Theme.Text;
             DoubleBuffered = true;
             AutoScaleMode = AutoScaleMode.None;
-            Font = new Font("Segoe UI", 9f);
+            Font = Theme.F("Segoe UI", 9f);
             Opacity = 0;
             MouseDown += DragWindow;
             try { Icon = Theme.AppIcon; } catch { }
@@ -70,7 +70,7 @@ namespace GuideStrap
         protected override void OnShown(EventArgs e)
         {
             base.OnShown(e);
-            Anim.Run((this, "opacity"), (float)Opacity, 1f, 200, v => Opacity = v);
+            Anim.Run((this, "opacity"), (float)Opacity, Theme.WindowOpacity, 200, v => Opacity = v);
         }
 
         protected override void OnFormClosing(FormClosingEventArgs e)
@@ -107,18 +107,19 @@ namespace GuideStrap
         protected Panel BuildTitleBar(string title, bool minimize)
         {
             var bar = new Panel { Dock = DockStyle.Top, Height = D(36), BackColor = Theme.Bg, Padding = new Padding(0, D(4), D(6), D(4)) };
+            titleBar = bar;
             var logo = new LogoMark { Size = new Size(D(20), D(20)), Location = new Point(D(10), D(8)) };
             var t = new Label
             {
                 Text = L.T(title), AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent,
-                Font = new Font("Segoe UI", 9f), Location = new Point(D(36), D(9)),
+                Font = Theme.F("Segoe UI", 9f), Location = new Point(D(36), D(9)),
             };
             if (minimize)
             {
                 var min = new RoundButton
                 {
                     Icon = "\uE921", Dock = DockStyle.Right, Width = D(40), Radius = 6,
-                    BaseColor = Color.Transparent, HoverColor = Theme.NavHover, ForeColor = Theme.Text, Font = new Font("Segoe UI", 8f),
+                    BaseColor = Color.Transparent, HoverColor = Theme.NavHover, ForeColor = Theme.Text, Font = Theme.F("Segoe UI", 8f),
                 };
                 min.Click += (_, _) => WindowState = FormWindowState.Minimized;
                 bar.Controls.Add(min);
@@ -126,7 +127,7 @@ namespace GuideStrap
             var close = new RoundButton
             {
                 Icon = "\uE8BB", Dock = DockStyle.Right, Width = D(40), Radius = 6,
-                BaseColor = Color.Transparent, HoverColor = Theme.Danger, ForeColor = Theme.Text, Font = new Font("Segoe UI", 8f),
+                BaseColor = Color.Transparent, HoverColor = Theme.Danger, ForeColor = Theme.Text, Font = Theme.F("Segoe UI", 8f),
             };
             close.Click += (_, _) => Close();
             bar.Controls.Add(close);
@@ -136,6 +137,40 @@ namespace GuideStrap
             t.MouseDown += DragWindow;
             logo.MouseDown += DragWindow;
             return bar;
+        }
+
+        protected Panel? titleBar;
+        Bitmap? backdrop;
+
+        // Puts the user's picture behind the whole window, including the top bar.
+        // Call before the window is shown. Returns the picture so parts of the window can reuse it.
+        protected Bitmap? ApplyBackdrop(string? path, int shade = 170)
+        {
+            var bmp = Theme.LoadBackdrop(path, ClientSize.Width, ClientSize.Height, shade);
+            if (bmp == null) return null;
+            backdrop?.Dispose();
+            backdrop = bmp;
+            BackgroundImageLayout = ImageLayout.None;
+            BackgroundImage = bmp;
+            if (titleBar != null)
+            {
+                // the top bar sits at the top-left of the window, so the same picture lines up exactly
+                titleBar.BackgroundImageLayout = ImageLayout.None;
+                titleBar.BackgroundImage = bmp;
+            }
+            return bmp;
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                BackgroundImage = null;
+                if (titleBar != null && !titleBar.IsDisposed) titleBar.BackgroundImage = null;
+                backdrop?.Dispose();
+                backdrop = null;
+            }
+            base.Dispose(disposing);
         }
 
         public static Label Lbl(string text, float size = 10f, Color? color = null, bool semibold = false) => new()
@@ -176,7 +211,7 @@ namespace GuideStrap
             tb.BorderStyle = BorderStyle.None;
             tb.BackColor = Theme.Input;
             tb.ForeColor = Theme.Text;
-            tb.Font = new Font("Segoe UI", 9.25f);
+            tb.Font = Theme.F("Segoe UI", 9.25f);
             tb.PlaceholderText = placeholder;
             int iconW = icon.Length > 0 ? D(26) : 0;
             tb.Width = width - D(20) - iconW;

@@ -78,6 +78,12 @@ namespace GuideStrap
             cancel.Click += (_, _) => Cancel();
 
             Controls.AddRange(new Control[] { left, right, logo, status, bar, cancel });
+            // your custom picture behind the loading screen (Settings > Appearance)
+            if (settings.BackgroundOnLoader && ApplyBackdrop(settings.LauncherBackground) != null)
+            {
+                right.BackColor = Color.Transparent;
+                status.BackColor = Color.Transparent;
+            }
             foreach (Control c in new Control[] { left, right, logo, status }) c.MouseDown += DragWindow;
             CloseOnEscape = true;
 

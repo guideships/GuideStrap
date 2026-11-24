@@ -40,7 +40,7 @@ namespace GuideStrap
             var x = new RoundButton
             {
                 Icon = "\uE8BB", Size = new Size(D(26), D(26)), Location = new Point(w - D(34), D(8)), Radius = 6,
-                BaseColor = Color.Transparent, HoverColor = Theme.NavHover, ForeColor = Theme.SubText, Font = new Font("Segoe UI", 7f),
+                BaseColor = Color.Transparent, HoverColor = Theme.NavHover, ForeColor = Theme.SubText, Font = Theme.F("Segoe UI", 7f),
             };
             x.Click += (_, _) => Close();
             Controls.Add(t);

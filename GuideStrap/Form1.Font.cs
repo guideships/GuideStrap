@@ -21,12 +21,17 @@ namespace GuideStrap
         // TEXT & FONT
         void BuildFontPage()
         {
-            var page = NewPage("Font", "Text fonts", "The font Roblox uses in-game.");
+            // lives inside the Mods tab, above "Your own mods"
+            var page = pages["Mods"];
+            int insertAt = page.Controls.GetChildIndex(ownModsSection);
+            int before = page.Controls.Count;
+            var section = Section(page, "Text fonts");
+            merged["Font"] = ("Mods", section);
 
             var card = new Card { Size = new Size(CW, D(206)) };
             card.Controls.Add(At(Lbl("Current font", 8.5f, Theme.SubText), D(16), D(12)));
             fontName.AutoSize = true;
-            fontName.Font = new Font("Segoe UI Semibold", 12.5f);
+            fontName.Font = Theme.F("Segoe UI Semibold", 12.5f);
             fontName.ForeColor = Theme.Text;
             fontName.BackColor = Color.Transparent;
             fontName.Location = new Point(D(14), D(27));
@@ -65,6 +70,10 @@ namespace GuideStrap
             tip.AutoSize = false;
             tip.Size = new Size(CW, D(36));
             Add(page, tip, 0);
+
+            // move the new controls (section, card, tip) above "Your own mods"
+            var added = page.Controls.Cast<Control>().Skip(before).ToList();
+            foreach (var c in added) page.Controls.SetChildIndex(c, insertAt++);
         }
 
         void ChooseFont()
@@ -73,7 +82,7 @@ namespace GuideStrap
             if (dlg.ShowDialog(this) != DialogResult.OK) return;
             try
             {
-                fontPreview.Font = new Font("Segoe UI", 14f);
+                fontPreview.Font = Theme.F("Segoe UI", 14f);
                 previewFonts?.Dispose();
                 previewFonts = null;
 
@@ -98,7 +107,7 @@ namespace GuideStrap
 
         void RefreshFontPreview()
         {
-            fontPreview.Font = new Font("Segoe UI", 14f);
+            fontPreview.Font = Theme.F("Segoe UI", 14f);
             previewFonts?.Dispose();
             previewFonts = null;
 

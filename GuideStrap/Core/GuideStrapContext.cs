@@ -38,14 +38,14 @@ namespace GuideStrap
                 var current = AppSettings.Load();
                 // settings kept from an earlier install are reused (language and theme)
                 L.Lang = current.Language.Length > 0 ? current.Language : L.SystemLanguage();
-                Theme.Apply(current.ThemeName, current.Accent);
+                Theme.Apply(current.ThemeName, current.Accent, current.SeeThrough);
                 Open(new SetupForm(this, repair));
                 return;
             }
 
             var settings = AppSettings.Load();
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
-            Theme.Apply(settings.ThemeName, settings.Accent);
+            Theme.Apply(settings.ThemeName, settings.Accent, settings.SeeThrough);
             Setup.RefreshEntry();
             Updater.CleanupOld();
             Presence.Configure(settings);

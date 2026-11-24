@@ -181,7 +181,7 @@ namespace GuideStrap
                     }));
             }
             if (memory)
-                fixes.Add(new Fix("Free up memory", "Close browser tabs and other games, and turn on Potato mode in Graphics.", null, null));
+                fixes.Add(new Fix("Free up memory", "Close browser tabs and other games, and pick a lower preset in Graphics.", null, null));
             if (security)
                 fixes.Add(overlays);
             if (HasMods(s))

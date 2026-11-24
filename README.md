@@ -21,7 +21,6 @@ GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from 
 **Graphics and FPS**
 - **Recommended settings:** checks your PC (graphics card, memory, screen) and picks graphics settings for it
 - A slider from *Max FPS* to *Max Graphics*, or every setting on its own
-- **Potato mode:** blurry textures, no grass, low-detail models, gray sky and no anti-aliasing, all at once or one by one
 - **FPS cap:** any number you want, set in Roblox's own settings
 - **Roblox priority:** give Roblox more CPU time
 
@@ -97,4 +96,4 @@ The code is split by area: `Form1.*.cs` (settings window, one file per page), `F
 
 Made by **[guideships](https://github.com/guideships)**. Inspired by [Bloxstrap](https://github.com/bloxstraplabs/bloxstrap) and [Fishstrap](https://github.com/fishstrap/fishstrap).
 
-GuideStrap is a fan project and isn't affiliated with or endorsed by Roblox Corporation. Released under the [MIT License](LICENSE.txt).
+GuideStrap is a fan project and isn't affiliated with or endorsed by Roblox Corporation. The source code is public so you can see what it does, but all rights are reserved: please don't copy, re-upload or sell it. See [LICENSE.txt](LICENSE.txt).

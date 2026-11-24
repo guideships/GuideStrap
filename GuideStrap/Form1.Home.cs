@@ -27,12 +27,12 @@ namespace GuideStrap
             homeAvatar.Size = new Size(D(60), D(60));
             homeAvatar.Location = new Point(D(18), D(20));
             homeAvatar.Ring = Theme.Gold;
-            homeGreeting.Font = new Font("Segoe UI Semibold", 14f);
+            homeGreeting.Font = Theme.F("Segoe UI Semibold", 14f);
             homeGreeting.ForeColor = Theme.Text;
             homeGreeting.BackColor = Color.Transparent;
             homeGreeting.AutoSize = true;
             homeGreeting.Location = new Point(D(92), D(22));
-            homeSub.Font = new Font("Segoe UI", 9f);
+            homeSub.Font = Theme.F("Segoe UI", 9f);
             homeSub.ForeColor = Theme.SubText;
             homeSub.BackColor = Color.Transparent;
             homeSub.AutoSize = false;
@@ -54,13 +54,13 @@ namespace GuideStrap
 
             playButton.Text = "Play Roblox";
             playButton.Icon = "\uE768";
-            playButton.Font = new Font("Segoe UI Semibold", 11f);
+            playButton.Font = Theme.F("Segoe UI Semibold", 11f);
             playButton.Size = new Size(CW, D(42));
             playButton.Radius = 4;
             playButton.Click += (_, _) => StartLaunch();
             Add(page, playButton, 8);
 
-            var serverRow = new Panel { Size = new Size(CW, D(32)), BackColor = Theme.Bg };
+            var serverRow = new Panel { Size = new Size(CW, D(32)), BackColor = PageBack };
             int third = (CW - D(12)) / 3;
             var rejoinBtn = Secondary("Rejoin last server", "\uE72C", third, D(32));
             var hopBtn = Secondary("Server hop", "\uE8AB", third, D(32));
@@ -85,7 +85,7 @@ namespace GuideStrap
             recentPanel.Size = new Size(CW, D(140));
             recentPanel.FlowDirection = FlowDirection.LeftToRight;
             recentPanel.WrapContents = false;
-            recentPanel.BackColor = Theme.Bg;
+            recentPanel.BackColor = PageBack;
             recentPanel.Margin = new Padding(0);
             page.Controls.Add(recentPanel);
         }
@@ -127,7 +127,7 @@ namespace GuideStrap
             value.AutoSize = false;
             value.Size = new Size(w - D(28), D(24));
             value.Location = new Point(D(12), D(33));
-            value.Font = new Font("Segoe UI Semibold", 10.5f);
+            value.Font = Theme.F("Segoe UI Semibold", 10.5f);
             value.ForeColor = Theme.Text;
             value.BackColor = Color.Transparent;
             value.AutoEllipsis = true;

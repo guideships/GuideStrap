@@ -37,14 +37,14 @@ namespace GuideStrap
             Text = title;
 
             int w = D(440), pad = D(24);
-            var msgFont = new Font("Segoe UI", 9.5f);
+            var msgFont = Theme.F("Segoe UI", 9.5f);
             Size msgSize = TextRenderer.MeasureText(message, msgFont, new Size(w - pad * 2, 0),
                 TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
 
             var t = new Label
             {
                 Text = title, UseMnemonic = false, AutoSize = false,
-                Font = new Font("Segoe UI Semibold", 12f), ForeColor = Theme.Text, BackColor = Color.Transparent,
+                Font = Theme.F("Segoe UI Semibold", 12f), ForeColor = Theme.Text, BackColor = Color.Transparent,
                 Location = new Point(pad, D(20)), Size = new Size(w - pad * 2, D(28)), AutoEllipsis = true,
             };
             var m = new Label
@@ -92,7 +92,7 @@ namespace GuideStrap
             for (int i = buttons.Length - 1; i >= 0; i--)
             {
                 int index = i;
-                int bw = Math.Max(D(96), TextRenderer.MeasureText(buttons[i], new Font("Segoe UI Semibold", 9f)).Width + D(36));
+                int bw = Math.Max(D(96), TextRenderer.MeasureText(buttons[i], Theme.F("Segoe UI Semibold", 9f)).Width + D(36));
                 var b = i == 0 ? Primary(buttons[i], "", bw, D(30)) : Secondary(buttons[i], "", bw, D(30));
                 x -= bw;
                 b.Location = new Point(x, D(14));

@@ -74,40 +74,7 @@ namespace GuideStrap
                 ShowWhatsNew(settings);
                 await AutoUpdateCheckAsync(settings);
             };
-            if (settings.LauncherBackground is string bgPath && File.Exists(bgPath)) ApplyBackground(bgPath);
-        }
-
-        Bitmap? background;
-
-        // The user's picture, cropped to fill the window and darkened so text stays readable
-        void ApplyBackground(string path)
-        {
-            try
-            {
-                using var fs = File.OpenRead(path);
-                using var src = Image.FromStream(fs);
-                int w = ClientSize.Width, h = ClientSize.Height;
-                var bmp = new Bitmap(w, h);
-                using (var g = Graphics.FromImage(bmp))
-                {
-                    g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-                    float scale = Math.Max((float)w / src.Width, (float)h / src.Height);
-                    float dw = src.Width * scale, dh = src.Height * scale;
-                    g.DrawImage(src, (w - dw) / 2, (h - dh) / 2, dw, dh);
-                    using var shade = new SolidBrush(Color.FromArgb(170, Theme.Bg));
-                    g.FillRectangle(shade, 0, 0, w, h);
-                }
-                background = bmp;
-                BackgroundImageLayout = ImageLayout.None;
-                BackgroundImage = bmp;
-            }
-            catch { }
-        }
-
-        protected override void Dispose(bool disposing)
-        {
-            if (disposing) background?.Dispose();
-            base.Dispose(disposing);
+            ApplyBackdrop(settings.LauncherBackground);
         }
 
         void ShowWhatsNew(AppSettings settings)

@@ -87,15 +87,14 @@ namespace GuideStrap
                     catch (Exception ex) { Ask("Couldn't change that", ex.Message, "OK"); }
                 })));
 
-            Section(page, "Appearance");
-            var picker = new AccentPicker { Selected = settings.Accent };
+            merged["Appearance"] = ("Settings", Section(page, "Appearance"));
+            var picker = new AccentPicker { Selected = settings.Accent, Enabled = settings.ThemeName != "Glass" };
             picker.Size = new Size(D(30) * Theme.Accents.Length, D(30));
             picker.Picked += name =>
             {
                 settings.Accent = name;
                 settings.Save();
-                if (Ask("Restart to apply", "The new color shows after GuideStrap restarts.", "Restart now", "Later") == 0)
-                    Application.Restart();
+                BeginInvoke(new Action(() => ReloadWindow("Appearance")));   // shows the new color right away
             };
             var themeCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
             foreach (var t in Theme.Themes) themeCombo.Items.Add(L.T(t));
@@ -106,11 +105,19 @@ namespace GuideStrap
                 if (pick == settings.ThemeName) return;
                 settings.ThemeName = pick;
                 settings.Save();
-                if (Ask("Restart to apply", "The new theme shows after GuideStrap restarts.", "Restart now", "Later") == 0)
-                    Application.Restart();
+                BeginInvoke(new Action(() => ReloadWindow("Appearance")));   // switches theme right away
             };
-            Add(page, SettingCard("Theme", "Purple, or plain black with no color.", themeCombo));
-            Add(page, SettingCard("Accent color", "Used by the Purple theme for buttons, switches and highlights.", picker));
+            Add(page, SettingCard("Theme", "Purple, plain black, or Glass: dark grey with glowing card edges.", themeCombo));
+            Add(page, SettingCard("Accent color", "Buttons, switches and highlights in the Purple and Black themes. Glass always uses grey.", picker));
+            var seeToggle = T(new ToggleSwitch(), settings.SeeThrough, v =>
+            {
+                settings.SeeThrough = v;
+                settings.Save();
+                Theme.Apply(settings.ThemeName, settings.Accent, v);
+                Opacity = Theme.WindowOpacity;
+            });
+            seeToggle.Enabled = settings.ThemeName == "Glass";
+            Add(page, SettingCard("See-through windows", "Glass only. Lets your desktop show through a little. Text is a bit less sharp while it's on.", seeToggle));
 
             var bgButtons = ButtonPair(
                 Secondary("Choose image", "\uE8B9", D(130), D(30)), ChooseLauncherBackground,
@@ -119,8 +126,18 @@ namespace GuideStrap
                     settings.LauncherBackground = null;
                     settings.Save();
                     SetStatus("The start screen is back to plain.", null, StatusKind.Idle);
+                    if (settings.BackgroundInSettings) BeginInvoke(new Action(() => ReloadWindow("Appearance")));
                 });
             Add(page, SettingCard("Start screen background", "Your own picture behind the start screen. It's darkened so text stays readable.", bgButtons));
+            Add(page, SettingCard("Show on the loading screen", "Your picture also shows behind the Roblox loading screen.",
+                T(new ToggleSwitch(), settings.BackgroundOnLoader, v => { settings.BackgroundOnLoader = v; settings.Save(); })));
+            Add(page, SettingCard("Show in settings", "Your picture also shows behind this whole window.",
+                T(new ToggleSwitch(), settings.BackgroundInSettings, v =>
+                {
+                    settings.BackgroundInSettings = v;
+                    settings.Save();
+                    if (settings.LauncherBackground != null) BeginInvoke(new Action(() => ReloadWindow("Appearance")));
+                })));
 
             var langCombo = new DarkCombo { ItemHeight = D(22), Width = D(170) };
             foreach (var (_, native) in L.Languages) langCombo.Items.Add(native);
@@ -259,7 +276,9 @@ namespace GuideStrap
 
         void BuildAboutPage()
         {
-            var page = NewPage("About", "About", "What GuideStrap is.");
+            // lives at the bottom of the Settings tab
+            var page = pages["Settings"];
+            merged["About"] = ("Settings", Section(page, "About"));
 
             var hero = new Card { Size = new Size(CW, D(96)) };
             var logo = new LogoMark { Size = new Size(D(64), D(64)), Location = new Point(D(16), D(16)) };

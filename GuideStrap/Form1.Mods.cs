@@ -147,7 +147,7 @@ namespace GuideStrap
             };
             Add(page, ModCard("Auto setups", autoStatus, autoRight));
 
-            Section(page, "Your own mods");
+            ownModsSection = Section(page, "Your own mods");
             var openMods = Secondary("Open mods folder", "\uE8B7", D(160), D(30));
             openMods.Click += (_, _) =>
             {
@@ -162,6 +162,8 @@ namespace GuideStrap
             note.Margin = new Padding(D(2), D(6), 0, 0);
             page.Controls.Add(note);
         }
+
+        Control ownModsSection = null!;   // the text font section goes right above this
 
         Card ModCard(string title, Label status, Control right)
         {
@@ -504,6 +506,7 @@ namespace GuideStrap
                 settings.LauncherBackground = dest;
                 settings.Save();
                 SetStatus("Background set. It shows on the start screen.", null, StatusKind.Idle);
+                if (settings.BackgroundInSettings) BeginInvoke(new Action(() => ReloadWindow("Appearance")));
             }
             catch (Exception ex) { Ask("Couldn't use that picture", ex.Message, "OK"); }
         }

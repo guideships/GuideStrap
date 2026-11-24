@@ -82,7 +82,7 @@ namespace GuideStrap
             pickDesc.AutoSize = true;
             pickDesc.ForeColor = Theme.SubText;
             pickDesc.BackColor = Color.Transparent;
-            pickDesc.Font = new Font("Segoe UI", 8.75f);
+            pickDesc.Font = Theme.F("Segoe UI", 8.75f);
             pickDesc.Location = new Point(D(16), D(52));
             pickDesc.Text = L.T(FF.Describe(picker.SelectedItem as string));
             var addHint = At(Lbl("Tip: press Enter in the value box to add.", 8f, Theme.SubText), D(16), D(73));
@@ -130,13 +130,13 @@ namespace GuideStrap
             countLabel.AutoSize = true;
             countLabel.ForeColor = Theme.Text;
             countLabel.BackColor = Color.Transparent;
-            countLabel.Font = new Font("Segoe UI Semibold", 9.5f);
+            countLabel.Font = Theme.F("Segoe UI Semibold", 9.5f);
             countLabel.Location = new Point(D(24), D(17));
             resultLabel.AutoSize = false;
             resultLabel.Size = new Size(W - D(280), D(20));
             resultLabel.ForeColor = Theme.Gold;
             resultLabel.BackColor = Color.Transparent;
-            resultLabel.Font = new Font("Segoe UI", 9f);
+            resultLabel.Font = Theme.F("Segoe UI", 9f);
             resultLabel.Location = new Point(D(110), D(18));
             resultLabel.AutoEllipsis = true;
             var done = Primary("Done", "", D(96), D(30));

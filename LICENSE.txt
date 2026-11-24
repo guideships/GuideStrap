@@ -1,21 +1,36 @@
-MIT License
+GuideStrap License
 
-Copyright (c) [year] [fullname]
+Copyright (c) 2026 Guide (guideships). All rights reserved.
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+GuideStrap's source code is published so people can read it and check what
+the app does. Publishing it does not give you permission to reuse it.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+You MAY:
+  - view and read the source code
+  - download and use the official GuideStrap releases for yourself
+  - fork this repository on GitHub, only as GitHub's Terms of Service allow,
+    and only to suggest changes back to this project (pull requests)
+
+You may NOT, without written permission from Guide:
+  - copy, modify, or reuse this code (in whole or in part) in another project
+  - publish, share, re-upload, or distribute GuideStrap or any modified
+    version of it, whether free or paid
+  - sell GuideStrap, or any part of it, or use it in a paid product or service
+  - remove or change the GuideStrap name, logo, credits, or this notice
+  - present GuideStrap, or any part of it, as your own work
+
+Anything you contribute through a pull request may be used in GuideStrap
+under this same license.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+GuideStrap is a fan project and is not affiliated with or endorsed by
+Roblox Corporation.
+
+For permission requests, contact Guide through the GuideStrap Discord server
+or GitHub (github.com/guideships).

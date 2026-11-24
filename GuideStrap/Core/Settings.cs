@@ -66,8 +66,11 @@ namespace GuideStrap
         public Dictionary<string, SavedSetup> Setups { get; set; } = new();
         public string? LastSetup { get; set; }
         public bool CustomSky { get; set; }
-        public string Accent { get; set; } = "Purple";
+        public string Accent { get; set; } = "Grey";
         public string ThemeName { get; set; } = "Black";
+        public bool SeeThrough { get; set; } = true;            // Glass: slightly see-through windows
+        public bool BackgroundOnLoader { get; set; } = true;    // your picture also on the Roblox loading screen
+        public bool BackgroundInSettings { get; set; } = true;  // ...and behind the whole settings window
         public string? LauncherBackground { get; set; }
         public string LastSeenVersion { get; set; } = "";
         public string Language { get; set; } = "";
@@ -86,6 +89,23 @@ namespace GuideStrap
                 // 4.5: Discord status is now off until you turn it on in the Discord tab
                 s.DiscordPresence = false;
                 s.SettingsVersion = 2;
+                try { s.Save(); } catch { }
+            }
+            if (s.SettingsVersion < 3)
+            {
+                // 4.8: accent colors now work on Black too. Black used to always be grey,
+                // so keep it grey for people who never picked a color for it.
+                if (s.ThemeName != "Purple" && s.Accent == "Purple") s.Accent = "Grey";
+                s.SettingsVersion = 3;
+                try { s.Save(); } catch { }
+            }
+            if (s.SettingsVersion < 4)
+            {
+                // 4.8: Glass is see-through and your background picture shows everywhere. Turn those on once.
+                s.SeeThrough = true;
+                s.BackgroundOnLoader = true;
+                s.BackgroundInSettings = true;
+                s.SettingsVersion = 4;
                 try { s.Save(); } catch { }
             }
             return s;
@@ -135,6 +155,6 @@ namespace GuideStrap
         public int Preset { get; set; } = 2;
         public Dictionary<string, string> Flags { get; set; } = new();
         public string CursorPreset { get; set; } = "default";
-        public string Accent { get; set; } = "Purple";
+        public string Accent { get; set; } = "Grey";
     }
 }

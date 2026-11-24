@@ -19,7 +19,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.7";
+        public const string Version = "4.8";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -27,10 +27,12 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
-            "\u2022 GuideStrap can check your PC and recommend graphics settings (Graphics > Recommended)\n" +
-            "\u2022 Long descriptions no longer run under buttons and dropdowns\n" +
-            "\u2022 GuideStrap now steps aside while you play, so Roblox and your PC stay smooth\n" +
-            "\u2022 Set your FPS cap to any number you want (Graphics > FPS cap)";
+            "\u2022 New Glass theme: dark grey, see-through, with glowing card edges (Settings > Theme)\n" +
+            "\u2022 Little pop-ups when something is saved, and icons on every section\n" +
+            "\u2022 Themes and colors now switch instantly, no restart needed\n" +
+            "\u2022 Your custom background now fills the whole start screen, the loading screen and the settings window\n" +
+            "\u2022 The sidebar is now sorted into Game, Social and App, and Text fonts moved into Mods\n" +
+            "\u2022 Accent colors now work on the Black theme too";
 
         public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo-black.png";   // new name so Discord doesn't show its cached old picture
         public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";

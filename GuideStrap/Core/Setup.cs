@@ -202,7 +202,7 @@ namespace GuideStrap
         {
             var settings = AppSettings.Load();
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
-            Theme.Apply(settings.ThemeName, settings.Accent);
+            Theme.Apply(settings.ThemeName, settings.Accent, settings.SeeThrough);
 
             if (OtherCopiesRunning())
             {

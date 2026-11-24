@@ -25,7 +25,7 @@ namespace GuideStrap
 
             var presetCard = new Card { Size = new Size(CW, D(136)) };
             presetCard.Controls.Add(At(Lbl("Preset", 8.5f, Theme.SubText), D(16), D(12)));
-            presetTitle.Font = new Font("Segoe UI Semibold", 12.5f);
+            presetTitle.Font = Theme.F("Segoe UI Semibold", 12.5f);
             presetTitle.ForeColor = Theme.Text;
             presetTitle.BackColor = Color.Transparent;
             presetTitle.AutoSize = true;
@@ -35,7 +35,7 @@ namespace GuideStrap
             presetDesc.AutoSize = false;
             presetDesc.Size = new Size(CW - D(32), D(20));
             presetDesc.Location = new Point(D(16), D(52));
-            presetDesc.Font = new Font("Segoe UI", 8.75f);
+            presetDesc.Font = Theme.F("Segoe UI", 8.75f);
             presetSlider.Minimum = 0;
             presetSlider.Maximum = 4;
             presetSlider.ShowTicks = true;
@@ -46,44 +46,16 @@ namespace GuideStrap
             {
                 Text = "Balanced", AutoSize = false, TextAlign = ContentAlignment.TopCenter,
                 Size = new Size(D(160), D(18)), Location = new Point(CW / 2 - D(80), D(108)),
-                ForeColor = Theme.SubText, BackColor = Color.Transparent, Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Theme.SubText, BackColor = Color.Transparent, Font = Theme.F("Segoe UI", 8.5f),
             };
             var right = new Label
             {
                 Text = "Max graphics", AutoSize = false, TextAlign = ContentAlignment.TopRight,
                 Size = new Size(D(160), D(18)), Location = new Point(CW - D(176), D(108)),
-                ForeColor = Theme.SubText, BackColor = Color.Transparent, Font = new Font("Segoe UI", 8.5f),
+                ForeColor = Theme.SubText, BackColor = Color.Transparent, Font = Theme.F("Segoe UI", 8.5f),
             };
             presetCard.Controls.AddRange(new Control[] { presetTitle, presetDesc, presetSlider, left, mid, right });
             Add(page, presetCard, 8);
-
-            // --- potato mode: every low setting at once, or one by one ---
-            var potato = new Expander("Potato mode", "Everything low for the most FPS, or turn on parts one by one.", CW, D(58), D(4) + 7 * D(54) + D(4));
-            var pc = potato.Content;
-            int pw = pc.Width, py = D(4);
-            var potatoParts = new[] { potatoBlur, potatoGrass, potatoMesh, potatoSky, potatoMsaa };
-            foreach (var tg in potatoParts.Append(potatoAll)) tg.Size = new Size(D(40), D(20));
-            var previewBtn = Secondary("Preview", "\uE890", D(110), D(30));
-            previewBtn.Click += (_, _) => { using var pf = new TexturePreviewForm(); pf.ShowDialog(this); };
-            AddRow(pc, pw, ref py, "Turn on everything", "All of the switches below at once.", potatoAll);
-            AddRow(pc, pw, ref py, "Blurry textures", "Lowest texture quality. Works on every game's textures.", potatoBlur);
-            AddRow(pc, pw, ref py, "No grass", "Hides terrain grass.", potatoGrass);
-            AddRow(pc, pw, ref py, "Low-detail meshes", "Always uses the simplest version of models.", potatoMesh);
-            AddRow(pc, pw, ref py, "Gray sky", "Replaces the skybox with flat gray.", potatoSky);
-            AddRow(pc, pw, ref py, "Anti-aliasing off", "No edge smoothing. Edges look a bit jagged.", potatoMsaa);
-            AddRow(pc, pw, ref py, "Preview", "See what blurry textures look like.", previewBtn, last: true);
-            Add(page, potato, 8);
-
-            potatoAll.CheckedChanged += (_, _) =>
-            {
-                if (potatoSyncing) return;
-                potatoSyncing = true;
-                foreach (var tg in potatoParts) tg.Checked = potatoAll.Checked;
-                potatoSyncing = false;
-                ApplyPotatoToControls();
-            };
-            foreach (var tg in potatoParts)
-                tg.CheckedChanged += (_, _) => { if (!potatoSyncing) ApplyPotatoToControls(); };
 
             // --- advanced (animated expander) ---
             int rows = 11;
@@ -103,7 +75,7 @@ namespace GuideStrap
             qualityValue.TextAlign = ContentAlignment.MiddleRight;
             qualityValue.ForeColor = Theme.AccentLight;
             qualityValue.BackColor = Theme.Card;
-            qualityValue.Font = new Font("Segoe UI Semibold", 9.5f);
+            qualityValue.Font = Theme.F("Segoe UI Semibold", 9.5f);
             qualityBox.Controls.Add(qualitySlider);
             qualityBox.Controls.Add(qualityValue);
 
@@ -289,7 +261,6 @@ namespace GuideStrap
             settings.Save();
             RefreshFlagSummary();
             RefreshHome();
-            SyncPotato();
         }
 
         void OnGraphicsChanged()
@@ -301,10 +272,8 @@ namespace GuideStrap
             settings.Save();
             RefreshFlagSummary();
             RefreshHome();
-            SyncPotato();
         }
 
-        // Potato switches drive the same controls as Advanced settings, so both always agree.
         // Shows the saved FPS cap: a preset, or "Custom (N FPS)" for any other number
         void SyncFpsCombo()
         {
@@ -314,32 +283,6 @@ namespace GuideStrap
             fpsCombo.Items[custom] = preset < 0 && settings.FpsCap > 0 ? L.F("Custom ({0} FPS)", settings.FpsCap) : L.T("Custom...");
             fpsCombo.SelectedIndex = preset >= 0 ? preset : settings.FpsCap > 0 ? custom : 0;
             fpsSyncing = false;
-        }
-
-        void ApplyPotatoToControls()
-        {
-            syncing = true;
-            if (potatoBlur.Checked) textureCombo.SelectedIndex = 1;
-            else if (textureCombo.SelectedIndex == 1) textureCombo.SelectedIndex = 0;
-            grassToggle.Checked = potatoGrass.Checked;
-            meshToggle.Checked = potatoMesh.Checked;
-            skyToggle.Checked = potatoSky.Checked;
-            if (potatoMsaa.Checked) msaaCombo.SelectedIndex = 1;
-            else if (msaaCombo.SelectedIndex == 1) msaaCombo.SelectedIndex = 0;
-            syncing = false;
-            OnGraphicsChanged();
-        }
-
-        void SyncPotato()
-        {
-            potatoSyncing = true;
-            potatoBlur.Checked = textureCombo.SelectedIndex == 1;
-            potatoGrass.Checked = grassToggle.Checked;
-            potatoMesh.Checked = meshToggle.Checked;
-            potatoSky.Checked = skyToggle.Checked;
-            potatoMsaa.Checked = msaaCombo.SelectedIndex == 1;
-            potatoAll.Checked = potatoBlur.Checked && potatoGrass.Checked && potatoMesh.Checked && potatoSky.Checked && potatoMsaa.Checked;
-            potatoSyncing = false;
         }
 
         void ApplyControlsToFlags()
@@ -387,7 +330,6 @@ namespace GuideStrap
             if (settings.Preset >= 0) presetSlider.Value = settings.Preset;
             UpdatePresetLabels();
             syncing = false;
-            SyncPotato();
         }
     }
 }
