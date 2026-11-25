@@ -8,119 +8,272 @@
 <meta property="og:title" content="GuideStrap - Free Roblox launcher for Windows">
 <meta property="og:description" content="More FPS, mods, a server list with ping, favorites, playtime, friends and Discord status.">
 <meta property="og:image" content="https://guideships.github.io/GuideStrap/screenshot.png">
-<meta name="theme-color" content="#0a0a0a">
+<meta name="theme-color" content="#050505">
 <link rel="icon" href="favicon.png">
 <style>
   :root {
-    --bg: #0a0a0a; --card: #141414; --card2: #1b1b1b; --border: #262626; --text: #f2f2f2;
-    --sub: #a1a1a1; --dim: #6f6f6f; --green: #4ade80;
+    --bg: #050505; --card: #101010; --card2: #161616; --border: #222; --border2: #333; --text: #f2f2f2;
+    --sub: #9a9a9a; --dim: #626262; --green: #4ade80; --gold: #facc15; --red: #f87171;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { scroll-behavior: smooth; }
-  body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; overflow-x: hidden; }
   a { color: inherit; }
-  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 0 24px; position: relative; }
 
-  header { position: sticky; top: 0; z-index: 10; background: rgba(10,10,10,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid transparent; transition: border-color .2s; }
-  header.scrolled { border-bottom-color: var(--border); }
-  nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; font-size: 17px; }
+  /* ---------- top bar ---------- */
+  header { position: fixed; top: 0; left: 0; right: 0; z-index: 50; background: rgba(5,5,5,.6); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border-bottom: 1px solid transparent; transition: border-color .25s, background .25s; }
+  header.scrolled { border-bottom-color: var(--border); background: rgba(5,5,5,.82); }
+  nav { display: flex; align-items: center; justify-content: space-between; height: 68px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; font-size: 19px; letter-spacing: -.3px; }
   .brand img { width: 30px; height: 30px; }
-  .links { display: flex; align-items: center; gap: 22px; }
-  .links a { color: var(--sub); text-decoration: none; font-size: 15px; }
+  .links { display: flex; align-items: center; gap: 28px; }
+  .links a { color: var(--sub); text-decoration: none; font-size: 15px; transition: color .15s; }
   .links a:hover { color: var(--text); }
-  .links a.btn { color: #0a0a0a; padding: 8px 16px; font-size: 14px; }
+  .links a.btn { color: #050505; padding: 9px 22px; font-size: 15px; border-radius: 999px; }
 
-  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: background .15s, transform .15s, border-color .15s; }
-  .btn:hover { transform: translateY(-1px); }
-  .btn.primary { background: #f2f2f2; color: #0a0a0a; }
-  .btn.primary:hover { background: #fff; }
-  .btn.ghost { border: 1px solid var(--border); color: var(--text); }
-  .btn.ghost:hover { background: var(--card); border-color: #3a3a3a; }
+  .btn { display: inline-flex; align-items: center; gap: 9px; padding: 14px 26px; border-radius: 999px; font-weight: 600; text-decoration: none; transition: background .15s, transform .15s, box-shadow .2s, border-color .15s; }
+  .btn:hover { transform: translateY(-2px); }
+  .btn.primary { background: #ededed; color: #050505; box-shadow: 0 0 0 0 rgba(255,255,255,0); }
+  .btn.primary:hover { background: #fff; box-shadow: 0 8px 40px rgba(255,255,255,.18); }
+  .btn.ghost { color: var(--sub); padding-left: 10px; padding-right: 10px; }
+  .btn.ghost:hover { color: var(--text); }
+  .btn.ghost .arr { transition: transform .15s; }
+  .btn.ghost:hover .arr { transform: translateX(4px); }
   .btn svg { width: 18px; height: 18px; }
 
-  .hero { text-align: center; padding: 80px 0 40px; }
-  .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--sub); text-decoration: none; }
-  .pill:hover { border-color: #3a3a3a; color: var(--text); }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
-  .hero h1 { font-size: 58px; line-height: 1.05; font-weight: 700; letter-spacing: -1.5px; margin: 22px auto 18px; max-width: 780px; }
-  .hero p.lead { color: var(--sub); font-size: 19px; max-width: 620px; margin: 0 auto 32px; }
-  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-  .meta { color: var(--dim); font-size: 13px; margin-top: 16px; }
+  /* ---------- hero ---------- */
+  .hero { position: relative; text-align: center; padding: 150px 0 0; overflow: hidden; }
+  .lines { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 0; }
+  .lines path { fill: none; stroke: rgba(255,255,255,.07); stroke-width: 1.2; }
+  .lines .l1 { animation: drift 18s ease-in-out infinite alternate; }
+  .lines .l2 { animation: drift 23s ease-in-out infinite alternate-reverse; }
+  .lines .l3 { animation: drift 28s ease-in-out infinite alternate; }
+  .lines .l4 { animation: drift 21s ease-in-out infinite alternate-reverse; }
+  @keyframes drift { from { transform: translate(-40px, 0); } to { transform: translate(40px, 24px); } }
+  .glow { position: absolute; left: 50%; top: 520px; width: 1100px; height: 700px; transform: translateX(-50%); background: radial-gradient(closest-side, rgba(255,255,255,.08), transparent 70%); pointer-events: none; z-index: 0; }
 
-  .shot { margin: 56px auto 0; max-width: 980px; border-radius: 12px; border: 1px solid var(--border); overflow: hidden;
-          box-shadow: 0 40px 120px rgba(255,255,255,.06), 0 30px 60px rgba(0,0,0,.6); }
-  .shot img { display: block; width: 100%; height: auto; }
+  .hero .inner { position: relative; z-index: 1; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: rgba(16,16,16,.8); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--sub); text-decoration: none; transition: border-color .15s, color .15s; }
+  .pill:hover { border-color: var(--border2); color: var(--text); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 10px var(--green); animation: pulse 2s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .45; } }
+  h1 { font-size: 72px; line-height: 1.02; font-weight: 700; letter-spacing: -2.5px; margin: 26px auto 20px; max-width: 860px; }
+  h1 .fade { background: linear-gradient(180deg, #fff, #a8a8a8); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .u { position: relative; display: inline-block; }
+  .u svg { position: absolute; left: -2%; bottom: -14px; width: 104%; height: 22px; overflow: visible; }
+  .u path { fill: none; stroke: #d6d6d6; stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 101; stroke-dashoffset: 101; animation: draw 1.1s .6s cubic-bezier(.65,0,.35,1) forwards; }
+  @keyframes draw { to { stroke-dashoffset: 0; } }
+  .lead { color: var(--sub); font-size: 19px; max-width: 600px; margin: 0 auto 34px; }
+  .cta { display: flex; gap: 14px; justify-content: center; align-items: center; flex-wrap: wrap; }
+  .meta { color: var(--dim); font-size: 13.5px; margin-top: 22px; }
 
-  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 56px 0 0; }
-  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
-  .stat b { display: block; font-size: 24px; }
-  .stat span { color: var(--sub); font-size: 13px; }
+  .in-up { opacity: 0; transform: translateY(18px); animation: up .8s cubic-bezier(.2,.7,.2,1) forwards; }
+  .d1 { animation-delay: .05s; } .d2 { animation-delay: .15s; } .d3 { animation-delay: .25s; } .d4 { animation-delay: .35s; } .d5 { animation-delay: .5s; }
+  @keyframes up { to { opacity: 1; transform: none; } }
 
-  section { padding: 72px 0 8px; }
-  .head { margin-bottom: 26px; }
-  .head h2 { font-size: 32px; letter-spacing: -.5px; }
-  .head p { color: var(--sub); margin-top: 6px; }
+  /* the app window, tilted back and straightening as you scroll */
+  .stage { perspective: 1600px; margin: 70px auto 0; max-width: 1020px; position: relative; z-index: 1; }
+  .tilt { transform: rotateX(16deg) scale(.94); transform-origin: 50% 40%; will-change: transform; transform-style: preserve-3d; }
+  .tilt .frame::before { content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none; opacity: 0; transition: opacity .3s;
+                         background: radial-gradient(500px circle at var(--gx, 50%) var(--gy, 50%), rgba(255,255,255,.09), transparent 60%); }
+  .tilt.hover .frame::before { opacity: 1; }
+  .frame { border-radius: 14px; border: 1px solid var(--border2); overflow: hidden; background: #0a0a0a;
+           box-shadow: 0 -1px 0 rgba(255,255,255,.08) inset, 0 50px 140px rgba(0,0,0,.9), 0 0 120px rgba(255,255,255,.05); position: relative; }
+  .frame img { display: block; width: 100%; height: auto; }
+  .frame::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 60%, rgba(5,5,5,.9)); pointer-events: none; }
+  .shine { position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,255,255,.07) 50%, transparent 65%); transform: translateX(-100%); animation: shine 6s 1.5s ease-in-out infinite; pointer-events: none; z-index: 2; }
+  @keyframes shine { 0% { transform: translateX(-100%); } 35%, 100% { transform: translateX(100%); } }
 
+  /* ---------- scrolling chips ---------- */
+  .marquee { position: relative; overflow: hidden; margin: 80px 0 0; padding: 6px 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent); }
+  .track { display: flex; gap: 12px; width: max-content; animation: slide 40s linear infinite; }
+  .marquee:hover .track { animation-play-state: paused; }
+  .chip { white-space: nowrap; border: 1px solid var(--border); background: var(--card); color: var(--sub); border-radius: 999px; padding: 9px 18px; font-size: 14px; }
+  .chip b { color: var(--text); font-weight: 600; }
+  @keyframes slide { to { transform: translateX(-50%); } }
+
+  /* ---------- sections ---------- */
+  section { padding: 110px 0 0; }
+  .head { margin-bottom: 30px; }
+  .head .kicker { color: var(--dim); font-size: 13px; text-transform: uppercase; letter-spacing: 2px; font-weight: 600; }
+  .head h2 { font-size: 40px; letter-spacing: -1px; line-height: 1.1; margin-top: 8px; }
+  .head p { color: var(--sub); margin-top: 10px; font-size: 17px; max-width: 560px; }
+  .center { text-align: center; }
+  .center p { margin-left: auto; margin-right: auto; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 70px; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; text-align: center; }
+  .stat b { display: block; font-size: 30px; letter-spacing: -1px; }
+  .stat span { color: var(--sub); font-size: 13.5px; }
+
+  /* ---------- live demo window ---------- */
+  .demo { display: grid; grid-template-columns: 210px 1fr; height: 460px; background: #0b0b0b; border: 1px solid var(--border2); border-radius: 14px; overflow: hidden; box-shadow: 0 40px 120px rgba(0,0,0,.8), 0 0 100px rgba(255,255,255,.04); }
+  .side { border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 3px; background: #090909; }
+  .side .title { display: flex; align-items: center; gap: 9px; padding: 4px 10px 14px; font-weight: 600; font-size: 14px; }
+  .side .title img { width: 20px; height: 20px; }
+  .navi { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--sub); font-size: 14px; cursor: pointer; position: relative; transition: background .2s, color .2s; border: 0; background: none; font-family: inherit; text-align: left; }
+  .navi:hover { color: var(--text); }
+  .navi.on { background: #1b1b1b; color: var(--text); }
+  .navi.on::before { content: ""; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: #e5e5e5; }
+  .navi svg { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+  .navi .bar { position: absolute; left: 12px; right: 12px; bottom: 3px; height: 2px; border-radius: 2px; background: rgba(255,255,255,.08); overflow: hidden; display: none; }
+  .navi.on .bar { display: block; }
+  .navi .bar i { display: block; height: 100%; width: 0; background: rgba(255,255,255,.5); }
+  .navi.on .bar i { animation: fill var(--cycle, 5s) linear forwards; }
+  .demo.paused .navi.on .bar i { animation-play-state: paused; }
+  @keyframes fill { to { width: 100%; } }
+
+  .panes { position: relative; overflow: hidden; }
+  .pane { position: absolute; inset: 0; padding: 26px 28px; opacity: 0; transform: translateY(24px); transition: opacity .45s, transform .45s cubic-bezier(.2,.7,.2,1); pointer-events: none; }
+  .pane.on { opacity: 1; transform: none; pointer-events: auto; }
+  .pane h3 { font-size: 22px; letter-spacing: -.3px; }
+  .pane .s { color: var(--sub); font-size: 13.5px; margin-bottom: 18px; }
+  .box { background: #121212; border: 1px solid var(--border); border-radius: 10px; padding: 16px 18px; margin-bottom: 10px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .lbl { font-size: 14px; font-weight: 600; }
+  .lbl small { display: block; color: var(--sub); font-weight: 400; font-size: 12.5px; }
+
+  /* play pane */
+  .acct { display: flex; align-items: center; gap: 14px; }
+  .av { width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--gold); display: grid; place-items: center; font-weight: 700; }
+  .playbtn { width: 100%; padding: 13px; border-radius: 9px; background: #2a2a2a; text-align: center; font-weight: 600; font-size: 15px; position: relative; overflow: hidden; }
+  .playbtn i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: rgba(255,255,255,.12); }
+  .pane.on .playbtn i { animation: load 3.2s .6s ease-in-out forwards; }
+  @keyframes load { to { width: 100%; } }
+  .playbtn span { position: relative; }
+  .tiles { display: flex; gap: 10px; margin-top: 14px; }
+  .tile { flex: 1; aspect-ratio: 1; border-radius: 10px; border: 1px solid var(--border); opacity: 0; transform: translateY(10px); display: flex; align-items: flex-end; padding: 10px; font-size: 12.5px; font-weight: 600; color: #e5e5e5; position: relative; overflow: hidden; }
+  .tile span { position: relative; }
+  .tile::before { content: ""; position: absolute; inset: 0; background: radial-gradient(circle at 70% 25%, rgba(255,255,255,.16), transparent 55%); }
+  .g1 { background: linear-gradient(140deg, #2b2b2b, #121212); } .g2 { background: linear-gradient(140deg, #242424, #0f0f0f); }
+  .g3 { background: linear-gradient(140deg, #303030, #151515); } .g4 { background: linear-gradient(140deg, #262626, #101010); } .g5 { background: linear-gradient(140deg, #2d2d2d, #131313); }
+  .pane.on .tile { animation: up .5s forwards; }
+  .pane.on .tile:nth-child(2) { animation-delay: .08s; } .pane.on .tile:nth-child(3) { animation-delay: .16s; } .pane.on .tile:nth-child(4) { animation-delay: .24s; } .pane.on .tile:nth-child(5) { animation-delay: .32s; }
+
+  /* graphics pane */
+  .preset { font-size: 26px; font-weight: 700; letter-spacing: -.5px; transition: opacity .2s; }
+  .presetd { color: var(--sub); font-size: 13.5px; min-height: 22px; }
+  .slider { position: relative; height: 34px; margin: 18px 4px 6px; }
+  .slider .rail { position: absolute; left: 0; right: 0; top: 15px; height: 4px; border-radius: 4px; background: #2a2a2a; }
+  .slider .filled { position: absolute; left: 0; top: 15px; height: 4px; border-radius: 4px; background: #e5e5e5; transition: width .6s cubic-bezier(.2,.7,.2,1); }
+  .slider .tick { position: absolute; top: 13px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: #3a3a3a; }
+  .slider .thumb { position: absolute; top: 6px; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 5px rgba(255,255,255,.1); transition: left .6s cubic-bezier(.2,.7,.2,1); }
+  .ends { display: flex; justify-content: space-between; color: var(--dim); font-size: 12px; }
+  .tg { width: 42px; height: 24px; border-radius: 999px; background: #2e2e2e; position: relative; transition: background .25s; flex-shrink: 0; }
+  .tg::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #8a8a8a; transition: left .25s, background .25s; }
+  .tg.on { background: #e5e5e5; }
+  .tg.on::after { left: 21px; background: #111; }
+
+  /* servers pane */
+  .list { height: 300px; overflow: hidden; position: relative; -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 85%, transparent); mask-image: linear-gradient(180deg, transparent, #000 10%, #000 85%, transparent); }
+  .scroll { animation: rise 22s linear infinite; }
+  .list:hover .scroll { animation-play-state: paused; }
+  @keyframes rise { to { transform: translateY(-50%); } }
+  .srv { display: flex; align-items: center; justify-content: space-between; background: #121212; border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; margin-bottom: 8px; }
+  .srv .p { font-weight: 600; font-size: 14px; }
+  .srv .m { font-size: 12.5px; }
+  .join { font-size: 13px; font-weight: 600; background: #e5e5e5; color: #050505; padding: 6px 14px; border-radius: 7px; }
+
+  /* playtime pane */
+  .pt { display: grid; grid-template-columns: 160px 1fr; gap: 20px; align-items: end; }
+  .big { font-size: 34px; font-weight: 700; letter-spacing: -1px; }
+  .bars { display: flex; align-items: flex-end; gap: 12px; height: 150px; }
+  .bars div { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; justify-content: flex-end; }
+  .bars i { display: block; width: 100%; max-width: 26px; height: 4px; border-radius: 6px; background: #333; transition: height .8s cubic-bezier(.2,.7,.2,1); }
+  .bars div:last-child i { background: #e5e5e5; }
+  .bars span { color: var(--dim); font-size: 11.5px; }
+  .top3 { margin-top: 16px; display: grid; gap: 8px; }
+  .top3 .row { font-size: 14px; }
+  .top3 .row span:last-child { color: var(--sub); }
+
+  /* friends pane */
+  .fr { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .fr:last-child { border-bottom: 0; }
+  .fav { width: 34px; height: 34px; border-radius: 50%; background: #262626; display: grid; place-items: center; font-weight: 700; font-size: 13px; position: relative; }
+  .fav.on::after { content: ""; position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: var(--green); border: 2px solid #121212; }
+  .fr .n { flex: 1; font-size: 14px; font-weight: 600; }
+  .fr .n small { display: block; color: var(--sub); font-weight: 400; font-size: 12.5px; }
+  .toast { position: absolute; right: 22px; bottom: 22px; width: 280px; background: #171717; border: 1px solid var(--border2); border-radius: 12px; padding: 14px 16px; box-shadow: 0 20px 50px rgba(0,0,0,.7); opacity: 0; transform: translateY(20px) scale(.97); transition: opacity .4s, transform .4s cubic-bezier(.2,.7,.2,1); }
+  .toast.show { opacity: 1; transform: none; }
+  .toast b { display: block; font-size: 14px; }
+  .toast span { color: var(--sub); font-size: 13px; }
+
+  /* ---------- features ---------- */
   .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
-  .tab { background: var(--card); border: 1px solid var(--border); color: var(--sub); border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tab { background: var(--card); border: 1px solid var(--border); color: var(--sub); border-radius: 999px; padding: 8px 18px; font: inherit; font-size: 14px; cursor: pointer; transition: color .15s, background .15s; }
   .tab:hover { color: var(--text); }
-  .tab.on { background: #f2f2f2; color: #0a0a0a; border-color: #f2f2f2; }
+  .tab.on { background: #ededed; color: #050505; border-color: #ededed; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; transition: border-color .15s, background .15s; }
-  .card:hover { border-color: #3a3a3a; background: var(--card2); }
-  .card .ic { width: 36px; height: 36px; border-radius: 8px; background: #222; display: grid; place-items: center; margin-bottom: 12px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; position: relative; overflow: hidden; transition: border-color .2s, transform .2s; animation: up .45s both; }
+  .card::before { content: ""; position: absolute; inset: 0; background: radial-gradient(400px circle at var(--mx, 50%) var(--my, 50%), rgba(255,255,255,.07), transparent 40%); opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .card:hover { border-color: var(--border2); transform: translateY(-3px); }
+  .card:hover::before { opacity: 1; }
+  .card .ic { width: 38px; height: 38px; border-radius: 10px; background: #1d1d1d; border: 1px solid var(--border); display: grid; place-items: center; margin-bottom: 14px; }
   .card .ic svg { width: 18px; height: 18px; stroke: #e5e5e5; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
   .card h3 { font-size: 16px; margin-bottom: 4px; }
   .card p { color: var(--sub); font-size: 14px; }
-  .card .new { font-size: 11px; font-weight: 700; color: #0a0a0a; background: var(--green); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
+  .new { font-size: 10.5px; font-weight: 700; color: #050505; background: var(--green); border-radius: 4px; padding: 1px 6px; margin-left: 7px; vertical-align: 2px; letter-spacing: .3px; }
 
   .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; counter-reset: s; }
-  .step { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
-  .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #f2f2f2; color: #0a0a0a; font-weight: 700; margin-bottom: 12px; }
+  .step { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 22px; }
+  .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; background: #ededed; color: #050505; font-weight: 700; margin-bottom: 14px; }
   .step h3 { font-size: 16px; margin-bottom: 4px; }
   .step p { color: var(--sub); font-size: 14px; }
 
-  .release { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
-  .release .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
-  .release h3 { font-size: 20px; }
+  .release { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 26px; }
+  .release .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+  .release h3 { font-size: 21px; }
   .release .date { color: var(--dim); font-size: 14px; }
-  .release ul { list-style: none; display: grid; gap: 8px; }
-  .release li { color: var(--sub); padding-left: 20px; position: relative; }
-  .release li::before { content: ""; position: absolute; left: 4px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: #e5e5e5; }
+  .release ul { list-style: none; display: grid; grid-template-columns: 1fr 1fr; gap: 10px 28px; }
+  .release li { color: var(--sub); padding-left: 20px; position: relative; font-size: 15px; }
+  .release li::before { content: ""; position: absolute; left: 4px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: #d4d4d4; }
 
-  .faq details { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; }
+  .faq details { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 18px 22px; margin-bottom: 10px; transition: border-color .2s; }
+  .faq details[open] { border-color: var(--border2); }
   .faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
   .faq summary::-webkit-details-marker { display: none; }
-  .faq summary::after { content: "+"; color: var(--sub); font-size: 20px; line-height: 1; }
-  .faq details[open] summary::after { content: "\2212"; }
+  .faq summary::after { content: "+"; color: var(--sub); font-size: 22px; line-height: 1; transition: transform .25s; }
+  .faq details[open] summary::after { transform: rotate(45deg); }
   .faq p { color: var(--sub); margin-top: 10px; font-size: 15px; }
 
-  .band { margin-top: 72px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 36px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
-  .band h2 { font-size: 26px; }
+  .band { margin-top: 110px; background: radial-gradient(600px circle at 80% 0%, rgba(255,255,255,.07), transparent 60%), var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 44px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .band h2 { font-size: 30px; letter-spacing: -.5px; }
   .band p { color: var(--sub); }
 
-  footer { border-top: 1px solid var(--border); margin-top: 72px; padding: 28px 0 44px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  footer { border-top: 1px solid var(--border); margin-top: 90px; padding: 30px 0 48px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
   footer a { color: var(--sub); }
 
-  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+  .reveal { opacity: 0; transform: translateY(24px); transition: opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1); }
   .reveal.in { opacity: 1; transform: none; }
 
-  @media (max-width: 860px) {
+  @media (max-width: 900px) {
+    h1 { font-size: 50px; letter-spacing: -1.5px; }
     .grid, .steps { grid-template-columns: 1fr 1fr; }
     .stats { grid-template-columns: 1fr 1fr; }
-    .hero h1 { font-size: 42px; }
     .links a:not(.btn) { display: none; }
+    .demo { grid-template-columns: 1fr; height: auto; }
+    .side { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--border); }
+    .side .title { display: none; }
+    .navi { white-space: nowrap; }
+    .navi.on::before { display: none; }
+    .panes { height: 440px; }
+    .release ul { grid-template-columns: 1fr; }
   }
   @media (max-width: 560px) {
+    h1 { font-size: 38px; }
+    .hero { padding-top: 120px; }
     .grid, .steps { grid-template-columns: 1fr; }
-    .hero { padding-top: 48px; }
-    .hero h1 { font-size: 34px; }
-    .band { padding: 24px; }
+    .head h2 { font-size: 30px; }
+    .band { padding: 26px; }
+    .pt { grid-template-columns: 1fr; }
+    .toast { left: 16px; right: 16px; width: auto; }
   }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
-    .reveal { opacity: 1; transform: none; transition: none; }
+    *, *::before, *::after { animation-duration: .001s !important; animation-iteration-count: 1 !important; transition-duration: .001s !important; }
+    .reveal, .in-up { opacity: 1; transform: none; }
+    .tilt { transform: none !important; }
   }
 </style>
 </head>
@@ -131,43 +284,131 @@
     <nav>
       <a class="brand" href="#"><img src="logo.png" alt="">GuideStrap</a>
       <div class="links">
+        <a href="#demo">Overview</a>
         <a href="#features">Features</a>
-        <a href="#install">Install</a>
         <a href="#new">What's new</a>
         <a href="#faq">FAQ</a>
-        <a href="https://discord.gg/ErEXCXvNf7">Discord</a>
+        <a href="https://discord.gg/ErEXCXvNf7">Community</a>
         <a class="btn primary dl" href="https://github.com/guideships/GuideStrap/releases/latest">Download</a>
       </div>
     </nav>
   </div>
 </header>
 
-<main class="wrap">
-  <div class="hero">
-    <a class="pill" href="#new"><span class="dot"></span><span id="pill-text">Free Roblox launcher for Windows</span></a>
-    <h1>Roblox, set up the way you like it.</h1>
-    <p class="lead">More FPS, mods, a server list with ping, favorites, playtime and friend alerts. All in one free launcher that never touches the game while you play.</p>
-    <div class="cta">
+<div class="hero">
+  <svg class="lines" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+    <path class="l1" d="M-100 180 C 300 60, 600 320, 1000 160 S 1500 120, 1600 220"/>
+    <path class="l2" d="M-100 320 C 260 200, 700 460, 1100 300 S 1500 260, 1600 360"/>
+    <path class="l3" d="M-100 520 C 400 380, 760 680, 1180 480 S 1500 460, 1600 560"/>
+    <path class="l4" d="M-100 700 C 320 600, 820 860, 1200 680 S 1500 640, 1600 760"/>
+  </svg>
+  <div class="glow"></div>
+
+  <div class="wrap inner">
+    <a class="pill in-up d1" href="#new"><span class="dot"></span><span id="pill-text">Free Roblox launcher for Windows</span></a>
+    <h1 class="in-up d2"><span class="fade">Roblox, set up</span><br><span class="u">your way<svg viewBox="0 0 300 22" preserveAspectRatio="none" aria-hidden="true"><path pathLength="100" d="M4 14 C 70 4, 150 4, 296 12"/></svg></span>.</h1>
+    <p class="lead in-up d3">More FPS, mods, a server list with ping, favorites, playtime and friend alerts. One free launcher that never touches the game while you play.</p>
+    <div class="cta in-up d4">
       <a class="btn primary dl" href="https://github.com/guideships/GuideStrap/releases/latest">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
         <span id="dl-text">Download for Windows</span>
       </a>
-      <a class="btn ghost" href="https://discord.gg/ErEXCXvNf7">Join the Discord</a>
+      <a class="btn ghost" href="https://discord.gg/ErEXCXvNf7">Join the community <span class="arr">&rarr;</span></a>
     </div>
-    <div class="meta" id="meta">Windows 10 and 11 &middot; Free &middot; No ads</div>
+    <div class="meta in-up d4" id="meta">Free forever &middot; Windows 10 and 11</div>
 
-    <div class="shot reveal"><img src="screenshot.png" alt="GuideStrap's Play tab" width="974" height="638"></div>
-
-    <div class="stats reveal">
-      <div class="stat"><b>Free</b><span>No ads, no paywalls</span></div>
-      <div class="stat"><b>7</b><span>Languages</span></div>
-      <div class="stat"><b id="stat-dl">Open</b><span id="stat-dl-label">Source you can read</span></div>
-      <div class="stat"><b>0</b><span>Changes to your normal Roblox</span></div>
+    <div class="stage in-up d5">
+      <div class="tilt" id="tilt">
+        <div class="frame"><img src="screenshot.png" alt="GuideStrap's Play tab" width="974" height="638"><div class="shine"></div></div>
+      </div>
     </div>
   </div>
+</div>
+
+<div class="marquee" aria-hidden="true"><div class="track" id="track"></div></div>
+
+<main class="wrap">
+  <div class="stats reveal">
+    <div class="stat"><b>Free</b><span>No ads, no paywalls</span></div>
+    <div class="stat"><b>7</b><span>Presets from Max FPS to Max Graphics</span></div>
+    <div class="stat"><b id="stat-dl">7</b><span id="stat-dl-label">Languages</span></div>
+    <div class="stat"><b>0</b><span>Changes to your normal Roblox</span></div>
+  </div>
+
+  <section id="demo">
+    <div class="head center reveal">
+      <div class="kicker">Overview</div>
+      <h2>See it in action</h2>
+      <p>Every tab, built to be quick. Click a tab or let it play.</p>
+    </div>
+
+    <div class="demo reveal" id="demoBox">
+      <div class="side" id="side">
+        <div class="title"><img src="logo.png" alt="">GuideStrap</div>
+        <button class="navi on" data-p="0"><svg viewBox="0 0 24 24"><path d="m6 4 14 8-14 8z"/></svg>Play<span class="bar"><i></i></span></button>
+        <button class="navi" data-p="1"><svg viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg>Graphics<span class="bar"><i></i></span></button>
+        <button class="navi" data-p="2"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/></svg>Server list<span class="bar"><i></i></span></button>
+        <button class="navi" data-p="3"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>Playtime<span class="bar"><i></i></span></button>
+        <button class="navi" data-p="4"><svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>Friends<span class="bar"><i></i></span></button>
+      </div>
+      <div class="panes">
+        <div class="pane on">
+          <h3>Play</h3><div class="s">Start Roblox with your settings.</div>
+          <div class="box acct">
+            <div class="av">G</div>
+            <div class="lbl" style="flex:1">Guide<small>Your main account</small></div>
+          </div>
+          <div class="playbtn"><i></i><span id="playText">Play Roblox</span></div>
+          <div class="tiles"><div class="tile g1"><span>BedWars</span></div><div class="tile g2"><span>Plane Crash</span></div><div class="tile g3"><span>Do Not Stop</span></div><div class="tile g4"><span>Obby</span></div><div class="tile g5"><span>Tycoon</span></div></div>
+        </div>
+
+        <div class="pane">
+          <h3>Graphics</h3><div class="s">Pick a preset, or change everything yourself.</div>
+          <div class="box">
+            <div class="preset" id="pname">Balanced</div>
+            <div class="presetd" id="pdesc">Roblox's normal automatic settings.</div>
+            <div class="slider" id="slider"><div class="rail"></div><div class="filled" id="filled"></div><div class="thumb" id="thumb"></div></div>
+            <div class="ends"><span>More FPS</span><span>Better looks</span></div>
+          </div>
+          <div class="box row"><div class="lbl">Remove grass<small>Less clutter, more FPS</small></div><div class="tg" id="tg1"></div></div>
+          <div class="box row"><div class="lbl">FPS cap<small>Match your screen's refresh rate</small></div><div class="lbl" id="fps">240 FPS</div></div>
+        </div>
+
+        <div class="pane">
+          <h3>Server list</h3><div class="s">Open servers, fastest first. Join the one you want.</div>
+          <div class="list"><div class="scroll" id="servers"></div></div>
+        </div>
+
+        <div class="pane">
+          <h3>Playtime</h3><div class="s">How long you played this week.</div>
+          <div class="box pt">
+            <div><div class="s" style="margin:0">This week</div><div class="big" id="ptotal">0h 0m</div><div class="s" style="margin:0">Today: 2h 10m</div></div>
+            <div class="bars" id="bars"></div>
+          </div>
+          <div class="box top3">
+            <div class="row"><span>BedWars</span><span>6h 40m</span></div>
+            <div class="row"><span>Plane Crash</span><span>2h 05m</span></div>
+            <div class="row"><span>Do Not Stop</span><span>1h 15m</span></div>
+          </div>
+        </div>
+
+        <div class="pane">
+          <h3>Friends</h3><div class="s">See who's online and jump into their game.</div>
+          <div class="box">
+            <div class="fr"><div class="fav on">A</div><div class="n">Alex<small>Playing BedWars</small></div><div class="join">Join</div></div>
+            <div class="fr"><div class="fav on">M</div><div class="n">Maya<small>Playing Plane Crash</small></div><div class="join">Join</div></div>
+            <div class="fr"><div class="fav on">J</div><div class="n">Jordan<small>Online</small></div></div>
+            <div class="fr"><div class="fav">S</div><div class="n">Sam<small>Offline</small></div></div>
+          </div>
+          <div class="toast" id="toast"><b>Friend joined you</b><span>Alex joined your server.</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section id="features">
     <div class="head reveal">
+      <div class="kicker">Features</div>
       <h2>What's inside</h2>
       <p>Everything is optional. Turn on what you want, leave the rest.</p>
     </div>
@@ -184,11 +425,12 @@
 
   <section id="install">
     <div class="head reveal">
-      <h2>Install in a minute</h2>
+      <div class="kicker">Install</div>
+      <h2>Ready in a minute</h2>
       <p>No account or sign-up needed.</p>
     </div>
     <div class="steps reveal">
-      <div class="step"><h3>Download</h3><p>Get <b>GuideStrap.exe</b> with the button above.</p></div>
+      <div class="step"><h3>Download</h3><p>Press <b>Download</b>, then click <b>GuideStrap.exe</b> under <b>Assets</b> on the release page.</p></div>
       <div class="step"><h3>Run it</h3><p>If Windows warns you, click <b>More info</b>, then <b>Run anyway</b>. New apps that aren't code-signed get this.</p></div>
       <div class="step"><h3>Install</h3><p>Pick your language and options, then press <b>Install</b>.</p></div>
       <div class="step"><h3>Play</h3><p>Press <b>Launch Roblox</b>. The first launch downloads Roblox, which takes a minute.</p></div>
@@ -197,52 +439,26 @@
 
   <section id="new">
     <div class="head reveal">
+      <div class="kicker">Updates</div>
       <h2>What's new</h2>
       <p>The latest update, straight from GitHub.</p>
     </div>
     <div class="release reveal">
-      <div class="top">
-        <h3 id="rel-name">Latest version</h3>
-        <span class="date" id="rel-date"></span>
-      </div>
+      <div class="top"><h3 id="rel-name">Latest version</h3><span class="date" id="rel-date"></span></div>
       <ul id="rel-notes"><li>See the latest changes on the <a href="https://github.com/guideships/GuideStrap/releases/latest">releases page</a>.</li></ul>
     </div>
   </section>
 
   <section id="faq" class="faq">
-    <div class="head reveal"><h2>Questions</h2></div>
-    <details class="reveal">
-      <summary>Can this get me banned?</summary>
-      <p>GuideStrap never touches the game while it runs. It only changes files and settings Roblox reads when it starts, like Bloxstrap and Fishstrap. It isn't an exploit and doesn't give any gameplay advantage. FastFlags are limited to the ones on Roblox's own allowlist.</p>
-    </details>
-    <details class="reveal">
-      <summary>Does it change my normal Roblox?</summary>
-      <p>No. Everything happens in GuideStrap's own copy of Roblox. Opening Roblox without GuideStrap always gives you the original game, sounds and settings.</p>
-    </details>
-    <details class="reveal">
-      <summary>Will it make my PC lag?</summary>
-      <p>GuideStrap barely uses anything while you play. If your PC lags, open Graphics and press "Load recommended", pick a preset like Smooth or Performance, and keep your FPS cap at your screen's refresh rate.</p>
-    </details>
-    <details class="reveal">
-      <summary>How does the server list work?</summary>
-      <p>Right-click a game (or use the Server list button on the Play tab) to see its open servers with their ping and FPS, fastest first. Click Join on the one you want.</p>
-    </details>
-    <details class="reveal">
-      <summary>Why is my playtime empty?</summary>
-      <p>Playtime is counted while GuideStrap stays in the tray. Turn on "Stay in the tray while Roblox is open" in Settings.</p>
-    </details>
-    <details class="reveal">
-      <summary>Do my friends need GuideStrap to join me?</summary>
-      <p>No. If you turn on "Let friends join you" in the Discord tab, the Join button on your Discord status works for anyone with Roblox.</p>
-    </details>
-    <details class="reveal">
-      <summary>Where are my saved logins kept?</summary>
-      <p>On your PC only, encrypted with Windows so they only work for your Windows user. They're never uploaded anywhere, and they're left out of backups.</p>
-    </details>
-    <details class="reveal">
-      <summary>How do I uninstall it?</summary>
-      <p>Settings, then Uninstall. You can keep your settings for a reinstall. Your normal Roblox stays as it is.</p>
-    </details>
+    <div class="head reveal"><div class="kicker">FAQ</div><h2>Questions</h2></div>
+    <details class="reveal"><summary>Can this get me banned?</summary><p>GuideStrap never touches the game while it runs. It only changes files and settings Roblox reads when it starts, like Bloxstrap and Fishstrap. It isn't an exploit and doesn't give any gameplay advantage. FastFlags are limited to the ones on Roblox's own allowlist.</p></details>
+    <details class="reveal"><summary>Does it change my normal Roblox?</summary><p>No. Everything happens in GuideStrap's own copy of Roblox. Opening Roblox without GuideStrap always gives you the original game, sounds and settings.</p></details>
+    <details class="reveal"><summary>Will it make my PC lag?</summary><p>GuideStrap barely uses anything while you play. If your PC lags, open Graphics and press "Load recommended", pick a preset like Smooth or Performance, and keep your FPS cap at your screen's refresh rate.</p></details>
+    <details class="reveal"><summary>How does the server list work?</summary><p>Right-click a game (or use the Server list button on the Play tab) to see its open servers with their ping and FPS, fastest first. Click Join on the one you want.</p></details>
+    <details class="reveal"><summary>Why is my playtime empty?</summary><p>Playtime is counted while GuideStrap stays in the tray. Turn on "Stay in the tray while Roblox is open" in Settings.</p></details>
+    <details class="reveal"><summary>Do my friends need GuideStrap to join me?</summary><p>No. If you turn on "Let friends join you" in the Discord tab, the Join button on your Discord status works for anyone with Roblox.</p></details>
+    <details class="reveal"><summary>Where are my saved logins kept?</summary><p>On your PC only, encrypted with Windows so they only work for your Windows user. They're never uploaded anywhere, and they're left out of backups.</p></details>
+    <details class="reveal"><summary>How do I uninstall it?</summary><p>Settings, then Uninstall. You can keep your settings for a reinstall. Your normal Roblox stays as it is.</p></details>
   </section>
 
   <div class="band reveal">
@@ -261,6 +477,160 @@
 
 <script>
 (function () {
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function $(id) { return document.getElementById(id); }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+
+  // ---------- top bar line, and the app window: tilts back, straightens as you scroll, leans toward the mouse ----------
+  var header = $('top'), tilt = $('tilt'), stage = tilt.parentNode;
+  var scrollP = 0, mx = 0, my = 0, cx = 0, cy = 0, raf = 0;
+  function render() {
+    raf = 0;
+    cx += (mx - cx) * 0.12;   // ease toward the mouse so it glides instead of snapping
+    cy += (my - cy) * 0.12;
+    var rx = 16 * (1 - scrollP) - cy * 5, ry = cx * 7;
+    tilt.style.transform = 'rotateX(' + rx.toFixed(2) + 'deg) rotateY(' + ry.toFixed(2) + 'deg) scale(' + (0.94 + 0.06 * scrollP).toFixed(3) + ')';
+    tilt.style.setProperty('--gx', (50 + cx * 40).toFixed(1) + '%');
+    tilt.style.setProperty('--gy', (50 + cy * 40).toFixed(1) + '%');
+    if (Math.abs(mx - cx) > 0.001 || Math.abs(my - cy) > 0.001) raf = requestAnimationFrame(render);
+  }
+  function kick() { if (!raf) raf = requestAnimationFrame(render); }
+  function onScroll() {
+    var y = window.scrollY;
+    header.classList.toggle('scrolled', y > 8);
+    if (!reduce) { scrollP = Math.min(1, Math.max(0, y / 480)); kick(); }
+  }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+  if (!reduce && window.matchMedia('(hover: hover)').matches) {
+    stage.addEventListener('mousemove', function (e) {
+      var r = stage.getBoundingClientRect();
+      mx = ((e.clientX - r.left) / r.width - 0.5) * 2;    // -1 (left) to 1 (right)
+      my = ((e.clientY - r.top) / r.height - 0.5) * 2;    // -1 (top) to 1 (bottom)
+      tilt.classList.add('hover');
+      kick();
+    });
+    stage.addEventListener('mouseleave', function () { mx = 0; my = 0; tilt.classList.remove('hover'); kick(); });
+  }
+
+  // ---------- scrolling chips ----------
+  var chips = ['<b>Max FPS</b> presets', '<b>Server list</b> with ping', '<b>Favorites</b>', '<b>Desktop shortcuts</b>', '<b>Playtime</b> stats',
+    '<b>Mods</b> and sound packs', '<b>FastFlags</b> editor', '<b>Discord</b> status', '<b>Streamer</b> mode', '<b>Crash</b> helper',
+    '<b>7</b> languages', '<b>Full backup</b>', '<b>Glass</b> theme', '<b>Friend</b> alerts', '<b>Multiple</b> accounts'];
+  var html = chips.map(function (c) { return '<span class="chip">' + c + '</span>'; }).join('');
+  $('track').innerHTML = html + html;   // twice, so the loop is seamless
+
+  // ---------- fade in on scroll ----------
+  var items = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window && !reduce) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { threshold: 0.1 });
+    items.forEach(function (el) { io.observe(el); });
+  } else {
+    items.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  // ---------- live demo ----------
+  var CYCLE = 5200;
+  var demo = $('demoBox');
+  demo.style.setProperty('--cycle', CYCLE + 'ms');
+  var navs = demo.querySelectorAll('.navi'), panes = demo.querySelectorAll('.pane');
+  var cur = 0, timer = null, sub = [];
+  function clearSub() { sub.forEach(clearInterval); sub.forEach(clearTimeout); sub = []; }
+
+  // graphics: the thumb walks across the 7 presets
+  var presets = [['Max FPS', 'Lowest quality, flat lighting, no grass.'], ['Performance', 'Low settings that still look okay.'],
+    ['Smooth', 'Good FPS that still looks clean.'], ['Balanced', 'Roblox\'s normal automatic settings.'], ['Sharp', 'A bit sharper, light edge smoothing.'],
+    ['Quality', 'Sharper textures and smoother edges.'], ['Max Graphics', 'Everything maxed out.']];
+  var fpsFor = ['999 FPS', '360 FPS', '240 FPS', '144 FPS', '144 FPS', '120 FPS', '60 FPS'];
+  var slider = $('slider');
+  for (var t = 0; t < 7; t++) { var tk = document.createElement('div'); tk.className = 'tick'; tk.style.left = (t / 6 * 100) + '%'; slider.insertBefore(tk, $('thumb')); }
+  function setPreset(i) {
+    var pct = (i / 6 * 100) + '%';
+    $('thumb').style.left = pct; $('filled').style.width = pct;
+    $('pname').textContent = presets[i][0]; $('pdesc').textContent = presets[i][1];
+    $('tg1').classList.toggle('on', i <= 2);
+    $('fps').textContent = fpsFor[i];
+  }
+  setPreset(3);
+
+  // server list: rows that keep scrolling up
+  var rows = '';
+  var pings = [18, 24, 31, 37, 45, 52, 58, 66, 74, 88, 97, 112, 131, 156];
+  pings.forEach(function (ping, i) {
+    var max = 24, players = 4 + ((i * 7) % 19);
+    var color = ping < 90 ? 'var(--green)' : ping < 160 ? 'var(--gold)' : 'var(--red)';
+    rows += '<div class="srv"><div><div class="p">' + players + ' / ' + max + ' players</div><div class="m" style="color:' + color + '">' + ping + ' ms ping &middot; 60 FPS</div></div><div class="join">Join</div></div>';
+  });
+  $('servers').innerHTML = rows + rows;
+
+  // playtime bars
+  var days = ['Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue', 'Wed'];
+  var hrs = [1.2, 2.4, 3.6, 2.9, 0.8, 1.6, 2.2];
+  try {
+    var now = new Date();
+    days = days.map(function (_, i) { var d = new Date(now); d.setDate(now.getDate() - 6 + i); return d.toLocaleDateString(undefined, { weekday: 'short' }); });
+  } catch (e) { }
+  $('bars').innerHTML = days.map(function (d) { return '<div><i></i><span>' + esc(d) + '</span></div>'; }).join('');
+
+  function runPane(i) {
+    clearSub();
+    if (i === 0) {
+      $('playText').textContent = 'Play Roblox';
+      sub.push(setTimeout(function () { $('playText').textContent = 'Starting Roblox...'; }, 700));
+      sub.push(setTimeout(function () { $('playText').textContent = 'Have fun!'; }, 3900));
+    } else if (i === 1) {
+      var p = 3, dir = -1;
+      setPreset(p);
+      sub.push(setInterval(function () {
+        p += dir;
+        if (p <= 0 || p >= 6) dir = -dir;
+        setPreset(p);
+      }, 700));
+    } else if (i === 3) {
+      var bars = $('bars').querySelectorAll('i');
+      bars.forEach(function (b) { b.style.height = '4px'; });
+      var total = 0, target = hrs.reduce(function (a, b) { return a + b; }, 0) * 60;
+      sub.push(setTimeout(function () {
+        bars.forEach(function (b, k) { b.style.height = Math.round(hrs[k] / 3.6 * 120) + 'px'; });
+      }, 120));
+      var counter = setInterval(function () {
+        total = Math.min(target, total + target / 30);
+        $('ptotal').textContent = Math.floor(total / 60) + 'h ' + Math.floor(total % 60) + 'm';
+        if (total >= target) clearInterval(counter);
+      }, 30);
+      sub.push(counter);
+    } else if (i === 4) {
+      $('toast').classList.remove('show');
+      sub.push(setTimeout(function () { $('toast').classList.add('show'); }, 1200));
+    }
+  }
+
+  function show(i, user) {
+    cur = i;
+    navs.forEach(function (n, k) {
+      n.classList.remove('on');
+      if (k === i) { void n.offsetWidth; n.classList.add('on'); }   // restart the little progress bar
+    });
+    panes.forEach(function (p, k) { p.classList.toggle('on', k === i); });
+    runPane(i);
+    clearTimeout(timer);
+    if (!reduce) timer = setTimeout(function () { show((cur + 1) % panes.length); }, CYCLE);
+  }
+  navs.forEach(function (n) { n.addEventListener('click', function () { show(+n.getAttribute('data-p'), true); }); });
+
+  // only play the demo while it's on screen
+  var started = false;
+  if ('IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting && !started) { started = true; show(0); }
+        else if (!en.isIntersecting && started) { started = false; clearTimeout(timer); clearSub(); }
+      });
+    }, { threshold: 0.3 }).observe(demo);
+  } else { show(0); }
+
   // ---------- features ----------
   var I = {
     bolt: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
@@ -313,38 +683,28 @@
     ['app', 'feather', 'Light on your PC', 'Steps aside while you play, and can start quietly with Windows.'],
     ['app', 'download', 'Auto updates', 'Updates itself, and shows what\'s new after every update.']
   ];
-  var grid = document.getElementById('grid');
-  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-  function show(filter) {
-    grid.innerHTML = F.filter(function (f) { return filter === 'all' || f[0] === filter; }).map(function (f) {
-      return '<div class="card"><div class="ic"><svg viewBox="0 0 24 24">' + I[f[1]] + '</svg></div><h3>' + esc(f[2]) +
+  var grid = $('grid');
+  function showFeatures(filter) {
+    grid.innerHTML = F.filter(function (f) { return filter === 'all' || f[0] === filter; }).map(function (f, k) {
+      return '<div class="card" style="animation-delay:' + (k * 0.03).toFixed(2) + 's"><div class="ic"><svg viewBox="0 0 24 24">' + I[f[1]] + '</svg></div><h3>' + esc(f[2]) +
         (f[4] ? '<span class="new">NEW</span>' : '') + '</h3><p>' + esc(f[3]) + '</p></div>';
     }).join('');
   }
-  show('all');
-  document.getElementById('tabs').addEventListener('click', function (e) {
+  showFeatures('all');
+  $('tabs').addEventListener('click', function (e) {
     var b = e.target.closest('.tab');
     if (!b) return;
     document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t === b); });
-    show(b.getAttribute('data-f'));
+    showFeatures(b.getAttribute('data-f'));
   });
-
-  // ---------- line under the top bar once you scroll ----------
-  var header = document.getElementById('top');
-  function onScroll() { header.classList.toggle('scrolled', window.scrollY > 8); }
-  window.addEventListener('scroll', onScroll, { passive: true });
-  onScroll();
-
-  // ---------- fade in on scroll ----------
-  var items = document.querySelectorAll('.reveal');
-  if ('IntersectionObserver' in window) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
-    }, { threshold: 0.08 });
-    items.forEach(function (el) { io.observe(el); });
-  } else {
-    items.forEach(function (el) { el.classList.add('in'); });
-  }
+  // soft light that follows the mouse on feature cards
+  grid.addEventListener('mousemove', function (e) {
+    var c = e.target.closest('.card');
+    if (!c) return;
+    var r = c.getBoundingClientRect();
+    c.style.setProperty('--mx', (e.clientX - r.left) + 'px');
+    c.style.setProperty('--my', (e.clientY - r.top) + 'px');
+  });
 
   // ---------- latest version, direct download and release notes, live from GitHub ----------
   var api = 'https://api.github.com/repos/guideships/GuideStrap/releases';
@@ -352,19 +712,17 @@
     if (!rel || !rel.tag_name) return;
     var ver = rel.tag_name.replace(/^v/i, '');
     var exe = (rel.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); })[0];
-    if (exe) document.querySelectorAll('a.dl').forEach(function (a) { a.href = exe.browser_download_url; });
-    document.getElementById('dl-text').textContent = 'Download GuideStrap ' + ver;
-    document.getElementById('pill-text').textContent = 'GuideStrap ' + ver + ' is out. See what\'s new';
+    $('pill-text').textContent = 'GuideStrap ' + ver + ' is out. See what\'s new';
     var sizeMb = exe ? ' · ' + Math.round(exe.size / 1048576) + ' MB' : '';
-    document.getElementById('meta').textContent = 'Version ' + ver + sizeMb + ' · Windows 10 and 11 · Free · No ads';
-    document.getElementById('rel-name').textContent = rel.name || ('GuideStrap ' + ver);
+    $('meta').textContent = 'Free forever · Windows 10 and 11 · v' + ver + sizeMb;
+    $('rel-name').textContent = rel.name || ('GuideStrap ' + ver);
     if (rel.published_at)
-      document.getElementById('rel-date').textContent = new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+      $('rel-date').textContent = new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     var lines = (rel.body || '').split(/\r?\n/).map(function (l) {
       return l.replace(/^\s*(?:[•*\-]|\d+\.)\s*/, '').replace(/\*\*|__|`/g, '').trim();
     }).filter(function (l) { return l.length > 0 && l.charAt(0) !== '#'; });
     if (lines.length) {
-      var ul = document.getElementById('rel-notes');
+      var ul = $('rel-notes');
       ul.innerHTML = '';
       lines.forEach(function (l) { var li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
     }
@@ -376,8 +734,8 @@
     var total = 0;
     list.forEach(function (rel) { (rel.assets || []).forEach(function (a) { if (/\.exe$/i.test(a.name)) total += a.download_count || 0; }); });
     if (total < 50) return;
-    document.getElementById('stat-dl').textContent = total >= 1000 ? (total / 1000).toFixed(total >= 10000 ? 0 : 1) + 'k' : String(total);
-    document.getElementById('stat-dl-label').textContent = 'Downloads';
+    $('stat-dl').textContent = total >= 1000 ? (total / 1000).toFixed(total >= 10000 ? 0 : 1) + 'k' : String(total);
+    $('stat-dl-label').textContent = 'Downloads';
   }).catch(function () { });
 })();
 </script>
