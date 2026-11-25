@@ -98,7 +98,65 @@ namespace GuideStrap
             x -= action.Width;
             action.Location = new Point(x, D(15));
             card.Controls.Add(action);
+
+            // send this (other) account into the server your main account is in
+            if (a != null && !active)
+            {
+                var joinMine = Secondary("Join my server", "\uE8AB", D(150), D(30));
+                x -= D(8) + joinMine.Width;
+                joinMine.Location = new Point(x, D(15));
+                Account alt = a;
+                joinMine.Click += (_, _) => Later(() => JoinMyServer(alt));
+                card.Controls.Add(joinMine);
+            }
             return card;
+        }
+
+        void JoinMyServer(Account alt)
+        {
+            string? job = Presence.CurrentJobId;
+            long place = Presence.CurrentPlaceId;
+            if (job == null || place == 0)
+            {
+                var last = LastServer.Load();
+                if (last == null || DateTime.Now - last.Time > TimeSpan.FromHours(6))
+                {
+                    SetStatus("Join a game first, then send another account into your server.", null, StatusKind.Error);
+                    return;
+                }
+                job = last.JobId;
+                place = last.PlaceId;
+            }
+            if (!settings.MultiInstance)
+            {
+                if (Ask("Turn on multiple Roblox windows?",
+                        "Two accounts can only play at the same time with \"Allow multiple Roblox windows\" on (Settings).",
+                        "Turn on", "Cancel") != 0) return;
+                settings.MultiInstance = true;
+                settings.Save();
+                multiToggle.Checked = true;
+                if (RobloxRunning())
+                {
+                    Ask("Restart Roblox first", "Close Roblox, launch it again from GuideStrap, then press Join my server.", "OK");
+                    return;
+                }
+            }
+            var ctx = GuideStrapContext.Current;
+            if (ctx == null) return;
+            var copy = settings.Clone();
+            copy.ActiveAccountId = alt.UserId;
+            copy.MultiInstance = true;
+            ctx.Open(new LoadingForm(ctx, copy, accounts, null, place.ToString(), job));
+            SetStatus(settings.StreamerMode ? L.T("Sending your other account into your server...") : L.F("Sending {0} into your server...", alt.DisplayName),
+                null, StatusKind.Idle);
+        }
+
+        static bool RobloxRunning()
+        {
+            var procs = Process.GetProcessesByName("RobloxPlayerBeta");
+            bool any = procs.Length > 0;
+            foreach (var p in procs) p.Dispose();
+            return any;
         }
 
         async Task AddAccountAsync()

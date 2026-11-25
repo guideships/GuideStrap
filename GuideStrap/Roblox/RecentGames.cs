@@ -33,7 +33,13 @@ namespace GuideStrap
 
         public static List<RecentGame> Load()
         {
-            try { return JsonSerializer.Deserialize<List<RecentGame>>(File.ReadAllText(FilePath)) ?? new(); }
+            try
+            {
+                if (!File.Exists(FilePath)) return new();
+                var list = JsonSerializer.Deserialize<List<RecentGame>>(File.ReadAllText(FilePath)) ?? new();
+                list.RemoveAll(g => g == null || g.PlaceId <= 0);
+                return list;
+            }
             catch { return new(); }
         }
 
@@ -68,6 +74,56 @@ namespace GuideStrap
                 return new Bitmap(img, 128, 128);
             }
             catch { return null; }
+        }
+    }
+
+    // Games you pinned to the Play tab
+    static class Favorites
+    {
+        public const int Max = 12;
+        static string FilePath => Path.Combine(Paths.Base, "favorites.json");
+        public static int Version { get; private set; }
+
+        public static List<RecentGame> Load()
+        {
+            try
+            {
+                if (!File.Exists(FilePath)) return new();
+                var list = JsonSerializer.Deserialize<List<RecentGame>>(File.ReadAllText(FilePath)) ?? new();
+                list.RemoveAll(g => g == null || g.PlaceId <= 0);
+                return list;
+            }
+            catch { return new(); }
+        }
+
+        public static bool Contains(long placeId) => Load().Any(g => g.PlaceId == placeId);
+
+        // false when the list is already full
+        public static bool Add(RecentGame game)
+        {
+            var list = Load();
+            if (list.Any(g => g.PlaceId == game.PlaceId)) return true;
+            if (list.Count >= Max) return false;
+            list.Add(game);
+            Save(list);
+            return true;
+        }
+
+        public static void Remove(long placeId)
+        {
+            var list = Load();
+            if (list.RemoveAll(g => g.PlaceId == placeId) > 0) Save(list);
+        }
+
+        static void Save(List<RecentGame> list)
+        {
+            try
+            {
+                Directory.CreateDirectory(Paths.Base);
+                File.WriteAllText(FilePath, JsonSerializer.Serialize(list));
+            }
+            catch { }
+            Version++;
         }
     }
 }

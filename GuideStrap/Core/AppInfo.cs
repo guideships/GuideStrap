@@ -19,7 +19,7 @@ namespace GuideStrap
     // APP INFO + ABOUT TEXT
     static class AppInfo
     {
-        public const string Version = "4.9";
+        public const string Version = "5.0";
         // GitHub repo for self-updates, e.g. "yourname/GuideStrap". Leave empty until you publish releases.
         public const string UpdateRepo = "guideships/GuideStrap";
         public const string DiscordAppId = "1574254036398375062";
@@ -28,10 +28,18 @@ namespace GuideStrap
         // Discord loads the status picture from this link, so it works without uploading art in the Discord portal
         // Shown once after GuideStrap updates itself
         public const string WhatsNew =
-            "\u2022 New Help tab with answers to common questions, and a quick way to report bugs\n" +
-            "\u2022 Join the GuideStrap Discord from the Help tab or the main menu\n" +
-            "\u2022 Every tab now scrolls all the way down\n" +
-            "\u2022 Less lag in settings when you use a background picture";
+            "\u2022 Server list: see a game's servers with their ping and join a fast one\n" +
+            "\u2022 Favorites and desktop shortcuts for your games (right-click a game)\n" +
+            "\u2022 Playtime on the Play tab: how long you played this week\n" +
+            "\u2022 A popup when a friend joins your server\n" +
+            "\u2022 Join my server: send another saved account into your server (Accounts)\n" +
+            "\u2022 Full backup of your settings and mods (Settings > Backup)\n" +
+            "\u2022 Sort Roblox screenshots into a folder for each game (Settings > Tools)\n" +
+            "\u2022 Two new graphics presets: Smooth and Sharp\n" +
+            "\u2022 The server location popup no longer repeats\n" +
+            "\u2022 Right-click no longer presses buttons, and long button text fits in every language\n" +
+            "\u2022 Dropdowns no longer flash white when you switch tabs or scroll\n" +
+            "\u2022 Safer updates, custom fonts work with two Roblox windows open, and Launch Roblox always uses the account you picked";
 
         public const string LogoUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/docs/logo-black.png";   // new name so Discord doesn't show its cached old picture
         public const string GalleryUrl = "https://raw.githubusercontent.com/guideships/GuideStrap/master/gallery/index.json";
@@ -54,6 +62,8 @@ namespace GuideStrap
             2 => "Balanced",
             3 => "Quality",
             4 => "Max Graphics",
+            5 => "Smooth",
+            6 => "Sharp",
             _ => "Custom",
         };
     }

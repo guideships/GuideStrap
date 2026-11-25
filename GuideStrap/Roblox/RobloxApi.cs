@@ -90,6 +90,36 @@ namespace GuideStrap
             return smallest ? open.OrderBy(x => x.Playing).First().Id : open[Random.Shared.Next(open.Count)].Id;
         }
 
+        // Public servers for the server list: players, ping and FPS (Roblox reports these itself)
+        public static async Task<List<ServerEntry>> GetServersAsync(long placeId, CancellationToken ct)
+        {
+            var list = new List<ServerEntry>();
+            string? cursor = null;
+            for (int page = 0; page < 2; page++)
+            {
+                string url = $"https://games.roblox.com/v1/games/{placeId}/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true" +
+                             (cursor != null ? "&cursor=" + Uri.EscapeDataString(cursor) : "");
+                using var doc = JsonDocument.Parse(await Http.GetStringAsync(url, ct));
+                if (doc.RootElement.TryGetProperty("data", out var data) && data.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var sv in data.EnumerateArray())
+                    {
+                        string? id = sv.TryGetProperty("id", out var i) && i.ValueKind == JsonValueKind.String ? i.GetString() : null;
+                        if (id == null || !Guid.TryParse(id, out _)) continue;
+                        int playing = sv.TryGetProperty("playing", out var pl) && pl.ValueKind == JsonValueKind.Number ? pl.GetInt32() : 0;
+                        int max = sv.TryGetProperty("maxPlayers", out var mx) && mx.ValueKind == JsonValueKind.Number ? mx.GetInt32() : 0;
+                        int? ping = sv.TryGetProperty("ping", out var pg) && pg.ValueKind == JsonValueKind.Number ? (int)Math.Round(pg.GetDouble()) : null;
+                        double? fps = sv.TryGetProperty("fps", out var fp) && fp.ValueKind == JsonValueKind.Number ? fp.GetDouble() : null;
+                        if (max > 0 && playing >= max) continue;
+                        list.Add(new ServerEntry(id, playing, max, ping, fps));
+                    }
+                }
+                cursor = doc.RootElement.TryGetProperty("nextPageCursor", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString() : null;
+                if (string.IsNullOrEmpty(cursor)) break;
+            }
+            return list;
+        }
+
         static bool TryProp(JsonElement e, string name, out JsonElement value)
         {
             value = default;
@@ -251,4 +281,6 @@ namespace GuideStrap
                    $"+browsertrackerid:{tracker}+robloxLocale:en_us+gameLocale:en_us+channel:+LaunchExp:InApp";
         }
     }
+
+    record ServerEntry(string Id, int Playing, int MaxPlayers, int? Ping, double? Fps);
 }

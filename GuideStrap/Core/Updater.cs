@@ -48,10 +48,19 @@ namespace GuideStrap
         {
             string exe = Environment.ProcessPath!;
             string fresh = exe + ".new", old = exe + ".old";
-            await File.WriteAllBytesAsync(fresh, await RobloxApi.Http.GetByteArrayAsync(url));
+            byte[] data = await RobloxApi.Http.GetByteArrayAsync(url);
+            // a real Windows program starts with "MZ"; anything else is a broken or cut-off download
+            if (data.Length < 1_000_000 || data[0] != (byte)'M' || data[1] != (byte)'Z')
+                throw new Exception(L.T("The update didn't download properly. Try again."));
+            await File.WriteAllBytesAsync(fresh, data);
             if (File.Exists(old)) File.Delete(old);
             File.Move(exe, old);      // Windows lets a running .exe be renamed
-            File.Move(fresh, exe);
+            try { File.Move(fresh, exe); }
+            catch
+            {
+                File.Move(old, exe);  // put the working copy back so GuideStrap still starts
+                throw;
+            }
             Process.Start(new ProcessStartInfo(exe) { UseShellExecute = true });
             Application.Exit();
         }

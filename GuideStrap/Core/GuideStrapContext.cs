@@ -54,6 +54,7 @@ namespace GuideStrap
             Presence.SessionEnded += sum =>
             {
                 var st = AppSettings.Load();
+                if (st.SortScreenshots) _ = Task.Run(() => { try { ScreenshotSorter.Sort(); } catch { } });
                 if (!st.SessionSummary || sum.Length < TimeSpan.FromMinutes(1)) return;
                 var lines = new List<string> { L.F("You played for {0}.", FormatLength(sum.Length)) };
                 if (sum.Games.Count > 0) lines.Add(L.F("Games: {0}", string.Join(", ", sum.Games.Take(4))));
@@ -72,6 +73,7 @@ namespace GuideStrap
                     ShowToast(L.T("Friend started playing"), L.F("{0} is playing {1}.", name, game), "Join",
                         () => Open(new LoadingForm(this, AppSettings.Load(), AccountStore.Load(), null, place.Value.ToString(), f.GameId)));
             };
+            FriendWatcher.FriendJoinedYou += name => ShowToast(L.T("Friend joined you"), L.F("{0} joined your server.", name));
             FriendWatcher.Start();
             Presence.RobloxCrashed += info => { if (AppSettings.Load().CrashHelper) ShowCrash(info); };
             Presence.ServerLocated += location =>
@@ -80,8 +82,14 @@ namespace GuideStrap
                 if (tray != null && st.ShowServerLocation && !st.StreamerMode)
                     tray.ShowBalloonTip(4000, "GuideStrap", L.F("Connected to a server in {0}", location), ToolTipIcon.None);
             };
+            // desktop shortcut for one game: GuideStrap.exe --play <place ID>
+            int playAt = Array.IndexOf(args, "--play");
+            string? playPlace = playAt >= 0 && playAt + 1 < args.Length && long.TryParse(args[playAt + 1], out long shortcutPlace) && shortcutPlace > 0
+                ? shortcutPlace.ToString() : null;
             if (launchUri != null)
                 Open(new LoadingForm(this, settings, AccountStore.Load(), launchUri, ""));
+            else if (playPlace != null)
+                Open(new LoadingForm(this, settings, AccountStore.Load(), null, playPlace));
             else if (args.Contains("--tray"))
             {
                 trayMode = true;

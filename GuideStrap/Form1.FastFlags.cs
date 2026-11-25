@@ -41,6 +41,7 @@ namespace GuideStrap
             Add(page, flagPreviewCard, 8);
 
             var info = Lbl("Roblox only reads flags on its allowlist, so anything else gets skipped automatically.", 8.5f, Theme.SubText);
+            info.MaximumSize = new Size(CW, 0);   // longer languages wrap instead of running off the page
             Add(page, info, 0);
         }
 
@@ -49,7 +50,7 @@ namespace GuideStrap
             int count = settings.Flags.Count;
             if (count == 0)
             {
-                flagPreview.Text = "No flags yet. Pick a graphics preset or open the editor.";
+                flagPreview.Text = L.T("No flags yet. Pick a graphics preset or open the editor.");
                 flagPreview.ForeColor = Theme.SubText;
             }
             else

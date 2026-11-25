@@ -35,13 +35,14 @@ namespace GuideStrap
             };
         }
 
-        // Returns (graphics preset 0-3, FPS cap). Never suggests Max Graphics: smooth beats pretty for a default.
+        // Returns (graphics preset: 0, 1, 2, 3 or 5 = Smooth, FPS cap). Never suggests Max Graphics: smooth beats pretty for a default.
         public static (int Preset, int FpsCap) Recommend(PcInfo pc)
         {
             int preset;
             if (pc.RamGb > 0 && pc.RamGb < 6) preset = 0;                       // very little memory
             else if (!pc.DedicatedGpu) preset = pc.RamGb >= 8 ? 1 : 0;           // built-in graphics (most laptops)
             else if (pc.VramGb > 0 && pc.VramGb < 3) preset = 1;                 // older or entry graphics card
+            else if (pc.VramGb > 0 && pc.VramGb < 4) preset = 5;                 // mid graphics card: Smooth
             else if (pc.VramGb >= 8 && pc.RamGb >= 16 && pc.Threads >= 8) preset = 3;
             else preset = 2;
 

@@ -26,7 +26,9 @@ namespace GuideStrap
             refresh.Click += async (_, _) => await RefreshFriendsAsync();
             Add(friendsPage, ModCard("Online friends", friendsStatus, refresh));
             Add(friendsPage, SettingCard("Friend alerts", "A small popup when a friend starts playing a game.",
-                Tg(friendAlertToggle, settings.FriendAlerts, v => { settings.FriendAlerts = v; settings.Save(); })), 8);
+                Tg(friendAlertToggle, settings.FriendAlerts, v => { settings.FriendAlerts = v; settings.Save(); })));
+            Add(friendsPage, SettingCard("Friend joined your server", "A small popup when a friend joins the server you're in.",
+                Tg(friendJoinToggle, settings.FriendJoinAlerts, v => { settings.FriendJoinAlerts = v; settings.Save(); })), 8);
             friendsStatus.Text = L.T("Open this page to load your friends.");
         }
 

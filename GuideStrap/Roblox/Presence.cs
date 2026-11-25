@@ -28,6 +28,8 @@ namespace GuideStrap
         static long placeId;
         static string? gameName, gameCreator, gameIcon, serverLocation, lastServerIp;
         public static event Action<string>? ServerLocated;
+        static string? toldJob, toldLocation;      // last server we sent a notification for
+        static DateTime toldAt;
         static DateTime robloxStart, gameStart;
         static CancellationTokenSource? watchCts;
 
@@ -38,6 +40,9 @@ namespace GuideStrap
         static bool showGame = true, showAccount, allowJoin, streamer;
         static volatile string? account;
         static string? jobId, sessionLocation;
+        // the server you're in right now (null when not in a game), for "Join my server" and friend alerts
+        public static string? CurrentJobId => inRoblox && placeId != 0 ? jobId : null;
+        public static long CurrentPlaceId => inRoblox ? placeId : 0;
         static readonly List<string> sessionGames = new();
 
         public static void Configure(AppSettings s)
@@ -228,6 +233,7 @@ namespace GuideStrap
             {
                 SetOwnPriority(ProcessPriorityClass.Normal);
                 reader?.Dispose();
+                EndGame();
                 Watching = false;
                 inRoblox = false;
                 placeId = 0;
@@ -266,6 +272,7 @@ namespace GuideStrap
                 if (m.Success && long.TryParse(m.Groups[1].Value, out long id) && id != placeId)
                 {
                     Log("joining place " + id);
+                    EndGame();
                     placeId = id;
                     gameStart = DateTime.UtcNow;
                     gameName = null; gameCreator = null; gameIcon = null; serverLocation = null; lastServerIp = null;
@@ -285,11 +292,21 @@ namespace GuideStrap
             else if (line.Contains("Time to disconnect replication data") || line.Contains("leaveUGCGameInternal"))
             {
                 if (placeId != 0) Log("left game");
+                EndGame();
                 placeId = 0;
                 jobId = null;
                 gameName = gameCreator = gameIcon = serverLocation = lastServerIp = null;
                 Push();
             }
+        }
+
+        // saves how long you were in the game you're leaving (for the Playtime card)
+        static void EndGame()
+        {
+            if (placeId == 0 || gameStart == default) return;
+            try { Playtime.Record(placeId, gameName, gameStart, DateTime.UtcNow); }
+            catch (Exception ex) { Log("playtime error: " + ex.Message); }
+            gameStart = default;
         }
 
         static async Task LocateServerAsync(string ip)
@@ -304,6 +321,14 @@ namespace GuideStrap
                 sessionLocation = serverLocation;
                 Log("server in " + serverLocation);
                 Push();
+                // Roblox logs the same server more than once (UDMUX + connection lines, reconnects),
+                // so only notify once per server, and never repeat the same place within 2 minutes.
+                bool sameServer = jobId != null && jobId == toldJob;
+                bool sameRecent = serverLocation == toldLocation && DateTime.UtcNow - toldAt < TimeSpan.FromMinutes(2);
+                if (sameServer || sameRecent) return;
+                toldJob = jobId;
+                toldLocation = serverLocation;
+                toldAt = DateTime.UtcNow;
                 ServerLocated?.Invoke(serverLocation);
             }
             catch (Exception ex) { Log("server location error: " + ex.Message); }

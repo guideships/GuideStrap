@@ -275,6 +275,8 @@ namespace GuideStrap
         protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
         protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
         protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
+        // Windows also sends a click for the right mouse button: only the left one presses a button
+        protected override void OnClick(EventArgs e) { if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return; base.OnClick(e); }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -320,17 +322,32 @@ namespace GuideStrap
             Color fc = Enabled ? ForeColor : Theme.Mix(ForeColor, bg, 0.5f);
             const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, Font.Size);
-            Size iconSize = Icon.Length > 0 ? TextRenderer.MeasureText(g, Icon, iconFont, Size.Empty, flags) : Size.Empty;
+            bool showIcon = Icon.Length > 0;
+            Size iconSize = showIcon ? TextRenderer.MeasureText(g, Icon, iconFont, Size.Empty, flags) : Size.Empty;
             Size textSize = Text.Length > 0 ? TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags) : Size.Empty;
-            int gap = Icon.Length > 0 && Text.Length > 0 ? LogicalToDeviceUnits(8) : 0;
+            int gap = showIcon && Text.Length > 0 ? LogicalToDeviceUnits(8) : 0;
+            int avail = Width - LogicalToDeviceUnits(12);
+            // long text (some languages) on a narrow button: drop the icon first, then shorten the text with "..."
+            if (showIcon && Text.Length > 0 && iconSize.Width + gap + textSize.Width > avail)
+            {
+                showIcon = false;
+                iconSize = Size.Empty;
+                gap = 0;
+            }
             int x = (Width - iconSize.Width - gap - textSize.Width) / 2;
-            if (Icon.Length > 0)
+            if (showIcon)
             {
                 TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(x, 0, iconSize.Width + 2, Height), fc, flags);
                 x += iconSize.Width + gap;
             }
             if (Text.Length > 0)
-                TextRenderer.DrawText(g, Text, Font, new Rectangle(x, 0, textSize.Width + 4, Height), fc, flags);
+            {
+                if (textSize.Width > avail)
+                    TextRenderer.DrawText(g, Text, Font, new Rectangle(LogicalToDeviceUnits(6), 0, Math.Max(1, avail), Height), fc,
+                        flags | TextFormatFlags.EndEllipsis | TextFormatFlags.HorizontalCenter);
+                else
+                    TextRenderer.DrawText(g, Text, Font, new Rectangle(x, 0, textSize.Width + 4, Height), fc, flags);
+            }
         }
     }
 
@@ -551,7 +568,12 @@ namespace GuideStrap
             Size = new Size(44, 22);
         }
 
-        protected override void OnClick(EventArgs e) { Checked = !Checked; base.OnClick(e); }
+        protected override void OnClick(EventArgs e)
+        {
+            if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return;   // right-click doesn't flip it
+            Checked = !Checked;
+            base.OnClick(e);
+        }
         protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); base.OnEnabledChanged(e); }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -742,29 +764,56 @@ namespace GuideStrap
                     }
                 }
             }
+            // WM_PRINT / WM_PRINTCLIENT: the page is being captured for the tab-switch and scroll animations.
+            // Windows prints dropdowns in its own white style there, so draw the whole thing in the theme's colors.
+            if (m.Msg == 0x0317 || m.Msg == 0x0318)
+            {
+                base.WndProc(ref m);
+                if (m.WParam == IntPtr.Zero) return;
+                try
+                {
+                    using var pg = Graphics.FromHdc(m.WParam);
+                    var r = ClientRectangle;
+                    using (var bg = new SolidBrush(Theme.Input)) pg.FillRectangle(bg, r);
+                    int aw = SystemInformation.HorizontalScrollBarArrowWidth + 2;
+                    string text = SelectedIndex >= 0 && SelectedIndex < Items.Count ? GetItemText(Items[SelectedIndex]) : Text;
+                    TextRenderer.DrawText(pg, text, Font, new Rectangle(r.X + 11, r.Y, Math.Max(1, r.Width - aw - 14), r.Height), Theme.Text,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    DrawFrame(pg);
+                }
+                catch { }
+                return;
+            }
             base.WndProc(ref m);
             if (m.Msg != 0x000F || !IsHandleCreated) return;   // WM_PAINT
             try
             {
                 using var g = Graphics.FromHwnd(Handle);
-                var r = ClientRectangle;
-                int aw = SystemInformation.HorizontalScrollBarArrowWidth + 2;
-                using (var bg = new SolidBrush(Theme.Input))
-                {
-                    g.FillRectangle(bg, r.Right - aw - 1, 1, aw, r.Height - 2);
-                    using var inner = new Pen(Theme.Input);
-                    g.DrawRectangle(inner, 1, 1, r.Width - 3, r.Height - 3);
-                }
-                float cx = r.Right - aw / 2f - 1, cy = r.Height / 2f;
-                float a = Math.Max(3f, r.Height / 8f);
-                g.SmoothingMode = SmoothingMode.AntiAlias;
-                using (var chevron = new Pen(Theme.SubText, 1.5f))
-                    g.DrawLines(chevron, new[] { new PointF(cx - a, cy - a / 2), new PointF(cx, cy + a / 2), new PointF(cx + a, cy - a / 2) });
-                g.SmoothingMode = SmoothingMode.None;
-                using var border = new Pen(Focused || DroppedDown ? Theme.Accent : Theme.Border);
-                g.DrawRectangle(border, 0, 0, r.Width - 1, r.Height - 1);
+                DrawFrame(g);
             }
             catch { }
+        }
+
+        // dark arrow button, chevron and border over Windows' light ones
+        void DrawFrame(Graphics g)
+        {
+            var r = ClientRectangle;
+            int aw = SystemInformation.HorizontalScrollBarArrowWidth + 2;
+            using (var bg = new SolidBrush(Theme.Input))
+            {
+                g.FillRectangle(bg, r.Right - aw - 1, 1, aw, r.Height - 2);
+                using var inner = new Pen(Theme.Input);
+                g.DrawRectangle(inner, 1, 1, r.Width - 3, r.Height - 3);
+            }
+            float cx = r.Right - aw / 2f - 1, cy = r.Height / 2f;
+            float a = Math.Max(3f, r.Height / 8f);
+            var mode = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var chevron = new Pen(Theme.SubText, 1.5f))
+                g.DrawLines(chevron, new[] { new PointF(cx - a, cy - a / 2), new PointF(cx, cy + a / 2), new PointF(cx + a, cy - a / 2) });
+            g.SmoothingMode = mode;
+            using var border = new Pen(Focused || DroppedDown ? Theme.Accent : Theme.Border);
+            g.DrawRectangle(border, 0, 0, r.Width - 1, r.Height - 1);
         }
 
         protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
@@ -936,6 +985,9 @@ namespace GuideStrap
             Cursor = Cursors.Hand;
             Font = Theme.F("Segoe UI", 8.5f);
         }
+
+        // right-click opens the game's menu instead of starting it
+        protected override void OnClick(EventArgs e) { if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return; base.OnClick(e); }
 
         protected override void OnMouseEnter(EventArgs e) { Anim.Run((this, "hover"), hoverT, 1f, 120, v => { hoverT = v; Invalidate(); }); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { Anim.Run((this, "hover"), hoverT, 0f, 200, v => { hoverT = v; Invalidate(); }); base.OnMouseLeave(e); }

@@ -69,7 +69,8 @@ namespace GuideStrap
 
             launchBtn.Click += (_, _) =>
             {
-                context.Open(new LoadingForm(context, settings, accounts, null, ""));
+                // read again: the account or settings may have changed (tray menu, another window) since this opened
+                context.Open(new LoadingForm(context, AppSettings.Load(), AccountStore.Load(), null, ""));
                 Close();
             };
             configBtn.Click += (_, _) => OpenSettings("Home");

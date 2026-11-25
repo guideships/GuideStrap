@@ -121,22 +121,29 @@ namespace GuideStrap
                 foreach (var f in Directory.GetFiles(backupDir, "*.json"))
                     File.Copy(f, Path.Combine(familiesDir, Path.GetFileName(f)), true);
             }
+            // a second Roblox window (multiple accounts) can still be using the old font file, so never fail the launch here
             foreach (var old in Directory.GetFiles(fontsDir, "CustomFont.*"))
-                File.Delete(old);
+                try { File.Delete(old); } catch { }
 
             if (skipMods || settings.FontFile == null || !File.Exists(settings.FontFile)) return;
 
             string destName = "CustomFont" + Path.GetExtension(settings.FontFile).ToLowerInvariant();
-            File.Copy(settings.FontFile, Path.Combine(fontsDir, destName), true);
+            string destPath = Path.Combine(fontsDir, destName);
+            try { File.Copy(settings.FontFile, destPath, true); }
+            catch when (File.Exists(destPath)) { }   // in use by the other Roblox window: it's already there
 
             foreach (var file in Directory.GetFiles(familiesDir, "*.json"))
             {
                 if (Path.GetFileName(file).Contains("emoji", StringComparison.OrdinalIgnoreCase)) continue;
-                var root = JsonNode.Parse(File.ReadAllText(file));
-                if (root?["faces"] is not JsonArray faces) continue;
-                foreach (var face in faces)
-                    if (face is JsonObject o) o["assetId"] = "rbxasset://fonts/" + destName;
-                File.WriteAllText(file, root.ToJsonString());
+                try
+                {
+                    var root = JsonNode.Parse(File.ReadAllText(file));
+                    if (root?["faces"] is not JsonArray faces) continue;
+                    foreach (var face in faces)
+                        if (face is JsonObject o) o["assetId"] = "rbxasset://fonts/" + destName;
+                    File.WriteAllText(file, root.ToJsonString());
+                }
+                catch { }   // one odd font file shouldn't stop Roblox from starting
             }
         }
     }

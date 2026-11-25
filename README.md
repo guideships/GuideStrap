@@ -20,7 +20,7 @@ GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from 
 
 **Graphics and FPS**
 - **Recommended settings:** checks your PC (graphics card, memory, screen) and picks graphics settings for it
-- A slider from *Max FPS* to *Max Graphics*, or every setting on its own
+- A slider with 7 presets from *Max FPS* to *Max Graphics* (including *Smooth* and *Sharp*), or every setting on its own
 - **FPS cap:** any number you want, set in Roblox's own settings
 - **Roblox priority:** give Roblox more CPU time
 
@@ -38,7 +38,11 @@ GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from 
 
 **Playing**
 - **Rejoin last server**, **Server hop** and **Small server** (the emptiest one)
-- **Friends:** see who's online and what they're playing, join them, and get a popup when they start a game
+- **Server list:** see a game's servers with their ping and join a fast one
+- **Favorites** and **desktop shortcuts** that start a game in one click (right-click a game)
+- **Playtime:** how long you played each game this week
+- **Friends:** see who's online and what they're playing, join them, and get a popup when they start a game or join your server
+- **Join my server:** send another saved account into the server you're in
 - Recent games on the Play page, and switching between saved accounts in one click
 - **Roblox status check:** tells you if Roblox is down (or you're offline) before launching
 
@@ -50,9 +54,10 @@ GuideStrap replaces Roblox's normal launcher. It downloads Roblox straight from 
 **Other**
 - **Crash helper:** if Roblox crashes, it explains why and gives one-click fixes
 - 7 languages: English, Español, Português, Français, Deutsch, Türkçe and Filipino
-- Black and Purple themes, and your own picture on the start screen
+- Black, Glass and Purple themes, and your own background picture
 - Starts quietly with Windows if you want, and steps aside while you play
-- Settings profiles you can export and share, cache cleaner and one-click Roblox repair
+- Settings profiles you can export and share, a **full backup** of your settings and mods, cache cleaner and one-click Roblox repair
+- Sorts your Roblox screenshots into a folder for each game
 - Updates itself, with a "What's new" list after every update
 - Uninstall from Settings, with the option to keep your settings for a reinstall
 

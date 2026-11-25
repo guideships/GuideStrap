@@ -158,6 +158,12 @@ namespace GuideStrap
                 Secondary("Import", "\uE8E5", D(96), D(30)), ImportProfile);
             Add(page, SettingCard("Settings profile", "Share your graphics, FastFlags, cursor and color as one file.", profileButtons));
 
+            Section(page, "Backup");
+            var backupButtons = ButtonPair(
+                Secondary("Back up", "\uE74E", D(96), D(30)), ExportBackup,
+                Secondary("Restore", "\uE777", D(96), D(30)), ImportBackup);
+            Add(page, SettingCard("Full backup", "Settings, mods, favorites and playtime in one file. Saved accounts aren't included, they only work on this PC.", backupButtons));
+
             Section(page, "Tools");
             var folder = Secondary("Open folder", "\uE8B7", D(130), D(30));
             folder.Click += (_, _) =>
@@ -176,6 +182,23 @@ namespace GuideStrap
                 SetStatus($"Cleared {freed / 1024.0 / 1024.0:0.#} MB of old Roblox cache and logs.", null, StatusKind.Idle);
             };
             Add(page, SettingCard("Clear cache", "Deletes Roblox's temporary files, old logs and cached pictures.", clean));
+
+            var sortNow = Secondary("Sort now", "\uE8CB", D(110), D(30));
+            sortNow.Click += async (_, _) =>
+            {
+                sortNow.Enabled = false;
+                int moved = await Task.Run(() => ScreenshotSorter.Sort());
+                if (IsDisposed) return;
+                sortNow.Enabled = true;
+                SetStatus(moved == 0 ? L.T("No new screenshots to sort.") : L.F("Moved {0} screenshots into game folders.", moved), null, StatusKind.Idle);
+            };
+            var sortRight = new Panel { Size = new Size(D(110) + D(12) + D(40), D(30)), BackColor = Theme.Card };
+            sortNow.Location = new Point(0, 0);
+            T(sortShotsToggle, settings.SortScreenshots, v => { settings.SortScreenshots = v; settings.Save(); });
+            sortShotsToggle.Location = new Point(D(122), (D(30) - sortShotsToggle.Height) / 2);
+            sortRight.Controls.Add(sortNow);
+            sortRight.Controls.Add(sortShotsToggle);
+            Add(page, SettingCard("Sort screenshots by game", "Moves Roblox screenshots into a folder for each game (Pictures > Roblox). Turn the switch on to do it after every session.", sortRight));
 
             var reinstall = Secondary("Repair", "\uE90F", D(120), D(30));
             reinstall.HoverColor = Theme.Danger;
@@ -234,6 +257,36 @@ namespace GuideStrap
             }
         }
 
+        void ExportBackup()
+        {
+            using var dlg = new SaveFileDialog { Filter = L.T("GuideStrap backup") + " (*.gsbackup)|*.gsbackup", FileName = $"GuideStrap backup {DateTime.Now:yyyy-MM-dd}.gsbackup" };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            try
+            {
+                settings.Save();
+                Backup.Export(dlg.FileName);
+                SetStatus("Backup saved.", null, StatusKind.Idle);
+            }
+            catch (Exception ex) { Ask("Couldn't save the backup", ex.Message, "OK"); }
+        }
+
+        void ImportBackup()
+        {
+            using var dlg = new OpenFileDialog { Filter = L.T("GuideStrap backup") + " (*.gsbackup)|*.gsbackup" };
+            if (dlg.ShowDialog(this) != DialogResult.OK) return;
+            if (Ask("Restore this backup?", "Your settings, mods, favorites and playtime will be replaced with the ones in the backup. Saved accounts stay.",
+                    "Restore", "Cancel") != 0) return;
+            try { Backup.Import(dlg.FileName); }
+            catch (Exception ex)
+            {
+                Ask("Couldn't restore the backup", ex.Message, "OK");
+                return;
+            }
+            // this window still holds the old settings, so restart before anything saves over the backup
+            Ask("Backup restored", "GuideStrap restarts now to load it.", "OK");
+            Application.Restart();
+        }
+
         void ExportProfile()
         {
             using var dlg = new SaveFileDialog { Filter = "GuideStrap profile (*.gsprofile)|*.gsprofile", FileName = "GuideStrap profile.gsprofile" };
@@ -245,7 +298,8 @@ namespace GuideStrap
                 CursorPreset = settings.CursorPreset == "custom" ? "default" : settings.CursorPreset,
                 Accent = settings.Accent,
             };
-            File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(p, new JsonSerializerOptions { WriteIndented = true }));
+            try { File.WriteAllText(dlg.FileName, JsonSerializer.Serialize(p, new JsonSerializerOptions { WriteIndented = true })); }
+            catch (Exception ex) { Ask("Couldn't save the profile", ex.Message, "OK"); return; }
             SetStatus("Profile saved.", null, StatusKind.Idle);
         }
 
@@ -260,7 +314,7 @@ namespace GuideStrap
             if (Ask("Use this profile?", "Your graphics, FastFlags, cursor and accent color will be replaced.", "Use profile", "Cancel") != 0) return;
 
             settings.Preset = p.Preset;
-            settings.Flags = p.Flags.Where(kv => FF.IsAllowed(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
+            settings.Flags = (p.Flags ?? new()).Where(kv => FF.IsAllowed(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
             settings.CursorPreset = p.CursorPreset is "guidestrap" or "dot" or "cross" or "circle" or "classic" ? p.CursorPreset : "default";
             bool colorChanged = p.Accent != settings.Accent && Theme.Accents.Any(a => a.Name == p.Accent);
             if (colorChanged) settings.Accent = p.Accent;

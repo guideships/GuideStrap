@@ -37,6 +37,9 @@ namespace GuideStrap
         static Dictionary<long, (int Type, long Place)> last = new();
         static bool first = true, busy;
         public static event Action<FriendPresence, string>? FriendStartedPlaying;
+        public static event Action<string>? FriendJoinedYou;
+        static string? togetherJob;                       // your server when we last checked
+        static readonly HashSet<long> together = new();   // friends already in your server (alerted once)
 
         static Mutex? owner;
 
@@ -53,7 +56,8 @@ namespace GuideStrap
             timer = new System.Windows.Forms.Timer { Interval = 15_000 };
             timer.Tick += async (_, _) =>
             {
-                if (timer != null) timer.Interval = 90_000;
+                // a bit more often while you're in a game, so "joined your server" pops up soon after
+                if (timer != null) timer.Interval = Presence.CurrentJobId != null ? 45_000 : 90_000;
                 await PollAsync();
             };
             timer.Start();
@@ -76,7 +80,7 @@ namespace GuideStrap
             try
             {
                 var s = AppSettings.Load();
-                var acc = s.FriendAlerts && s.ActiveAccountId != null
+                var acc = (s.FriendAlerts || s.FriendJoinAlerts) && s.ActiveAccountId != null
                     ? AccountStore.Load().FirstOrDefault(a => a.UserId == s.ActiveAccountId) : null;
                 if (acc == null)
                 {
@@ -110,8 +114,29 @@ namespace GuideStrap
                     if (!same) started.Add(f);
                 }
                 last = now;
+                bool wasFirst = first;
                 first = false;
-                if (started.Count == 0) return;
+
+                // friends who are now in the same server as you
+                string? myJob = Presence.CurrentJobId;
+                // friends already there when you joined a new server count as "already together", no popup
+                bool newServer = myJob != togetherJob;
+                if (newServer) { together.Clear(); togetherJob = myJob; }
+                var joined = new List<long>();
+                if (myJob != null)
+                    foreach (var f in presence)
+                        if (f.Type == 2 && f.GameId != null && string.Equals(f.GameId, myJob, StringComparison.OrdinalIgnoreCase)
+                            && together.Add(f.UserId) && !wasFirst && !newServer)
+                            joined.Add(f.UserId);
+                if (joined.Count > 0 && s.FriendJoinAlerts)
+                {
+                    await RobloxApi.FillNamesAsync(joined, names);
+                    string who = s.StreamerMode ? L.T("A friend") : names.GetValueOrDefault(joined[0], L.T("A friend"));
+                    FriendJoinedYou?.Invoke(who);
+                    started.RemoveAll(f => joined.Contains(f.UserId));   // one popup per friend is enough
+                }
+
+                if (started.Count == 0 || !s.FriendAlerts) return;
                 await RobloxApi.FillNamesAsync(started.Select(f => f.UserId), names);
                 var pick = started[0];
                 FriendStartedPlaying?.Invoke(pick, names.GetValueOrDefault(pick.UserId, L.T("A friend")));

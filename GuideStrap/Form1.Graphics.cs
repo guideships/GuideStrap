@@ -37,7 +37,7 @@ namespace GuideStrap
             presetDesc.Location = new Point(D(16), D(52));
             presetDesc.Font = Theme.F("Segoe UI", 8.75f);
             presetSlider.Minimum = 0;
-            presetSlider.Maximum = 4;
+            presetSlider.Maximum = PresetOrder.Length - 1;
             presetSlider.ShowTicks = true;
             presetSlider.Size = new Size(CW - D(32), D(28));
             presetSlider.Location = new Point(D(16), D(76));
@@ -153,8 +153,8 @@ namespace GuideStrap
             Add(page, SettingCard("Recommended settings",
                 "Checks your PC and picks graphics settings that fit it. Only changes graphics and the FPS cap, nothing else.", recommend), 0);
 
-            presetSlider.ValueChanged += (_, _) => { if (!syncing) ApplyPreset(presetSlider.Value); };
-            presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != presetSlider.Value) ApplyPreset(presetSlider.Value); };
+            presetSlider.ValueChanged += (_, _) => { if (!syncing) ApplyPreset(PresetOrder[presetSlider.Value]); };
+            presetSlider.Released += (_, _) => { if (!syncing && settings.Preset != PresetOrder[presetSlider.Value]) ApplyPreset(PresetOrder[presetSlider.Value]); };
             qualitySlider.ValueChanged += (_, _) =>
             {
                 qualityValue.Text = L.T(qualitySlider.Value == 0 ? "Auto" : qualitySlider.Value.ToString());
@@ -175,11 +175,18 @@ namespace GuideStrap
             return c;
         }
 
+        // Preset numbers are saved in settings and setups, so new presets got new numbers (5, 6).
+        // This is their order on the slider, from most FPS to best looks.
+        static readonly int[] PresetOrder = { 0, 1, 5, 2, 6, 3, 4 };
+        static int SliderPos(int preset) => Math.Max(0, Array.IndexOf(PresetOrder, preset));
+
         static (string Title, string Desc) PresetInfo(int p) => p switch
         {
             0 => ("Max FPS", "Lowest quality, flat lighting, no grass. For weak PCs or pure frames."),
             1 => ("Performance", "Low settings that still look okay. Great for laptops."),
+            5 => ("Smooth", "Good FPS that still looks clean. Hides grass, keeps lighting."),
             2 => ("Balanced", "Roblox's normal automatic settings. Nothing changed."),
+            6 => ("Sharp", "A bit sharper than normal with light edge smoothing."),
             3 => ("Quality", "Sharper textures and smoother edges. Needs a decent PC."),
             4 => ("Max Graphics", "Everything maxed out. Best looks, lowest FPS."),
             _ => ("Custom", "You changed settings yourself. Move the slider to pick a preset again."),
@@ -205,7 +212,7 @@ namespace GuideStrap
             try { pc = PcCheck.Read(); }
             catch { pc = new PcInfo(); }
             var (preset, cap) = PcCheck.Recommend(pc);
-            string presetName = L.T(preset switch { 0 => "Max FPS", 1 => "Performance", 3 => "Quality", _ => "Balanced" });
+            string presetName = L.T(PresetInfo(preset).Title);
             string capText = cap > 0 ? L.F("{0} FPS (your screen's refresh rate)", cap) : L.T("Roblox default");
 
             var lines = new List<string>();
@@ -225,7 +232,7 @@ namespace GuideStrap
             if (choice != 0) return;
 
             syncing = true;
-            presetSlider.Value = preset;
+            presetSlider.Value = SliderPos(preset);
             syncing = false;
             ApplyPreset(preset);
             settings.FpsCap = cap;
@@ -241,6 +248,8 @@ namespace GuideStrap
             {
                 0 => (1, 1, 1, true, true, true, true),
                 1 => (5, 2, 0, true, false, true, false),
+                5 => (9, 3, 0, true, false, false, false),
+                6 => (13, 4, 2, false, false, false, false),
                 3 => (16, 4, 3, false, false, false, false),
                 4 => (21, 4, 3, false, false, false, false),
                 _ => (0, 0, 0, false, false, false, false),
@@ -327,7 +336,7 @@ namespace GuideStrap
             grassMotionToggle.Checked = Is(FF.GrassMotion, "0");
             dpiToggle.Checked = Is(FF.DisableDpi, "True");
             fullscreenToggle.Checked = Is(FF.AltEnter, "False");
-            if (settings.Preset >= 0) presetSlider.Value = settings.Preset;
+            if (settings.Preset >= 0) presetSlider.Value = SliderPos(settings.Preset);
             UpdatePresetLabels();
             syncing = false;
         }

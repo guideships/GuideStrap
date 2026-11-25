@@ -34,7 +34,7 @@ namespace GuideStrap
 
     class AppSettings
     {
-        public int Preset { get; set; } = 2;     // 0-4 = preset, -1 = custom
+        public int Preset { get; set; } = 2;     // 0-6 = preset (see Form1.PresetOrder), -1 = custom
         public Dictionary<string, string> Flags { get; set; } = new();
         public string? FontFile { get; set; }
         public string? FontDisplayName { get; set; }
@@ -47,6 +47,8 @@ namespace GuideStrap
         public bool DiscordAllowJoin { get; set; }
         public bool StreamerMode { get; set; }
         public bool FriendAlerts { get; set; } = true;
+        public bool FriendJoinAlerts { get; set; } = true;      // popup when a friend joins the server you're in
+        public bool SortScreenshots { get; set; }                // move Roblox screenshots into a folder per game
         public bool SessionSummary { get; set; } = true;
         public Dictionary<string, string> GameSetups { get; set; } = new();
         public int SettingsVersion { get; set; }

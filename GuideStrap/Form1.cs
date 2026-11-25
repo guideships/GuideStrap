@@ -109,9 +109,14 @@ namespace GuideStrap
         bool friendsBusy;
         bool modsSyncing;
 
-        // ---------- recent games ----------
-        readonly FlowLayoutPanel recentPanel = new();
-        int recentVersion = -1;
+        // ---------- recent games, favorites, playtime ----------
+        readonly FlowLayoutPanel recentPanel = new(), favPanel = new();
+        Control favSection = null!;
+        int recentVersion = -1, favVersion = -1, playVersion = -1;
+        readonly Label playWeek = new(), playToday = new(), playTotal = new(), playNote = new();
+        readonly Label[] playTop = { new(), new(), new() };
+        readonly WeekBars weekBars = new();
+        readonly ToggleSwitch friendJoinToggle = new(), sortShotsToggle = new();
 
         int CW => D(690);   // content width
 
@@ -142,6 +147,8 @@ namespace GuideStrap
             RefreshMods();
             RefreshHome();
             RefreshRecent();
+            RefreshFavorites();
+            RefreshPlaytime();
             ShowPage(startPage, animate: false);
 
             Load += async (_, _) => await LoadAvatarsAsync();
@@ -162,6 +169,8 @@ namespace GuideStrap
             {
                 Presence.Screen("Editing settings", nav.TextOf(currentPage));
                 if (recentVersion != RecentGames.Version) RefreshRecent();
+                if (favVersion != Favorites.Version) RefreshFavorites();
+                if (playVersion != Playtime.Version) RefreshPlaytime();
             };
         }
 
@@ -213,17 +222,17 @@ namespace GuideStrap
             nav.ItemHeight = D(34);
             nav.Gap = D(2);
             nav.HeaderHeight = D(26);
-            nav.Add("Home", "\uE768", "Play", "launch join game home start");
+            nav.Add("Home", "\uE768", "Play", "launch join game home start favorites favourite pin server list ping playtime stats hours shortcut");
             nav.AddHeader("Game");
             nav.Add("Graphics", "\uE7F4", "Graphics", "fps quality performance texture grass sky preset lag blurry cap priority");
             nav.Add("Mods", "\uE790", "Mods", "mods death sound oof cursor mouse sky skybox crosshair shift lock footsteps jump pack setup gallery font fonts text letters typeface");
             nav.Add("Flags", "\uE7C1", "FastFlags", "fflag flag json fastflag fflags");
             nav.AddHeader("Social");
-            nav.Add("Accounts", "\uE716", "Accounts", "account login switch alt user profile");
+            nav.Add("Accounts", "\uE716", "Accounts", "account login switch alt user profile join my server");
             nav.Add("Friends", "\uE716", "Friends", "friends online join playing alerts");
             nav.Add("Discord", "\uE8F2", "Discord", "discord rich presence status join activity");
             nav.AddHeader("App");
-            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary theme glass about info version");
+            nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary theme glass about info version backup export import screenshots pictures");
             nav.Add("Help", "\uE897", "Help", "help discord server bug report support question faq ban website guide");
             nav.Location = new Point(D(10), D(46));
             nav.Size = new Size(sw - D(20), nav.ContentHeight);
@@ -400,6 +409,9 @@ namespace GuideStrap
         static readonly Dictionary<string, string> SectionIcons = new()
         {
             ["Recent games"] = "\uE81C",
+            ["Favorites"] = "\uE735",
+            ["Playtime"] = "\uE916",
+            ["Backup"] = "\uE777",
             ["Performance"] = "\uE9D9",
             ["Recommended"] = "\uE734",
             ["Setups"] = "\uE74E",
@@ -481,7 +493,7 @@ namespace GuideStrap
             int dir = nav.IndexOf(key) >= nav.IndexOf(currentPage) ? 1 : -1;   // down the list = slide up
             currentPage = key;
             nav.Select(key, animate);
-            if (key == "Home") RefreshHome();
+            if (key == "Home") { RefreshHome(); RefreshPlaytime(); }
             if (key == "Friends" && DateTime.Now - friendsLoaded > TimeSpan.FromSeconds(30)) _ = RefreshFriendsAsync();
             if (key == "Graphics" && !settings.RecommendAsked) BeginInvoke(new Action(() => OfferRecommended(firstVisit: true)));
             if (ContainsFocus) Presence.Screen("Editing settings", nav.TextOf(key));

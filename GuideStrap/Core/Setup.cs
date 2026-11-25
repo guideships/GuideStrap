@@ -197,6 +197,69 @@ namespace GuideStrap
             catch { }
         }
 
+        // A desktop shortcut that starts one game right away (GuideStrap.exe --play <place ID>)
+        public static string CreateGameShortcut(string name, long placeId, Image? icon)
+        {
+            string exe = File.Exists(InstallExe) ? InstallExe : Environment.ProcessPath ?? InstallExe;
+            string file = ScreenshotSorter.SafeName(name);
+            if (string.Equals(file, "GuideStrap", StringComparison.OrdinalIgnoreCase)) file += " game";
+            string path = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), file + ".lnk");
+            string iconLocation = exe + ",0";
+            if (icon != null)
+            {
+                try
+                {
+                    string dir = Path.Combine(Paths.Base, "ShortcutIcons");
+                    Directory.CreateDirectory(dir);
+                    string ico = Path.Combine(dir, placeId + ".ico");
+                    WriteIcon(icon, ico);
+                    iconLocation = ico + ",0";
+                }
+                catch { }
+            }
+            var type = Type.GetTypeFromProgID("WScript.Shell") ?? throw new Exception(L.T("Windows couldn't make the shortcut."));
+            dynamic shell = Activator.CreateInstance(type)!;
+            try
+            {
+                dynamic link = shell.CreateShortcut(path);
+                link.TargetPath = exe;
+                link.Arguments = "--play " + placeId;
+                link.WorkingDirectory = Paths.Base;
+                link.IconLocation = iconLocation;
+                link.Description = name;
+                link.Save();
+                Marshal.FinalReleaseComObject(link);
+            }
+            finally { Marshal.FinalReleaseComObject(shell); }
+            return path;
+        }
+
+        // an .ico file holding one PNG picture (Windows reads these since Vista)
+        static void WriteIcon(Image img, string path)
+        {
+            int w = Math.Min(256, img.Width), h = Math.Min(256, img.Height);
+            byte[] png;
+            using (var ms = new MemoryStream())
+            {
+                using (var bmp = new Bitmap(img, w, h)) bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
+                png = ms.ToArray();
+            }
+            using var fs = File.Create(path);
+            using var bw = new BinaryWriter(fs);
+            bw.Write((short)0);                       // reserved
+            bw.Write((short)1);                       // type: icon
+            bw.Write((short)1);                       // one picture
+            bw.Write((byte)(w >= 256 ? 0 : w));
+            bw.Write((byte)(h >= 256 ? 0 : h));
+            bw.Write((byte)0);                        // no palette
+            bw.Write((byte)0);
+            bw.Write((short)1);                       // planes
+            bw.Write((short)32);                      // bits per pixel
+            bw.Write(png.Length);
+            bw.Write(22);                             // the picture starts right after this 22-byte header
+            bw.Write(png);
+        }
+
         // Returns true if GuideStrap was removed (the caller should then exit)
         public static bool Uninstall(IWin32Window? owner = null)
         {
