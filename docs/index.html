@@ -3,140 +3,383 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>GuideStrap - Roblox launcher</title>
-<meta name="description" content="A free Roblox launcher for Windows: more FPS, mods, friends, one-click server joins, Discord status and a crash helper.">
+<title>GuideStrap - Free Roblox launcher for Windows</title>
+<meta name="description" content="A free Roblox launcher for Windows: more FPS, mods, a server list with ping, favorites, playtime, friends, Discord status and a crash helper.">
+<meta property="og:title" content="GuideStrap - Free Roblox launcher for Windows">
+<meta property="og:description" content="More FPS, mods, a server list with ping, favorites, playtime, friends and Discord status.">
+<meta property="og:image" content="https://guideships.github.io/GuideStrap/screenshot.png">
+<meta name="theme-color" content="#0a0a0a">
 <link rel="icon" href="favicon.png">
 <style>
   :root {
-    --bg: #0b0b0b; --card: #151515; --border: #262626; --text: #f0f0f0;
-    --sub: #a3a3a3; --accent: #f0f0f0; --accent-hover: #ffffff;
+    --bg: #0a0a0a; --card: #141414; --card2: #1b1b1b; --border: #262626; --text: #f2f2f2;
+    --sub: #a1a1a1; --dim: #6f6f6f; --green: #4ade80;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI", system-ui, sans-serif; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--bg); color: var(--text); font: 16px/1.6 "Segoe UI Variable", "Segoe UI", system-ui, sans-serif; }
   a { color: inherit; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
 
-  nav { display: flex; align-items: center; justify-content: space-between; padding: 20px 0; }
-  nav .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; text-decoration: none; }
-  nav .brand img { width: 30px; height: 30px; }
-  nav .links a { color: var(--sub); text-decoration: none; margin-left: 22px; font-size: 15px; }
-  nav .links a:hover { color: var(--text); }
+  header { position: sticky; top: 0; z-index: 10; background: rgba(10,10,10,.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); border-bottom: 1px solid transparent; transition: border-color .2s; }
+  header.scrolled { border-bottom-color: var(--border); }
+  nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; text-decoration: none; font-size: 17px; }
+  .brand img { width: 30px; height: 30px; }
+  .links { display: flex; align-items: center; gap: 22px; }
+  .links a { color: var(--sub); text-decoration: none; font-size: 15px; }
+  .links a:hover { color: var(--text); }
+  .links a.btn { color: #0a0a0a; padding: 8px 16px; font-size: 14px; }
 
-  .hero { display: grid; grid-template-columns: 1.3fr 1fr; gap: 40px; align-items: center; padding: 64px 0 72px; }
-  .hero h1 { font-size: 46px; line-height: 1.1; font-weight: 700; letter-spacing: -0.5px; }
-  .hero p { color: var(--sub); font-size: 18px; margin: 18px 0 30px; max-width: 480px; }
-  .hero img { width: 100%; max-width: 300px; justify-self: center; }
-  .btn { display: inline-block; padding: 12px 22px; border-radius: 6px; font-weight: 600; text-decoration: none; transition: background .15s; }
-  .btn.primary { background: var(--accent); color: #0b0b0b; }
-  .btn.primary:hover { background: var(--accent-hover); }
-  .btn.ghost { border: 1px solid var(--border); margin-left: 10px; }
-  .btn.ghost:hover { background: var(--card); }
-  .small { color: var(--sub); font-size: 13px; margin-top: 14px; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; padding: 13px 22px; border-radius: 8px; font-weight: 600; text-decoration: none; transition: background .15s, transform .15s, border-color .15s; }
+  .btn:hover { transform: translateY(-1px); }
+  .btn.primary { background: #f2f2f2; color: #0a0a0a; }
+  .btn.primary:hover { background: #fff; }
+  .btn.ghost { border: 1px solid var(--border); color: var(--text); }
+  .btn.ghost:hover { background: var(--card); border-color: #3a3a3a; }
+  .btn svg { width: 18px; height: 18px; }
 
-  h2 { font-size: 26px; margin-bottom: 20px; }
-  section { padding: 40px 0; }
+  .hero { text-align: center; padding: 80px 0 40px; }
+  .pill { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; padding: 6px 14px; font-size: 13px; color: var(--sub); text-decoration: none; }
+  .pill:hover { border-color: #3a3a3a; color: var(--text); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .hero h1 { font-size: 58px; line-height: 1.05; font-weight: 700; letter-spacing: -1.5px; margin: 22px auto 18px; max-width: 780px; }
+  .hero p.lead { color: var(--sub); font-size: 19px; max-width: 620px; margin: 0 auto 32px; }
+  .cta { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .meta { color: var(--dim); font-size: 13px; margin-top: 16px; }
+
+  .shot { margin: 56px auto 0; max-width: 980px; border-radius: 12px; border: 1px solid var(--border); overflow: hidden;
+          box-shadow: 0 40px 120px rgba(255,255,255,.06), 0 30px 60px rgba(0,0,0,.6); }
+  .shot img { display: block; width: 100%; height: auto; }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 56px 0 0; }
+  .stat { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 18px; text-align: center; }
+  .stat b { display: block; font-size: 24px; }
+  .stat span { color: var(--sub); font-size: 13px; }
+
+  section { padding: 72px 0 8px; }
+  .head { margin-bottom: 26px; }
+  .head h2 { font-size: 32px; letter-spacing: -.5px; }
+  .head p { color: var(--sub); margin-top: 6px; }
+
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+  .tab { background: var(--card); border: 1px solid var(--border); color: var(--sub); border-radius: 999px; padding: 7px 16px; font: inherit; font-size: 14px; cursor: pointer; }
+  .tab:hover { color: var(--text); }
+  .tab.on { background: #f2f2f2; color: #0a0a0a; border-color: #f2f2f2; }
   .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-  .card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
-  .card h3 { font-size: 16px; margin-bottom: 6px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; transition: border-color .15s, background .15s; }
+  .card:hover { border-color: #3a3a3a; background: var(--card2); }
+  .card .ic { width: 36px; height: 36px; border-radius: 8px; background: #222; display: grid; place-items: center; margin-bottom: 12px; }
+  .card .ic svg { width: 18px; height: 18px; stroke: #e5e5e5; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .card h3 { font-size: 16px; margin-bottom: 4px; }
   .card p { color: var(--sub); font-size: 14px; }
+  .card .new { font-size: 11px; font-weight: 700; color: #0a0a0a; background: var(--green); border-radius: 4px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px; }
 
-  .faq details { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; }
-  .faq summary { cursor: pointer; font-weight: 600; }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; counter-reset: s; }
+  .step { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 20px; }
+  .step::before { counter-increment: s; content: counter(s); display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: #f2f2f2; color: #0a0a0a; font-weight: 700; margin-bottom: 12px; }
+  .step h3 { font-size: 16px; margin-bottom: 4px; }
+  .step p { color: var(--sub); font-size: 14px; }
+
+  .release { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 24px; }
+  .release .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+  .release h3 { font-size: 20px; }
+  .release .date { color: var(--dim); font-size: 14px; }
+  .release ul { list-style: none; display: grid; gap: 8px; }
+  .release li { color: var(--sub); padding-left: 20px; position: relative; }
+  .release li::before { content: ""; position: absolute; left: 4px; top: 10px; width: 6px; height: 6px; border-radius: 50%; background: #e5e5e5; }
+
+  .faq details { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin-bottom: 10px; }
+  .faq summary { cursor: pointer; font-weight: 600; list-style: none; display: flex; justify-content: space-between; gap: 12px; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: "+"; color: var(--sub); font-size: 20px; line-height: 1; }
+  .faq details[open] summary::after { content: "\2212"; }
   .faq p { color: var(--sub); margin-top: 10px; font-size: 15px; }
 
-  footer { border-top: 1px solid var(--border); margin-top: 40px; padding: 28px 0 40px; color: var(--sub); font-size: 14px; }
+  .band { margin-top: 72px; background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 36px; display: flex; align-items: center; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+  .band h2 { font-size: 26px; }
+  .band p { color: var(--sub); }
 
-  @media (max-width: 760px) {
-    .hero { grid-template-columns: 1fr; padding-top: 30px; }
-    .hero img { max-width: 180px; grid-row: 1; }
-    .hero h1 { font-size: 36px; }
-    .grid { grid-template-columns: 1fr; }
-    nav .links { display: none; }
+  footer { border-top: 1px solid var(--border); margin-top: 72px; padding: 28px 0 44px; color: var(--dim); font-size: 14px; display: flex; justify-content: space-between; gap: 18px; flex-wrap: wrap; }
+  footer a { color: var(--sub); }
+
+  .reveal { opacity: 0; transform: translateY(14px); transition: opacity .5s ease, transform .5s ease; }
+  .reveal.in { opacity: 1; transform: none; }
+
+  @media (max-width: 860px) {
+    .grid, .steps { grid-template-columns: 1fr 1fr; }
+    .stats { grid-template-columns: 1fr 1fr; }
+    .hero h1 { font-size: 42px; }
+    .links a:not(.btn) { display: none; }
+  }
+  @media (max-width: 560px) {
+    .grid, .steps { grid-template-columns: 1fr; }
+    .hero { padding-top: 48px; }
+    .hero h1 { font-size: 34px; }
+    .band { padding: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    .reveal { opacity: 1; transform: none; transition: none; }
   }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <nav>
-    <a class="brand" href="#"><img src="logo.png" alt="">GuideStrap</a>
-    <div class="links">
-      <a href="#features">Features</a>
-      <a href="#faq">FAQ</a>
-      <a href="https://github.com/guideships/GuideStrap">GitHub</a>
-      <a href="https://discord.gg/ErEXCXvNf7">Discord</a>
-    </div>
-  </nav>
 
+<header id="top">
+  <div class="wrap">
+    <nav>
+      <a class="brand" href="#"><img src="logo.png" alt="">GuideStrap</a>
+      <div class="links">
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="#new">What's new</a>
+        <a href="#faq">FAQ</a>
+        <a href="https://discord.gg/ErEXCXvNf7">Discord</a>
+        <a class="btn primary dl" href="https://github.com/guideships/GuideStrap/releases/latest">Download</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
   <div class="hero">
-    <div>
-      <h1>Roblox, set up the way you like it.</h1>
-      <p>GuideStrap is a free launcher for Roblox on Windows. Get more FPS, add mods, jump into your friends' servers in one click, and show what you're playing on Discord.</p>
-      <a class="btn primary" href="https://github.com/guideships/GuideStrap/releases/latest">Download for Windows</a>
-      <a class="btn ghost" href="https://github.com/guideships/GuideStrap">View source</a>
-      <div class="small">Free and open source. Made by <a href="https://github.com/guideships">guideships</a>.</div>
+    <a class="pill" href="#new"><span class="dot"></span><span id="pill-text">Free Roblox launcher for Windows</span></a>
+    <h1>Roblox, set up the way you like it.</h1>
+    <p class="lead">More FPS, mods, a server list with ping, favorites, playtime and friend alerts. All in one free launcher that never touches the game while you play.</p>
+    <div class="cta">
+      <a class="btn primary dl" href="https://github.com/guideships/GuideStrap/releases/latest">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+        <span id="dl-text">Download for Windows</span>
+      </a>
+      <a class="btn ghost" href="https://discord.gg/ErEXCXvNf7">Join the Discord</a>
     </div>
-    <img src="logo.png" alt="GuideStrap logo">
+    <div class="meta" id="meta">Windows 10 and 11 &middot; Free &middot; No ads</div>
+
+    <div class="shot reveal"><img src="screenshot.png" alt="GuideStrap's Play tab" width="974" height="638"></div>
+
+    <div class="stats reveal">
+      <div class="stat"><b>Free</b><span>No ads, no paywalls</span></div>
+      <div class="stat"><b>7</b><span>Languages</span></div>
+      <div class="stat"><b id="stat-dl">Open</b><span id="stat-dl-label">Source you can read</span></div>
+      <div class="stat"><b>0</b><span>Changes to your normal Roblox</span></div>
+    </div>
   </div>
 
   <section id="features">
-    <h2>What's inside</h2>
-    <div class="grid">
-      <div class="card"><h3>Recommended settings</h3><p>Checks your PC and picks graphics settings that fit it.</p></div>
-      <div class="card"><h3>Graphics presets</h3><p>One slider with 7 presets from Max FPS to Max Graphics, or change every setting yourself.</p></div>
-      <div class="card"><h3>Themes</h3><p>Black, see-through Glass or Purple, accent colors, and your own background picture.</p></div>
-      <div class="card"><h3>FPS cap and priority</h3><p>Any frame rate you want, and more CPU time for Roblox.</p></div>
-      <div class="card"><h3>FastFlags</h3><p>An editor for Roblox's allowed flags. It asks before replacing ones you already have.</p></div>
-      <div class="card"><h3>Mod gallery</h3><p>Crosshairs, cursors, skies and sound packs, installed in one click.</p></div>
-      <div class="card"><h3>Mods</h3><p>Death sound, footsteps, jump sound, shift lock crosshair, cursors, skies and an in-game font.</p></div>
-      <div class="card"><h3>Setups</h3><p>Save your graphics and mods as a setup, and link it to a game so it turns on by itself.</p></div>
-      <div class="card"><h3>Accounts</h3><p>Log in once, switch accounts in one click, and send an alt into your server.</p></div>
-      <div class="card"><h3>Friends</h3><p>See who's online and what they're playing, join them, and get alerts when they start a game or join your server.</p></div>
-      <div class="card"><h3>Server tools</h3><p>Rejoin your last server, hop to another one, find the emptiest server, or pick one by ping from the server list.</p></div>
-      <div class="card"><h3>Favorites and shortcuts</h3><p>Pin your games and make desktop shortcuts that start a game in one click.</p></div>
-      <div class="card"><h3>Playtime</h3><p>See how long you played each game this week.</p></div>
-      <div class="card"><h3>Discord status</h3><p>Show your game, the account you're using and a Join button for friends. Off until you turn it on.</p></div>
-      <div class="card"><h3>Streamer mode</h3><p>Hides account names and server location in GuideStrap and on Discord.</p></div>
-      <div class="card"><h3>Crash helper</h3><p>If Roblox crashes, it explains why and gives you one-click fixes.</p></div>
-      <div class="card"><h3>Roblox status check</h3><p>Tells you if Roblox is down, or you're offline, before you launch.</p></div>
-      <div class="card"><h3>7 languages</h3><p>English, Español, Português, Français, Deutsch, Türkçe and Filipino.</p></div>
-      <div class="card"><h3>Light on your PC</h3><p>Steps aside while you play, and can start quietly with Windows.</p></div>
-      <div class="card"><h3>Auto updates</h3><p>Updates itself, and shows what's new after every update.</p></div>
-      <div class="card"><h3>Backup</h3><p>Save your settings and mods in one file, and sort screenshots into a folder per game.</p></div>
+    <div class="head reveal">
+      <h2>What's inside</h2>
+      <p>Everything is optional. Turn on what you want, leave the rest.</p>
+    </div>
+    <div class="tabs reveal" id="tabs">
+      <button class="tab on" data-f="all">All</button>
+      <button class="tab" data-f="fps">FPS and graphics</button>
+      <button class="tab" data-f="play">Playing</button>
+      <button class="tab" data-f="mods">Mods</button>
+      <button class="tab" data-f="social">Friends and Discord</button>
+      <button class="tab" data-f="app">App</button>
+    </div>
+    <div class="grid" id="grid"></div>
+  </section>
+
+  <section id="install">
+    <div class="head reveal">
+      <h2>Install in a minute</h2>
+      <p>No account or sign-up needed.</p>
+    </div>
+    <div class="steps reveal">
+      <div class="step"><h3>Download</h3><p>Get <b>GuideStrap.exe</b> with the button above.</p></div>
+      <div class="step"><h3>Run it</h3><p>If Windows warns you, click <b>More info</b>, then <b>Run anyway</b>. New apps that aren't code-signed get this.</p></div>
+      <div class="step"><h3>Install</h3><p>Pick your language and options, then press <b>Install</b>.</p></div>
+      <div class="step"><h3>Play</h3><p>Press <b>Launch Roblox</b>. The first launch downloads Roblox, which takes a minute.</p></div>
+    </div>
+  </section>
+
+  <section id="new">
+    <div class="head reveal">
+      <h2>What's new</h2>
+      <p>The latest update, straight from GitHub.</p>
+    </div>
+    <div class="release reveal">
+      <div class="top">
+        <h3 id="rel-name">Latest version</h3>
+        <span class="date" id="rel-date"></span>
+      </div>
+      <ul id="rel-notes"><li>See the latest changes on the <a href="https://github.com/guideships/GuideStrap/releases/latest">releases page</a>.</li></ul>
     </div>
   </section>
 
   <section id="faq" class="faq">
-    <h2>Questions</h2>
-    <details>
+    <div class="head reveal"><h2>Questions</h2></div>
+    <details class="reveal">
       <summary>Can this get me banned?</summary>
-      <p>GuideStrap never touches the game while it runs. It only changes files and settings Roblox reads when it starts, like Bloxstrap and Fishstrap. It isn't an exploit and doesn't give any gameplay advantage.</p>
+      <p>GuideStrap never touches the game while it runs. It only changes files and settings Roblox reads when it starts, like Bloxstrap and Fishstrap. It isn't an exploit and doesn't give any gameplay advantage. FastFlags are limited to the ones on Roblox's own allowlist.</p>
     </details>
-    <details>
+    <details class="reveal">
       <summary>Does it change my normal Roblox?</summary>
       <p>No. Everything happens in GuideStrap's own copy of Roblox. Opening Roblox without GuideStrap always gives you the original game, sounds and settings.</p>
     </details>
-    <details>
+    <details class="reveal">
       <summary>Will it make my PC lag?</summary>
-      <p>GuideStrap itself barely uses anything while you play. If your PC lags, check Graphics: keep Roblox priority on Normal or Above normal, use a normal FPS cap (like your screen's refresh rate), or press "Load recommended" to pick settings for your PC.</p>
+      <p>GuideStrap barely uses anything while you play. If your PC lags, open Graphics and press "Load recommended", pick a preset like Smooth or Performance, and keep your FPS cap at your screen's refresh rate.</p>
     </details>
-    <details>
+    <details class="reveal">
+      <summary>How does the server list work?</summary>
+      <p>Right-click a game (or use the Server list button on the Play tab) to see its open servers with their ping and FPS, fastest first. Click Join on the one you want.</p>
+    </details>
+    <details class="reveal">
+      <summary>Why is my playtime empty?</summary>
+      <p>Playtime is counted while GuideStrap stays in the tray. Turn on "Stay in the tray while Roblox is open" in Settings.</p>
+    </details>
+    <details class="reveal">
       <summary>Do my friends need GuideStrap to join me?</summary>
       <p>No. If you turn on "Let friends join you" in the Discord tab, the Join button on your Discord status works for anyone with Roblox.</p>
     </details>
-    <details>
-      <summary>Windows says it's unrecognized. Is that normal?</summary>
-      <p>Yes, for new apps that aren't code-signed yet. Click "More info", then "Run anyway". The full source code is on GitHub if you want to check it.</p>
-    </details>
-    <details>
+    <details class="reveal">
       <summary>Where are my saved logins kept?</summary>
-      <p>On your PC only, encrypted with Windows so they only work for your Windows user. They're never uploaded anywhere.</p>
+      <p>On your PC only, encrypted with Windows so they only work for your Windows user. They're never uploaded anywhere, and they're left out of backups.</p>
+    </details>
+    <details class="reveal">
+      <summary>How do I uninstall it?</summary>
+      <p>Settings, then Uninstall. You can keep your settings for a reinstall. Your normal Roblox stays as it is.</p>
     </details>
   </section>
 
+  <div class="band reveal">
+    <div>
+      <h2>Need help or have an idea?</h2>
+      <p>Report bugs, suggest features and see updates first in the GuideStrap Discord.</p>
+    </div>
+    <a class="btn primary" href="https://discord.gg/ErEXCXvNf7">Join the Discord</a>
+  </div>
+
   <footer>
-    Made by <a href="https://github.com/guideships">guideships</a>. GuideStrap is a fan project. It isn't affiliated with or endorsed by Roblox Corporation.
-    &copy; 2026 Guide. All rights reserved. The code is public to read, not to copy (<a href="https://github.com/guideships/GuideStrap/blob/master/LICENSE.txt">license</a>).
+    <div>&copy; 2026 Guide. All rights reserved. GuideStrap is a fan project and isn't affiliated with or endorsed by Roblox Corporation.</div>
+    <div><a href="https://github.com/guideships/GuideStrap">GitHub</a> &middot; <a href="https://github.com/guideships/GuideStrap/blob/master/LICENSE.txt">License</a> &middot; <a href="#top">Back to top</a></div>
   </footer>
-</div>
+</main>
+
+<script>
+(function () {
+  // ---------- features ----------
+  var I = {
+    bolt: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
+    sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
+    chip: '<rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/>',
+    flag: '<path d="M4 22V4a1 1 0 0 1 1-1h12l-2 5 2 5H5"/>',
+    server: '<rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/>',
+    star: '<path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"/>',
+    clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+    refresh: '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/>',
+    wifi: '<path d="M5 12.6a10 10 0 0 1 14 0M8.5 16.1a5 5 0 0 1 7 0M2 8.8a15 15 0 0 1 20 0M12 20h.01"/>',
+    palette: '<circle cx="13.5" cy="6.5" r="1"/><circle cx="17.5" cy="10.5" r="1"/><circle cx="8.5" cy="7.5" r="1"/><circle cx="6.5" cy="12.5" r="1"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.7-.8 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.8-1.7 1.7-1.7H17a5 5 0 0 0 5-5c0-5-4.5-9.4-10-9.4z"/>',
+    music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    cross: '<circle cx="12" cy="12" r="9"/><path d="M12 7v10M7 12h10"/>',
+    layers: '<path d="m12 2 10 5-10 5L2 7z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    chat: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    eye: '<path d="M17.9 17.9A10 10 0 0 1 12 20C5 20 1 12 1 12a18 18 0 0 1 5.1-5.9M9.9 4.2A9 9 0 0 1 12 4c7 0 11 8 11 8a18 18 0 0 1-2.2 3.2M1 1l22 22"/>',
+    pulse: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+    globe: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20 15 15 0 0 1 0-20"/>',
+    download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
+    save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
+    feather: '<path d="M20.2 12.2a6 6 0 0 0-8.5-8.5L5 10.5V19h8.5z"/><path d="M16 8 2 22M17.5 15H9"/>'
+  };
+  // [category, icon, title, text, new in this version]
+  var F = [
+    ['fps', 'chip', 'Recommended settings', 'Checks your PC and picks graphics settings that fit it.'],
+    ['fps', 'sliders', 'Graphics presets', 'One slider with 7 presets from Max FPS to Max Graphics, including Smooth and Sharp.', 1],
+    ['fps', 'bolt', 'FPS cap and priority', 'Any frame rate you want, and more CPU time for Roblox.'],
+    ['fps', 'flag', 'FastFlags', 'An editor for flags on Roblox\'s allowlist. It asks before replacing ones you already have.'],
+    ['play', 'server', 'Server list', 'See a game\'s servers with their ping and FPS, fastest first, and join one.', 1],
+    ['play', 'star', 'Favorites and shortcuts', 'Pin your games, and make desktop shortcuts that start a game in one click.', 1],
+    ['play', 'clock', 'Playtime', 'How long you played each game this week, with a bar for every day.', 1],
+    ['play', 'refresh', 'Server tools', 'Rejoin your last server, hop to another one, or find the emptiest one.'],
+    ['play', 'wifi', 'Roblox status check', 'Tells you if Roblox is down, or you\'re offline, before you launch.'],
+    ['mods', 'layers', 'Mod gallery', 'Crosshairs, cursors, skies and sound packs, installed in one click.'],
+    ['mods', 'music', 'Sounds', 'Death sound, footsteps and jump sound: muted, your own, or a sound pack.'],
+    ['mods', 'cross', 'Crosshair, cursors and font', 'Shift lock crosshair, mouse cursors, skies and a custom font for in-game text.'],
+    ['mods', 'save', 'Setups', 'Save your graphics and mods as a setup, and link it to a game so it turns on by itself.'],
+    ['social', 'users', 'Friends', 'See who\'s online and what they\'re playing, join them, and get alerts when they start a game or join your server.', 1],
+    ['social', 'user', 'Accounts', 'Log in once, switch accounts in one click, and send an alt into your server.', 1],
+    ['social', 'chat', 'Discord status', 'Show your game, the account you\'re using and a Join button for friends. Off until you turn it on.'],
+    ['social', 'eye', 'Streamer mode', 'Hides account names and server locations in GuideStrap and on Discord.'],
+    ['app', 'pulse', 'Crash helper', 'If Roblox crashes, it explains why and gives you one-click fixes.'],
+    ['app', 'palette', 'Themes', 'Black, see-through Glass or Purple, accent colors, and your own background picture.'],
+    ['app', 'image', 'Backup and screenshots', 'Back up your settings and mods in one file, and sort screenshots into a folder per game.', 1],
+    ['app', 'globe', '7 languages', 'English, Español, Português, Français, Deutsch, Türkçe and Filipino.'],
+    ['app', 'feather', 'Light on your PC', 'Steps aside while you play, and can start quietly with Windows.'],
+    ['app', 'download', 'Auto updates', 'Updates itself, and shows what\'s new after every update.']
+  ];
+  var grid = document.getElementById('grid');
+  function esc(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  function show(filter) {
+    grid.innerHTML = F.filter(function (f) { return filter === 'all' || f[0] === filter; }).map(function (f) {
+      return '<div class="card"><div class="ic"><svg viewBox="0 0 24 24">' + I[f[1]] + '</svg></div><h3>' + esc(f[2]) +
+        (f[4] ? '<span class="new">NEW</span>' : '') + '</h3><p>' + esc(f[3]) + '</p></div>';
+    }).join('');
+  }
+  show('all');
+  document.getElementById('tabs').addEventListener('click', function (e) {
+    var b = e.target.closest('.tab');
+    if (!b) return;
+    document.querySelectorAll('.tab').forEach(function (t) { t.classList.toggle('on', t === b); });
+    show(b.getAttribute('data-f'));
+  });
+
+  // ---------- line under the top bar once you scroll ----------
+  var header = document.getElementById('top');
+  function onScroll() { header.classList.toggle('scrolled', window.scrollY > 8); }
+  window.addEventListener('scroll', onScroll, { passive: true });
+  onScroll();
+
+  // ---------- fade in on scroll ----------
+  var items = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) { if (en.isIntersecting) { en.target.classList.add('in'); io.unobserve(en.target); } });
+    }, { threshold: 0.08 });
+    items.forEach(function (el) { io.observe(el); });
+  } else {
+    items.forEach(function (el) { el.classList.add('in'); });
+  }
+
+  // ---------- latest version, direct download and release notes, live from GitHub ----------
+  var api = 'https://api.github.com/repos/guideships/GuideStrap/releases';
+  fetch(api + '/latest').then(function (r) { return r.ok ? r.json() : null; }).then(function (rel) {
+    if (!rel || !rel.tag_name) return;
+    var ver = rel.tag_name.replace(/^v/i, '');
+    var exe = (rel.assets || []).filter(function (a) { return /\.exe$/i.test(a.name); })[0];
+    if (exe) document.querySelectorAll('a.dl').forEach(function (a) { a.href = exe.browser_download_url; });
+    document.getElementById('dl-text').textContent = 'Download GuideStrap ' + ver;
+    document.getElementById('pill-text').textContent = 'GuideStrap ' + ver + ' is out. See what\'s new';
+    var sizeMb = exe ? ' · ' + Math.round(exe.size / 1048576) + ' MB' : '';
+    document.getElementById('meta').textContent = 'Version ' + ver + sizeMb + ' · Windows 10 and 11 · Free · No ads';
+    document.getElementById('rel-name').textContent = rel.name || ('GuideStrap ' + ver);
+    if (rel.published_at)
+      document.getElementById('rel-date').textContent = new Date(rel.published_at).toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+    var lines = (rel.body || '').split(/\r?\n/).map(function (l) {
+      return l.replace(/^\s*(?:[•*\-]|\d+\.)\s*/, '').replace(/\*\*|__|`/g, '').trim();
+    }).filter(function (l) { return l.length > 0 && l.charAt(0) !== '#'; });
+    if (lines.length) {
+      var ul = document.getElementById('rel-notes');
+      ul.innerHTML = '';
+      lines.forEach(function (l) { var li = document.createElement('li'); li.textContent = l; ul.appendChild(li); });
+    }
+  }).catch(function () { });
+
+  // total downloads across every release (shown once it's worth showing)
+  fetch(api + '?per_page=100').then(function (r) { return r.ok ? r.json() : null; }).then(function (list) {
+    if (!Array.isArray(list)) return;
+    var total = 0;
+    list.forEach(function (rel) { (rel.assets || []).forEach(function (a) { if (/\.exe$/i.test(a.name)) total += a.download_count || 0; }); });
+    if (total < 50) return;
+    document.getElementById('stat-dl').textContent = total >= 1000 ? (total / 1000).toFixed(total >= 10000 ? 0 : 1) + 'k' : String(total);
+    document.getElementById('stat-dl-label').textContent = 'Downloads';
+  }).catch(function () { });
+})();
+</script>
 </body>
 </html>
