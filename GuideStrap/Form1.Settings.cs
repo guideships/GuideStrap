@@ -74,7 +74,7 @@ namespace GuideStrap
             Add(page, SettingCard("Show server location", "Pops up where the server you joined is, like \"Dallas, Texas, US\".",
                 T(locationToggle, settings.ShowServerLocation, v => { settings.ShowServerLocation = v; settings.Save(); })));
             Add(page, SettingCard("Allow multiple Roblox windows", "Run more than one account at once. Roblox sometimes blocks this.",
-                T(multiToggle, settings.MultiInstance, v => { settings.MultiInstance = v; settings.Save(); })));
+                T(multiToggle, settings.MultiInstance, v => { settings.MultiInstance = v; settings.Save(); if (v) MultiInstance.Hold(); })));
             Add(page, SettingCard("Open Roblox links with GuideStrap", "Off gives Play buttons on roblox.com back to normal Roblox.",
                 T(linksToggle, LinkHandler.IsOurs(), v =>
                 {

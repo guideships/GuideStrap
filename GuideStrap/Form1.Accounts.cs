@@ -135,11 +135,12 @@ namespace GuideStrap
                 settings.MultiInstance = true;
                 settings.Save();
                 multiToggle.Checked = true;
-                if (RobloxRunning())
-                {
-                    Ask("Restart Roblox first", "Close Roblox, launch it again from GuideStrap, then press Join my server.", "OK");
-                    return;
-                }
+            }
+            // your Roblox opened before GuideStrap had the lock: a second window would close it, so don't launch
+            if (!MultiInstance.Ensure() && MultiInstance.GameOpen())
+            {
+                Ask("Restart Roblox first", "Close Roblox, launch it again from GuideStrap, then press Join my server.", "OK");
+                return;
             }
             var ctx = GuideStrapContext.Current;
             if (ctx == null) return;
@@ -149,14 +150,6 @@ namespace GuideStrap
             ctx.Open(new LoadingForm(ctx, copy, accounts, null, place.ToString(), job));
             SetStatus(settings.StreamerMode ? L.T("Sending your other account into your server...") : L.F("Sending {0} into your server...", alt.DisplayName),
                 null, StatusKind.Idle);
-        }
-
-        static bool RobloxRunning()
-        {
-            var procs = Process.GetProcessesByName("RobloxPlayerBeta");
-            bool any = procs.Length > 0;
-            foreach (var p in procs) p.Dispose();
-            return any;
         }
 
         async Task AddAccountAsync()

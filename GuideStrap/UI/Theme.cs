@@ -189,8 +189,22 @@ namespace GuideStrap
             catch { return "Segoe MDL2 Assets"; }
         }
 
-        static Icon? appIcon;
-        public static Icon AppIcon => appIcon ??= MakeIcon();
+        // window and taskbar icon (every size from the .ico, so Windows picks a sharp one)
+        static Icon? appIcon, smallIcon;
+        public static Icon AppIcon => appIcon ??= LoadIcon(null) ?? MakeIcon();
+        // tray icon: the small size, so it isn't a big icon squashed down
+        public static Icon SmallIcon => smallIcon ??= LoadIcon(SystemInformation.SmallIconSize) ?? AppIcon;
+
+        static Icon? LoadIcon(Size? size)
+        {
+            try
+            {
+                using var s = typeof(Theme).Assembly.GetManifestResourceStream("GuideStrap.icon.ico");
+                if (s == null) return null;
+                return size is Size sz ? new Icon(s, sz) : new Icon(s);
+            }
+            catch { return null; }
+        }
 
         static Icon MakeIcon()
         {
@@ -203,8 +217,48 @@ namespace GuideStrap
             return Icon.FromHandle(bmp.GetHicon());
         }
 
-        // GuideStrap logo: tilted dark tile with white outline strokes and a compass in the middle
+        // the logo picture built into the .exe (logo.png)
+        static Bitmap? logoImage;
+        static bool logoLoaded;
+        static Bitmap? LogoImage
+        {
+            get
+            {
+                if (logoLoaded) return logoImage;
+                logoLoaded = true;
+                try
+                {
+                    using var s = typeof(Theme).Assembly.GetManifestResourceStream("GuideStrap.logo.png");
+                    if (s != null)
+                    {
+                        using var tmp = new Bitmap(s);
+                        logoImage = new Bitmap(tmp);   // a copy, so the stream can close
+                    }
+                }
+                catch { logoImage = null; }
+                return logoImage;
+            }
+        }
+
+        // GuideStrap logo: the black chipped tile. `scale` keeps the old sizing (0.80 normal, 0.66 for the spinning one)
         public static void DrawLogo(Graphics g, RectangleF r, float spin = 0f, float scale = 0.80f)
+        {
+            var img = LogoImage;
+            if (img == null) { DrawOldLogo(g, r, spin, scale); return; }
+            // the spinning logo (scale 0.66) stays a bit smaller so the chip never leaves the box while it turns
+            float size = Math.Min(r.Width, r.Height) * Math.Min(1f, scale * (scale >= 0.75f ? 1.2f : 1.05f));
+            var state = g.Save();
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+            g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+            g.TranslateTransform(r.X + r.Width / 2, r.Y + r.Height / 2);
+            if (spin != 0) g.RotateTransform(spin);
+            g.DrawImage(img, -size / 2, -size / 2, size, size);
+            g.Restore(state);
+        }
+
+        // the old drawn logo, only used if the picture can't be loaded
+        static void DrawOldLogo(Graphics g, RectangleF r, float spin, float scale)
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
             float side = Math.Min(r.Width, r.Height) * scale;

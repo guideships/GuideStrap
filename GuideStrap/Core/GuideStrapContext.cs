@@ -44,6 +44,7 @@ namespace GuideStrap
             }
 
             var settings = AppSettings.Load();
+            if (settings.MultiInstance) MultiInstance.Hold();   // claim it before any Roblox starts
             L.Lang = settings.Language.Length > 0 ? settings.Language : L.SystemLanguage();
             Theme.Apply(settings.ThemeName, settings.Accent, settings.SeeThrough);
             Setup.RefreshEntry();
@@ -140,7 +141,7 @@ namespace GuideStrap
             menu.ForeColor = Theme.Text;
             menu.Opening += (_, _) => BuildTrayMenu(menu);
             BuildTrayMenu(menu);
-            tray = new NotifyIcon { Icon = Theme.AppIcon, Text = "GuideStrap", ContextMenuStrip = menu, Visible = true };
+            tray = new NotifyIcon { Icon = Theme.SmallIcon, Text = "GuideStrap", ContextMenuStrip = menu, Visible = true };
             tray.DoubleClick += (_, _) => Open(new LauncherForm(this));
         }
 

@@ -30,6 +30,12 @@
     </Compile>
   </ItemGroup>
 
+  <!-- the logo picture and icon, built into the .exe -->
+  <ItemGroup>
+    <EmbeddedResource Include="logo.png" LogicalName="GuideStrap.logo.png" />
+    <EmbeddedResource Include="GuideStrap.ico" LogicalName="GuideStrap.icon.ico" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.*" />
     <PackageReference Include="DiscordRichPresence" Version="1.6.*" />

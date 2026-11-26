@@ -144,7 +144,16 @@ namespace GuideStrap
                     if (IsHandleCreated && !IsDisposed) BeginInvoke(new Action(() => Report(t, p)));
                 }
                 var token = cts.Token;
-                if (settings.MultiInstance) MultiInstance.Hold();
+                if (settings.MultiInstance && !MultiInstance.Ensure() && MultiInstance.GameOpen())
+                {
+                    // this Roblox opened before GuideStrap had the lock, so a second window would close it
+                    int pickClose = Ask("Close Roblox first?",
+                        "The Roblox window that's open now started before multiple windows was ready, so opening another one would close it. " +
+                        "Close it now? You can open it again from GuideStrap right after, and then both windows stay open.",
+                        "Close Roblox", "Cancel");
+                    if (pickClose != 0) { Finish(false); return; }
+                    MultiInstance.CloseAllAndHold();
+                }
                 var proc = await Task.Run(() => RobloxLauncher.LaunchAsync(settings, accounts, launchUri, placeText, SafeReport, token, jobId, pick));
                 cancel.Enabled = false;
                 if (proc == null)
