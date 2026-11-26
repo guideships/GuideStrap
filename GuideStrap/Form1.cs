@@ -157,6 +157,7 @@ namespace GuideStrap
             var input = new InputWatcher();
             Application.AddMessageFilter(input);
             FormClosed += (_, _) => Application.RemoveMessageFilter(input);
+            Disposed += (_, _) => Application.RemoveMessageFilter(input);   // also when a ready-made window is thrown away unused
             FormClosed += (_, _) =>
             {
                 sidebar.BackgroundImage = null;
@@ -172,6 +173,54 @@ namespace GuideStrap
                 if (favVersion != Favorites.Version) RefreshFavorites();
                 if (playVersion != Playtime.Version) RefreshPlaytime();
             };
+        }
+
+        // ---- opening fast from the main menu ----
+        // Building this window (every page at once) takes a moment. The main menu builds it quietly once it's
+        // sitting idle, so "Configure settings" and "Accounts" open right away. If your settings or accounts
+        // were saved in between (tray menu, update check), the ready-made one is thrown away and a fresh one is built.
+        static Form1? ready;
+        static (DateTime, DateTime) readyStamp;
+
+        static (DateTime, DateTime) SavedStamp()
+        {
+            try
+            {
+                return (File.GetLastWriteTimeUtc(Path.Combine(Paths.Base, "settings.json")),
+                        File.GetLastWriteTimeUtc(Path.Combine(Paths.Base, "accounts.dat")));
+            }
+            catch { return (DateTime.MinValue, DateTime.MinValue); }
+        }
+
+        public static void Prepare()
+        {
+            if (ready != null && !ready.IsDisposed) return;
+            try
+            {
+                ready = new Form1("Home");
+                readyStamp = SavedStamp();   // after building, in case building it saved something itself
+            }
+            catch { ready = null; }
+        }
+
+        public static Form1 Take(string page)
+        {
+            var f = ready;
+            ready = null;
+            if (f != null && !f.IsDisposed && SavedStamp() == readyStamp)
+            {
+                f.ShowPage(page, animate: false);
+                return f;
+            }
+            try { f?.Dispose(); } catch { }
+            return new Form1(page);
+        }
+
+        public static void Discard()
+        {
+            var f = ready;
+            ready = null;
+            try { f?.Dispose(); } catch { }
         }
 
         // SHELL: title bar, sidebar, bottom bar, page host
@@ -210,7 +259,7 @@ namespace GuideStrap
             int sh = ClientSize.Height - D(36) - D(56);
 
             var search = InputBox(searchBox, "Search", sw - D(24), "\uE721");
-            search.Location = new Point(D(12), D(6));
+            search.Location = new Point(D(12), D(8));   // even 8 px above and below the search box
             searchBox.TextChanged += (_, _) => nav.SetFilter(searchBox.Text);
             searchBox.KeyDown += (_, e) =>
             {
@@ -234,8 +283,9 @@ namespace GuideStrap
             nav.AddHeader("App");
             nav.Add("Settings", "\uE713", "Settings", "launcher close website folder reinstall crash helper streamer summary theme glass about info version backup export import screenshots pictures");
             nav.Add("Help", "\uE897", "Help", "help discord server bug report support question faq ban website guide");
-            nav.Location = new Point(D(10), D(46));
-            nav.Size = new Size(sw - D(20), nav.ContentHeight);
+            // same left and right edges as the search box, Main menu and account card above and below it
+            nav.Location = new Point(D(12), D(46));
+            nav.Size = new Size(sw - D(24), nav.ContentHeight);
             nav.Navigate += key => ShowPage(key);
 
             chip.Size = new Size(sw - D(24), D(50));
@@ -279,12 +329,16 @@ namespace GuideStrap
             progress.Height = D(3);
             bottomBar.Controls.Add(progress);
 
-            statusIcon.AutoSize = true;
+            // icon and message share one 22 px row, centered on the same line as the buttons on the right
+            statusIcon.AutoSize = false;
+            statusIcon.Size = new Size(D(22), D(22));
+            statusIcon.TextAlign = ContentAlignment.MiddleCenter;
             statusIcon.Font = new Font(Theme.IconFont, 10f);
             statusIcon.BackColor = Color.Transparent;
-            statusIcon.Location = new Point(D(20), D(20));
+            statusIcon.Location = new Point(D(18), D(17));
             statusLabel.AutoSize = false;
             statusLabel.Size = new Size(W - D(380), D(22));
+            statusLabel.TextAlign = ContentAlignment.MiddleLeft;
             statusLabel.Location = new Point(D(44), D(17));
             statusLabel.Font = Theme.F("Segoe UI", 9f);
             statusLabel.ForeColor = Theme.SubText;
@@ -399,6 +453,14 @@ namespace GuideStrap
             return page;
         }
 
+        // a wrapping note exactly as tall as its text, so longer languages get another line instead of being cut off
+        void FitNote(Label l, int width, int minHeight)
+        {
+            l.AutoSize = false;
+            var size = TextRenderer.MeasureText(l.Text, l.Font, new Size(width - D(6), 0), TextFormatFlags.WordBreak | TextFormatFlags.NoPrefix);
+            l.Size = new Size(width, Math.Max(minHeight, size.Height + D(4)));
+        }
+
         T Add<T>(FlowLayoutPanel page, T c, int bottom = 6) where T : Control
         {
             c.Margin = new Padding(0, 0, 0, D(bottom));
@@ -465,8 +527,18 @@ namespace GuideStrap
         void AddRow(Control parent, int width, ref int ry, string title, string desc, Control control, bool last = false)
         {
             int rowH = D(54);
-            parent.Controls.Add(At(Lbl(title, 9.75f), D(16), ry + D(9)));
-            parent.Controls.Add(At(Lbl(desc, 8.5f, Theme.SubText), D(16), ry + D(29)));
+            // the text stops before the control on the right (longer languages end with "..." instead of running under it)
+            int textW = width - D(16) - control.Width - D(32);
+            var t = At(Lbl(title, 9.75f), D(16), ry + D(9));
+            var d = At(Lbl(desc, 8.5f, Theme.SubText), D(16), ry + D(29));
+            foreach (var l in new[] { t, d })
+            {
+                l.AutoSize = false;
+                l.AutoEllipsis = true;
+                l.Size = new Size(textW, l.PreferredHeight);
+            }
+            parent.Controls.Add(t);
+            parent.Controls.Add(d);
             control.Location = new Point(width - D(16) - control.Width, ry + (rowH - control.Height) / 2);
             parent.Controls.Add(control);
             if (!last)

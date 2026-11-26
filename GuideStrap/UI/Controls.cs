@@ -252,8 +252,9 @@ namespace GuideStrap
     {
         float hoverT;
         bool down;
-        public Color BaseColor { get; set; } = Theme.Accent;
-        public Color HoverColor { get; set; } = Theme.AccentHover;
+        // main-action colors by default (see Theme.PrimaryBg); Secondary() and the title bar set their own
+        public Color BaseColor { get; set; } = Theme.PrimaryBg;
+        public Color HoverColor { get; set; } = Theme.PrimaryHover;
         public Color GradientTo { get; set; } = Color.Empty;
         public Color BorderColor { get; set; } = Color.Empty;
         public int Radius { get; set; } = 4;
@@ -262,7 +263,7 @@ namespace GuideStrap
         public RoundButton()
         {
             SetStyle(Theme.PaintStyles, true);
-            ForeColor = Color.White;
+            ForeColor = Theme.PrimaryText;
             Cursor = Cursors.Hand;
             Font = Theme.F("Segoe UI Semibold", 9f);
         }
@@ -273,10 +274,24 @@ namespace GuideStrap
         protected override void OnMouseLeave(EventArgs e) { down = false; AnimateHover(0f, 200); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
         protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
-        protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); base.OnEnabledChanged(e); }
         protected override void OnTextChanged(EventArgs e) { Invalidate(); base.OnTextChanged(e); }
         // Windows also sends a click for the right mouse button: only the left one presses a button
         protected override void OnClick(EventArgs e) { if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return; base.OnClick(e); }
+
+        // keyboard: Tab shows a focus ring, Enter or Space presses the button
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { down = false; Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if ((e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) && Enabled)
+            {
+                e.SuppressKeyPress = true;
+                OnClick(EventArgs.Empty);
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -317,15 +332,25 @@ namespace GuideStrap
                 using var b = new SolidBrush(fill);
                 g.FillPath(b, path);
             }
-            if (!BorderColor.IsEmpty) { using var p = new Pen(BorderColor); g.DrawPath(p, path); }
+            if (!BorderColor.IsEmpty)
+            {
+                // the outline brightens a little on hover, so secondary buttons react like the main ones
+                using var p = new Pen(Enabled ? Theme.Mix(BorderColor, Theme.SubText, 0.35f * hoverT) : BorderColor);
+                g.DrawPath(p, path);
+            }
+            if (Focused && ShowFocusCues && Enabled)
+                Theme.DrawFocusRing(g, new RectangleF(2f, 2f, Width - 4.5f, Height - 4.5f), Math.Max(1, LogicalToDeviceUnits(Radius) - 1),
+                    LogicalToDeviceUnits(2), BaseColor.A == 0 ? bg : fill);
 
             Color fc = Enabled ? ForeColor : Theme.Mix(ForeColor, bg, 0.5f);
             const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, Font.Size);
             bool showIcon = Icon.Length > 0;
+            // icons get the same-size box whatever the glyph, so icon-to-label spacing matches on every button
             Size iconSize = showIcon ? TextRenderer.MeasureText(g, Icon, iconFont, Size.Empty, flags) : Size.Empty;
+            if (showIcon && Text.Length > 0) iconSize.Width = Math.Max(iconSize.Width, LogicalToDeviceUnits((int)Math.Round(Font.Size * 1.6f)));
             Size textSize = Text.Length > 0 ? TextRenderer.MeasureText(g, Text, Font, Size.Empty, flags) : Size.Empty;
-            int gap = showIcon && Text.Length > 0 ? LogicalToDeviceUnits(8) : 0;
+            int gap = showIcon && Text.Length > 0 ? LogicalToDeviceUnits(6) : 0;
             int avail = Width - LogicalToDeviceUnits(12);
             // long text (some languages) on a narrow button: drop the icon first, then shorten the text with "..."
             if (showIcon && Text.Length > 0 && iconSize.Width + gap + textSize.Width > avail)
@@ -337,7 +362,7 @@ namespace GuideStrap
             int x = (Width - iconSize.Width - gap - textSize.Width) / 2;
             if (showIcon)
             {
-                TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(x, 0, iconSize.Width + 2, Height), fc, flags);
+                TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(x, 0, iconSize.Width, Height), fc, flags | TextFormatFlags.HorizontalCenter);
                 x += iconSize.Width + gap;
             }
             if (Text.Length > 0)
@@ -469,8 +494,57 @@ namespace GuideStrap
         protected override void OnMouseClick(MouseEventArgs e)
         {
             int idx = HitTest(e.Y);
-            if (idx >= 0) Navigate?.Invoke(items[idx].Key);
+            if (idx >= 0)
+            {
+                focusIdx = idx;
+                Navigate?.Invoke(items[idx].Key);
+            }
             base.OnMouseClick(e);
+        }
+
+        // Keyboard: Tab into the list, Up/Down (Home/End) to move, Enter or Space to open the tab.
+        // The ring only shows while you're using the keyboard.
+        int focusIdx = -1;
+
+        protected override bool IsInputKey(Keys keyData) =>
+            keyData == Keys.Up || keyData == Keys.Down || keyData == Keys.Home || keyData == Keys.End || base.IsInputKey(keyData);
+
+        protected override void OnGotFocus(EventArgs e)
+        {
+            if (focusIdx < 0 || !visible.Contains(focusIdx)) focusIdx = IndexOf(selectedKey);
+            Invalidate();
+            base.OnGotFocus(e);
+        }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            var rows = visible.Where(i => !items[i].IsHeader).ToList();
+            if (rows.Count > 0)
+            {
+                int pos = rows.IndexOf(focusIdx);
+                int next = e.KeyCode switch
+                {
+                    Keys.Up => Math.Max(0, pos - 1),
+                    Keys.Down => Math.Min(rows.Count - 1, pos + 1),
+                    Keys.Home => 0,
+                    Keys.End => rows.Count - 1,
+                    _ => -1,
+                };
+                if (next >= 0)
+                {
+                    focusIdx = rows[next];
+                    e.Handled = true;
+                    Invalidate();
+                }
+                else if ((e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space) && rows.Contains(focusIdx))
+                {
+                    e.SuppressKeyPress = true;
+                    Navigate?.Invoke(items[focusIdx].Key);
+                }
+            }
+            base.OnKeyDown(e);
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -502,10 +576,14 @@ namespace GuideStrap
                 }
             }
 
-            const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
+            const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding |
+                                          TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
+            const TextFormatFlags iconFlags = TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             const TextFormatFlags headFlags = TextFormatFlags.Bottom | TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, 11f);
-            var headFont = Theme.F("Segoe UI Semibold", 7.5f);
+            var headFont = Theme.F("Segoe UI Semibold", 8f);           // was 7.5: hard to read
+            var selFont = Theme.F("Segoe UI Semibold", Font.Size);    // the open tab's name is a little bolder
+            Color restText = Theme.Mix(Theme.Text, Theme.SubText, 0.3f); // other tabs a touch dimmer, so the open one stands out
             for (int pos = 0; pos < visible.Count; pos++)
             {
                 int i = visible[pos];
@@ -527,18 +605,29 @@ namespace GuideStrap
                                                                 : Color.FromArgb((int)(255 * t), Theme.NavHover));
                     g.FillPath(hb, hp);
                 }
-                TextRenderer.DrawText(g, it.Icon, iconFont, new Rectangle(LogicalToDeviceUnits(12), y, LogicalToDeviceUnits(24), ItemHeight),
-                    isSel ? Theme.AccentLight : Theme.Text, flags);
-                TextRenderer.DrawText(g, it.Text, Font, new Rectangle(LogicalToDeviceUnits(42), y, Width - LogicalToDeviceUnits(46), ItemHeight),
-                    Theme.Text, flags);
+                Color tc = isSel ? Theme.Text : Theme.Mix(restText, Theme.Text, Math.Clamp(hoverT[i], 0f, 1f));
+                // icons sit centered in the same box on every row, so the labels line up
+                TextRenderer.DrawText(g, it.Icon, iconFont, new Rectangle(LogicalToDeviceUnits(8), y, LogicalToDeviceUnits(24), ItemHeight),
+                    isSel ? Theme.AccentLight : tc, iconFlags);
+                TextRenderer.DrawText(g, it.Text, isSel ? selFont : Font, new Rectangle(LogicalToDeviceUnits(42), y, Width - LogicalToDeviceUnits(48), ItemHeight),
+                    tc, flags);
             }
 
             if (indicatorY >= 0)
             {
-                float ph = ItemHeight * 0.42f;
+                // the small bar on the left of the open tab: lighter than the accent so it shows on every theme
+                float ph = ItemHeight * 0.5f;
                 using var pill = Theme.Round(new RectangleF(0, indicatorY + (ItemHeight - ph) / 2, LogicalToDeviceUnits(3), ph), 1.5f);
-                using var pb = new SolidBrush(Theme.Accent);
+                using var pb = new SolidBrush(Theme.Mix(Theme.Accent, Theme.AccentLight, 0.45f));
                 g.FillPath(pb, pill);
+            }
+
+            if (Focused && ShowFocusCues && focusIdx >= 0)
+            {
+                int fpos = visible.IndexOf(focusIdx);
+                if (fpos >= 0)
+                    Theme.DrawFocusRing(g, new RectangleF(1.5f, slotY[fpos] + 1.5f, Width - 3.5f, ItemHeight - 3f), r,
+                        LogicalToDeviceUnits(2), Theme.Bg);
             }
         }
     }
@@ -574,7 +663,24 @@ namespace GuideStrap
             Checked = !Checked;
             base.OnClick(e);
         }
-        protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); base.OnEnabledChanged(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; hover = false; Invalidate(); base.OnEnabledChanged(e); }
+
+        // hover, keyboard focus ring, and Space or Enter flips it
+        bool hover;
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if ((e.KeyCode == Keys.Space || e.KeyCode == Keys.Enter) && Enabled)
+            {
+                e.SuppressKeyPress = true;
+                OnClick(EventArgs.Empty);
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -596,15 +702,20 @@ namespace GuideStrap
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var r = new RectangleF(1, 1, Width - 3, Height - 3);
             using var path = Theme.Round(r, r.Height / 2);
-            using (var b = new SolidBrush(Theme.Mix(bg, Theme.Accent, knob))) g.FillPath(b, path);
-            using (var p = new Pen(Theme.Mix(Theme.SubText, Theme.Accent, knob), 1.2f)) g.DrawPath(p, path);
+            // on = the main-action color (accent, or light on the grey accent), so on and off are easy to tell apart
+            Color on = hover ? Theme.PrimaryHover : Theme.PrimaryBg;
+            Color offEdge = hover ? Theme.Mix(Theme.SubText, Theme.Text, 0.45f) : Theme.SubText;
+            using (var b = new SolidBrush(Theme.Mix(bg, on, knob))) g.FillPath(b, path);
+            using (var p = new Pen(Theme.Mix(offEdge, on, knob), 1.2f)) g.DrawPath(p, path);
 
             float size = r.Height * (0.5f + 0.12f * knob);
             float pad = (r.Height - size) / 2;
             float x0 = r.X + pad + 1, x1 = r.Right - pad - size - 1;
             float x = x0 + (x1 - x0) * knob;
-            using var kb = new SolidBrush(Theme.Mix(Theme.SubText, Theme.Bg, knob));
+            using var kb = new SolidBrush(Theme.Mix(offEdge, Theme.PrimaryText, knob));
             g.FillEllipse(kb, x, r.Y + pad, size, size);
+            if (Focused && ShowFocusCues)
+                Theme.DrawFocusRing(g, RectangleF.Inflate(r, -1.5f, -1.5f), (r.Height - 3f) / 2, LogicalToDeviceUnits(2), Theme.Mix(bg, on, knob));
         }
     }
 
@@ -651,6 +762,36 @@ namespace GuideStrap
             Value = min + (int)Math.Round(Math.Clamp(t, 0f, 1f) * (max - min));
         }
 
+        // hover, keyboard focus ring, and arrow keys (Home/End) move it one step
+        bool hover;
+        protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+        protected override bool IsInputKey(Keys keyData) =>
+            keyData == Keys.Left || keyData == Keys.Right || keyData == Keys.Up || keyData == Keys.Down ||
+            keyData == Keys.Home || keyData == Keys.End || base.IsInputKey(keyData);
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            int to = e.KeyCode switch
+            {
+                Keys.Left or Keys.Down => val - 1,
+                Keys.Right or Keys.Up => val + 1,
+                Keys.Home => min,
+                Keys.End => max,
+                _ => int.MinValue,
+            };
+            if (to != int.MinValue && Enabled)
+            {
+                e.Handled = true;
+                int before = val;
+                Value = to;
+                if (val != before) Released?.Invoke(this, EventArgs.Empty);   // same as letting go after a drag
+            }
+            base.OnKeyDown(e);
+        }
+
         protected override void OnMouseDown(MouseEventArgs e) { dragging = true; SetFromX(e.X); base.OnMouseDown(e); }
         protected override void OnMouseMove(MouseEventArgs e) { if (dragging) SetFromX(e.X); base.OnMouseMove(e); }
         protected override void OnMouseUp(MouseEventArgs e)
@@ -691,10 +832,16 @@ namespace GuideStrap
                 }
 
             float r = ThumbR;
-            using (var ring = new SolidBrush(Theme.ButtonBg)) g.FillEllipse(ring, x - r, cy - r, r * 2, r * 2);
-            using (var border = new Pen(Theme.Border)) g.DrawEllipse(border, x - r, cy - r, r * 2, r * 2);
+            bool active = hover || dragging;
+            using (var ring = new SolidBrush(active ? Theme.ButtonHover : Theme.ButtonBg)) g.FillEllipse(ring, x - r, cy - r, r * 2, r * 2);
+            using (var border = new Pen(active ? Theme.Mix(Theme.Border, Theme.AccentLight, 0.5f) : Theme.Border)) g.DrawEllipse(border, x - r, cy - r, r * 2, r * 2);
             float inner = r * (dragging ? 0.62f : 0.5f);
             using (var dot = new SolidBrush(Theme.AccentLight)) g.FillEllipse(dot, x - inner, cy - inner, inner * 2, inner * 2);
+            if (Focused && ShowFocusCues)
+            {
+                float fr = r + LogicalToDeviceUnits(3);
+                Theme.DrawFocusRing(g, new RectangleF(x - fr, cy - fr, fr * 2, fr * 2), fr, LogicalToDeviceUnits(2), bg);
+            }
         }
     }
 
@@ -740,7 +887,9 @@ namespace GuideStrap
         {
             DropDownStyle = ComboBoxStyle.DropDownList;
             FlatStyle = FlatStyle.Flat;
-            DrawMode = DrawMode.OwnerDrawFixed;
+            IntegralHeight = false;   // set here, before the window exists: changing it later rebuilds the control
+            // Variable: the closed box keeps its height (ItemHeight) while the rows in the open list get more room (RowHeight)
+            DrawMode = DrawMode.OwnerDrawVariable;
             BackColor = Theme.Input;
             ForeColor = Theme.Text;
             Font = Theme.F("Segoe UI", 9.25f);
@@ -777,7 +926,8 @@ namespace GuideStrap
                     using (var bg = new SolidBrush(Theme.Input)) pg.FillRectangle(bg, r);
                     int aw = SystemInformation.HorizontalScrollBarArrowWidth + 2;
                     string text = SelectedIndex >= 0 && SelectedIndex < Items.Count ? GetItemText(Items[SelectedIndex]) : Text;
-                    TextRenderer.DrawText(pg, text, Font, new Rectangle(r.X + 11, r.Y, Math.Max(1, r.Width - aw - 14), r.Height), Theme.Text,
+                    TextRenderer.DrawText(pg, text, Font, new Rectangle(r.X + 11, r.Y, Math.Max(1, r.Width - aw - 14), r.Height),
+                        Enabled ? Theme.Text : Theme.Mix(Theme.SubText, Theme.Input, 0.3f),
                         TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
                     DrawFrame(pg);
                 }
@@ -804,30 +954,172 @@ namespace GuideStrap
                 g.FillRectangle(bg, r.Right - aw - 1, 1, aw, r.Height - 2);
                 using var inner = new Pen(Theme.Input);
                 g.DrawRectangle(inner, 1, 1, r.Width - 3, r.Height - 3);
+                // also cover Windows' own square edge, so none of it peeks out next to the rounded corners
+                g.DrawRectangle(inner, 0, 0, r.Width - 1, r.Height - 1);
             }
             float cx = r.Right - aw / 2f - 1, cy = r.Height / 2f;
             float a = Math.Max(3f, r.Height / 8f);
             var mode = g.SmoothingMode;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            using (var chevron = new Pen(Theme.SubText, 1.5f))
+            Color chev = !Enabled ? Theme.Mix(Theme.SubText, Theme.Input, 0.5f) : hovered || DroppedDown ? Theme.Text : Theme.SubText;
+            using (var chevron = new Pen(chev, 1.5f))
                 g.DrawLines(chevron, new[] { new PointF(cx - a, cy - a / 2), new PointF(cx, cy + a / 2), new PointF(cx + a, cy - a / 2) });
+            // focused or open: the light accent edge; hover: a lighter edge; otherwise the normal border
+            Color edge = !Enabled ? Theme.Border
+                : Focused || DroppedDown ? OpenEdge
+                : hovered ? Theme.Mix(Theme.Border, Theme.SubText, 0.45f) : Theme.Border;
+            // rounded like the text boxes: the corners get the color behind the box, then the round edge
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var shape = Theme.Round(new RectangleF(0.5f, 0.5f, r.Width - 1.5f, r.Height - 1.5f), LogicalToDeviceUnits(Theme.IsGlass ? 8 : 5)))
+            {
+                using (var corners = new GraphicsPath(FillMode.Alternate))
+                using (var back = new SolidBrush(Theme.SolidBack(this, Theme.Card)))
+                {
+                    corners.AddRectangle(new RectangleF(-1, -1, r.Width + 2, r.Height + 2));
+                    corners.AddPath(shape, false);
+                    g.FillPath(back, corners);
+                }
+                using var border = new Pen(edge);
+                g.DrawPath(border, shape);
+            }
             g.SmoothingMode = mode;
-            using var border = new Pen(Focused || DroppedDown ? Theme.Accent : Theme.Border);
-            g.DrawRectangle(border, 0, 0, r.Width - 1, r.Height - 1);
+        }
+
+        // the open list's edge, the same as the box's while it's open
+        internal static Color OpenEdge => Theme.Mix(Theme.Accent, Theme.AccentLight, 0.35f);
+
+        // ---- the open list ----
+        int RowHeight => LogicalToDeviceUnits(28);
+        int dropIndex = -1;   // the value it had when the list opened (gets the small bar)
+        ListFrame? listFrame;
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            try
+            {
+                var info = new NativeMethods.COMBOBOXINFO { cbSize = Marshal.SizeOf<NativeMethods.COMBOBOXINFO>() };
+                if (NativeMethods.GetComboBoxInfo(Handle, ref info) && info.hwndList != IntPtr.Zero)
+                {
+                    NativeMethods.SetWindowTheme(info.hwndList, "DarkMode_Explorer", null);   // dark scrollbar in long lists
+                    listFrame = new ListFrame();
+                    listFrame.AssignHandle(info.hwndList);
+                    // Windows 11: round the open list's corners like the box, with its edge in the theme's color
+                    // (Windows 10 says no here, and keeps the square edge drawn below)
+                    int round = 3;   // small rounded corners
+                    if (NativeMethods.DwmSetWindowAttribute(info.hwndList, 33, ref round, sizeof(int)) == 0)
+                    {
+                        int edge = OpenEdge.R | (OpenEdge.G << 8) | (OpenEdge.B << 16);
+                        if (NativeMethods.DwmSetWindowAttribute(info.hwndList, 34, ref edge, sizeof(int)) == 0)
+                            listFrame.Rounded = true;
+                    }
+                }
+            }
+            catch { }
+        }
+
+        protected override void OnMeasureItem(MeasureItemEventArgs e)
+        {
+            if (e.Index >= 0) e.ItemHeight = RowHeight;   // -1 is the closed box: it keeps ItemHeight
+            base.OnMeasureItem(e);
+        }
+
+        protected override void OnDropDown(EventArgs e)
+        {
+            dropIndex = SelectedIndex;
+            // list height = its rows exactly (up to MaxDropDownItems, then it scrolls)
+            int h = Math.Clamp(Items.Count, 1, Math.Max(1, MaxDropDownItems)) * RowHeight + 2;
+            if (h == 106) h++;   // 106 is WinForms' "not set" value, which would size the list for the old rows
+            if (DropDownHeight != h) DropDownHeight = h;
+            base.OnDropDown(e);
+        }
+
+        protected override void OnDropDownClosed(EventArgs e)
+        {
+            dropIndex = -1;
+            Invalidate();
+            base.OnDropDownClosed(e);
+        }
+
+        // Windows draws the open list with a bright blue edge; this redraws that edge in the theme's color
+        sealed class ListFrame : NativeWindow
+        {
+            public bool Rounded;   // Windows 11 draws the rounded edge itself, so the square one blends into the list
+
+            protected override void WndProc(ref Message m)
+            {
+                base.WndProc(ref m);
+                if (m.Msg == 0x0085 || m.Msg == 0x000F) PaintEdge();   // WM_NCPAINT, WM_PAINT
+            }
+
+            void PaintEdge()
+            {
+                if (Handle == IntPtr.Zero || !NativeMethods.GetWindowRect(Handle, out var wr)) return;
+                IntPtr dc = NativeMethods.GetWindowDC(Handle);
+                if (dc == IntPtr.Zero) return;
+                try
+                {
+                    using var g = Graphics.FromHdc(dc);
+                    using var p = new Pen(Rounded ? Theme.Input : OpenEdge);
+                    g.DrawRectangle(p, 0, 0, wr.Right - wr.Left - 1, wr.Bottom - wr.Top - 1);
+                }
+                catch { }
+                finally { NativeMethods.ReleaseDC(Handle, dc); }
+            }
         }
 
         protected override void OnGotFocus(EventArgs e) { base.OnGotFocus(e); Invalidate(); }
         protected override void OnLostFocus(EventArgs e) { base.OnLostFocus(e); Invalidate(); }
+        bool hovered;
+        protected override void OnMouseEnter(EventArgs e) { hovered = true; Invalidate(); base.OnMouseEnter(e); }
+        protected override void OnMouseLeave(EventArgs e) { hovered = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnEnabledChanged(EventArgs e) { Cursor = Enabled ? Cursors.Hand : Cursors.Default; Invalidate(); base.OnEnabledChanged(e); }
 
         protected override void OnDrawItem(DrawItemEventArgs e)
         {
-            if (e.Index < 0) return;
-            bool sel = (e.State & DrawItemState.Selected) != 0 && (e.State & DrawItemState.ComboBoxEdit) == 0;
-            using var b = new SolidBrush(sel ? Theme.Accent : Theme.Input);
-            e.Graphics.FillRectangle(b, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, GetItemText(Items[e.Index]), Font,
-                new Rectangle(e.Bounds.X + 8, e.Bounds.Y, e.Bounds.Width - 8, e.Bounds.Height), Theme.Text,
-                TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis);
+            if (e.Index < 0 || e.Index >= Items.Count) return;
+            var g = e.Graphics;
+            var r = e.Bounds;
+            bool off = !Enabled || (e.State & DrawItemState.Disabled) != 0;
+            const TextFormatFlags tf = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis |
+                                       TextFormatFlags.NoPrefix | TextFormatFlags.SingleLine;
+            using (var bg = new SolidBrush(Theme.Input)) g.FillRectangle(bg, r);
+
+            // the closed box: just the value, same as before
+            if ((e.State & DrawItemState.ComboBoxEdit) != 0)
+            {
+                TextRenderer.DrawText(g, GetItemText(Items[e.Index]), Font, new Rectangle(r.X + 8, r.Y, r.Width - 8, r.Height),
+                    off ? Theme.Mix(Theme.SubText, Theme.Input, 0.3f) : Theme.Text, tf);
+                return;
+            }
+
+            // the open list, styled like the sidebar: a rounded highlight under the mouse,
+            // and the current value in bold with the small accent bar
+            bool hot = (e.State & DrawItemState.Selected) != 0 && !off;
+            bool current = e.Index == (dropIndex >= 0 ? dropIndex : SelectedIndex);
+            int inset = LogicalToDeviceUnits(3);
+            var mode = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            if (hot)
+            {
+                using var hb = new SolidBrush(Theme.ButtonHover);
+                using var hp = Theme.Round(new RectangleF(r.X + inset, r.Y + 1.5f, r.Width - inset * 2 - 0.5f, r.Height - 3f), LogicalToDeviceUnits(4));
+                g.FillPath(hb, hp);
+            }
+            if (current)
+            {
+                float ph = r.Height * 0.42f;
+                using var pb = new SolidBrush(Theme.Mix(Theme.Accent, Theme.AccentLight, 0.45f));
+                using var pill = Theme.Round(new RectangleF(r.X + LogicalToDeviceUnits(5), r.Y + (r.Height - ph) / 2, LogicalToDeviceUnits(3), ph), 1.5f);
+                g.FillPath(pb, pill);
+            }
+            g.SmoothingMode = mode;
+
+            Color tc = off ? Theme.Mix(Theme.SubText, Theme.Input, 0.3f)
+                : current || hot ? Theme.Text : Theme.Mix(Theme.Text, Theme.SubText, 0.3f);
+            int tx = LogicalToDeviceUnits(14);
+            TextRenderer.DrawText(g, GetItemText(Items[e.Index]), current ? Theme.F("Segoe UI Semibold", Font.Size) : Font,
+                new Rectangle(r.X + tx, r.Y, Math.Max(1, r.Width - tx - LogicalToDeviceUnits(8)), r.Height), tc, tf);
         }
     }
 
@@ -1028,7 +1320,9 @@ namespace GuideStrap
                     g.FillPath(pb, path);
                 }
             }
-            var textRect = new Rectangle(pad, (int)iconRect.Bottom + LogicalToDeviceUnits(4), Width - pad * 2, Height - (int)iconRect.Bottom - LogicalToDeviceUnits(6));
+            // the name gets everything under the icon, so a two-line name isn't cut off at the bottom
+            int textTop = (int)iconRect.Bottom + LogicalToDeviceUnits(3);
+            var textRect = new Rectangle(pad, textTop, Width - pad * 2, Height - textTop - 1);
             TextRenderer.DrawText(g, Text, Font, textRect, Theme.Text,
                 TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix);
         }
@@ -1454,7 +1748,8 @@ namespace GuideStrap
             float w = LogicalToDeviceUnits(4) + LogicalToDeviceUnits(3) * hoverT;
             float x = Width - w - LogicalToDeviceUnits(2);
             using var path = Theme.Round(new RectangleF(x, t.Y + 2, w, t.Height - 4), w / 2);
-            using var b = new SolidBrush(Color.FromArgb((int)(95 + 85 * hoverT), Theme.Mix(Theme.SubText, Color.White, 0.25f)));
+            int alpha = dragging ? 230 : (int)(95 + 85 * hoverT);
+            using var b = new SolidBrush(Color.FromArgb(alpha, Theme.Mix(Theme.SubText, Color.White, 0.25f)));
             g.FillPath(b, path);
         }
     }

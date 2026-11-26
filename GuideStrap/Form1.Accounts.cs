@@ -28,8 +28,7 @@ namespace GuideStrap
             Add(accountsPage, SettingCard("Add an account", "Opens the Roblox login page.", addBtn), 8);
 
             var note = Lbl("Logins are encrypted and only work for your Windows user on this PC. Don't press \"Log out\" on the Roblox website for a saved account, or its saved login stops working.", 9f, Theme.SubText);
-            note.AutoSize = false;
-            note.Size = new Size(CW, D(34));
+            FitNote(note, CW, D(34));
             Add(accountsPage, note, 0);
 
             Section(accountsPage, "Saved accounts");
@@ -60,8 +59,9 @@ namespace GuideStrap
                 Image = a == null ? null : avatarCache.GetValueOrDefault(a.UserId),
                 Ring = active ? Theme.Gold : Color.Empty,
             };
-            var name = At(Lbl(a == null ? "Default (Roblox's own login)" : a.DisplayName, 10f, semibold: true), D(62), D(9));
-            var sub = At(Lbl(a == null ? "Uses whoever is logged in on the Roblox website" : "@" + a.Username, 8.5f, Theme.SubText), D(63), D(31));
+            // name and username centered on the avatar as one block
+            var name = At(Lbl(a == null ? "Default (Roblox's own login)" : a.DisplayName, 10f, semibold: true), D(62), D(11));
+            var sub = At(Lbl(a == null ? "Uses whoever is logged in on the Roblox website" : "@" + a.Username, 8.5f, Theme.SubText), D(63), D(32));
             card.Controls.AddRange(new Control[] { av, name, sub });
 
             int x = card.Width - D(14);

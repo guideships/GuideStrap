@@ -41,8 +41,7 @@ namespace GuideStrap
                 Tg(discordJoinToggle, settings.DiscordAllowJoin, v => { settings.DiscordAllowJoin = v; settings.Save(); Presence.Configure(settings); })));
 
             var note = Lbl("Discord has to be open on this PC. Streamer mode (in Settings) hides your account, server location and the Join button.", 8.5f, Theme.SubText);
-            note.AutoSize = false;
-            note.Size = new Size(CW, D(34));
+            FitNote(note, CW, D(34));
             note.Margin = new Padding(D(2), D(6), 0, 0);
             page.Controls.Add(note);
         }

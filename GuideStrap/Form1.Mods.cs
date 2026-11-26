@@ -157,8 +157,7 @@ namespace GuideStrap
             Add(page, SettingCard("Mods folder", "Files here replace the matching files in Roblox (same folder layout).", openMods));
 
             var note = Lbl("Normal Roblox is never touched. Launching Roblox without GuideStrap always uses the original files, sounds and settings.", 8.5f, Theme.SubText);
-            note.AutoSize = false;
-            note.Size = new Size(CW, D(34));
+            FitNote(note, CW, D(34));
             note.Margin = new Padding(D(2), D(6), 0, 0);
             page.Controls.Add(note);
         }

@@ -25,5 +25,23 @@ namespace GuideStrap
         [DllImport("winmm.dll")] public static extern uint timeEndPeriod(uint ms);
         [DllImport("shell32.dll")] public static extern void SHChangeNotify(int eventId, uint flags, IntPtr item1, IntPtr item2);
         [DllImport("uxtheme.dll", CharSet = CharSet.Unicode)] public static extern int SetWindowTheme(IntPtr hWnd, string? appName, string? idList);
+
+        // ---- dropdown lists (DarkCombo): find the list window and draw its border ----
+        [DllImport("user32.dll")] public static extern bool GetComboBoxInfo(IntPtr hWnd, ref COMBOBOXINFO info);
+        [DllImport("user32.dll")] public static extern IntPtr GetWindowDC(IntPtr hWnd);
+        [DllImport("user32.dll")] public static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+        [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hWnd, out RECT rect);
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct RECT { public int Left, Top, Right, Bottom; }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct COMBOBOXINFO
+        {
+            public int cbSize;
+            public RECT rcItem, rcButton;
+            public int stateButton;
+            public IntPtr hwndCombo, hwndItem, hwndList;
+        }
     }
 }

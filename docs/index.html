@@ -655,32 +655,34 @@
     download: '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>',
     save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
     image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>',
-    feather: '<path d="M20.2 12.2a6 6 0 0 0-8.5-8.5L5 10.5V19h8.5z"/><path d="M16 8 2 22M17.5 15H9"/>'
+    feather: '<path d="M20.2 12.2a6 6 0 0 0-8.5-8.5L5 10.5V19h8.5z"/><path d="M16 8 2 22M17.5 15H9"/>',
+    keyboard: '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>'
   };
   // [category, icon, title, text, new in this version]
   var F = [
     ['fps', 'chip', 'Recommended settings', 'Checks your PC and picks graphics settings that fit it.'],
-    ['fps', 'sliders', 'Graphics presets', 'One slider with 7 presets from Max FPS to Max Graphics, including Smooth and Sharp.', 1],
+    ['fps', 'sliders', 'Graphics presets', 'One slider with 7 presets from Max FPS to Max Graphics, including Smooth and Sharp.'],
     ['fps', 'bolt', 'FPS cap and priority', 'Any frame rate you want, and more CPU time for Roblox.'],
     ['fps', 'flag', 'FastFlags', 'An editor for flags on Roblox\'s allowlist. It asks before replacing ones you already have.'],
-    ['play', 'server', 'Server list', 'See a game\'s servers with their ping and FPS, fastest first, and join one.', 1],
-    ['play', 'star', 'Favorites and shortcuts', 'Pin your games, and make desktop shortcuts that start a game in one click.', 1],
-    ['play', 'clock', 'Playtime', 'How long you played each game this week, with a bar for every day.', 1],
+    ['play', 'server', 'Server list', 'See a game\'s servers with their ping and FPS, fastest first, and join one.'],
+    ['play', 'star', 'Favorites and shortcuts', 'Pin your games, and make desktop shortcuts that start a game in one click.'],
+    ['play', 'clock', 'Playtime', 'How long you played each game this week, with a bar for every day.'],
     ['play', 'refresh', 'Server tools', 'Rejoin your last server, hop to another one, or find the emptiest one.'],
     ['play', 'wifi', 'Roblox status check', 'Tells you if Roblox is down, or you\'re offline, before you launch.'],
     ['mods', 'layers', 'Mod gallery', 'Crosshairs, cursors, skies and sound packs, installed in one click.'],
     ['mods', 'music', 'Sounds', 'Death sound, footsteps and jump sound: muted, your own, or a sound pack.'],
     ['mods', 'cross', 'Crosshair, cursors and font', 'Shift lock crosshair, mouse cursors, skies and a custom font for in-game text.'],
     ['mods', 'save', 'Setups', 'Save your graphics and mods as a setup, and link it to a game so it turns on by itself.'],
-    ['social', 'users', 'Friends', 'See who\'s online and what they\'re playing, join them, and get alerts when they start a game or join your server.', 1],
-    ['social', 'user', 'Accounts', 'Log in once, switch accounts in one click, and send an alt into your server.', 1],
+    ['social', 'users', 'Friends', 'See who\'s online and what they\'re playing, join them, and get alerts when they start a game or join your server.'],
+    ['social', 'user', 'Accounts', 'Log in once, switch accounts in one click, and send an alt into your server.'],
     ['social', 'chat', 'Discord status', 'Show your game, the account you\'re using and a Join button for friends. Off until you turn it on.'],
     ['social', 'eye', 'Streamer mode', 'Hides account names and server locations in GuideStrap and on Discord.'],
     ['app', 'pulse', 'Crash helper', 'If Roblox crashes, it explains why and gives you one-click fixes.'],
-    ['app', 'palette', 'Themes', 'Black, see-through Glass or Purple, accent colors, and your own background picture.'],
-    ['app', 'image', 'Backup and screenshots', 'Back up your settings and mods in one file, and sort screenshots into a folder per game.', 1],
+    ['app', 'palette', 'Themes', 'Black, Glass or Purple, accent colors, rounded controls that all match, and your own background picture.', 1],
+    ['app', 'keyboard', 'Keyboard friendly', 'Tab, arrow keys, Enter and Space work on buttons, switches, sliders and the sidebar.', 1],
+    ['app', 'image', 'Backup and screenshots', 'Back up your settings and mods in one file, and sort screenshots into a folder per game.'],
     ['app', 'globe', '7 languages', 'English, Español, Português, Français, Deutsch, Türkçe and Filipino.'],
-    ['app', 'feather', 'Light on your PC', 'Steps aside while you play, and can start quietly with Windows.'],
+    ['app', 'feather', 'Light on your PC', 'Steps aside while you play, opens settings fast, and can start quietly with Windows.', 1],
     ['app', 'download', 'Auto updates', 'Updates itself, and shows what\'s new after every update.']
   ];
   var grid = $('grid');

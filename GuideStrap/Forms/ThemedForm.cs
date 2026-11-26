@@ -25,6 +25,7 @@ namespace GuideStrap
         public ThemedForm()
         {
             FormBorderStyle = FormBorderStyle.None;
+            MaximizeBox = false;   // fixed-size windows: Windows can't maximize or snap them bigger
             BackColor = Theme.Bg;
             ForeColor = Theme.Text;
             DoubleBuffered = true;

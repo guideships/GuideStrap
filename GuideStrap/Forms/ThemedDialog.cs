@@ -78,7 +78,8 @@ namespace GuideStrap
             if (checkText != null)
             {
                 check = new ToggleSwitch { Size = new Size(D(36), D(18)), Location = new Point(pad, y + D(1)) };
-                var cl = At(Lbl(checkText, 9f), pad + D(46), y);
+                var cl = Lbl(checkText, 9f);
+                cl.Location = new Point(pad + D(46), check.Top + (check.Height - cl.PreferredHeight) / 2);   // centered on the switch
                 cl.Cursor = Cursors.Hand;
                 cl.Click += (_, _) => check.Checked = !check.Checked;
                 Controls.Add(check);

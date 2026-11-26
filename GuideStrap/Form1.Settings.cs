@@ -324,8 +324,8 @@ namespace GuideStrap
             RefreshMods();
             RefreshHome();
             SetStatus("Profile loaded.", null, StatusKind.Idle);
-            if (colorChanged && Ask("Restart to apply", "The profile's color shows after GuideStrap restarts.", "Restart now", "Later") == 0)
-                Application.Restart();
+            // a new accent color: rebuild the window like the color picker does, instead of keeping the old color until a restart
+            if (colorChanged) BeginInvoke(new Action(() => ReloadWindow("Appearance")));
         }
 
         void BuildAboutPage()

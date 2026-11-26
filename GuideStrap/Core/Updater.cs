@@ -31,7 +31,9 @@ namespace GuideStrap
                 if (!resp.IsSuccessStatusCode) return null;
                 using var doc = JsonDocument.Parse(await resp.Content.ReadAsStringAsync());
                 string tag = (doc.RootElement.GetProperty("tag_name").GetString() ?? "").TrimStart('v', 'V');
-                if (!System.Version.TryParse(tag, out var latest) || !System.Version.TryParse(AppInfo.Version, out var mine) || latest <= mine)
+                var latest = Ver(tag);
+                var mine = Ver(AppInfo.Version);
+                if (latest == null || mine == null || latest <= mine)
                     return null;
                 foreach (var asset in doc.RootElement.GetProperty("assets").EnumerateArray())
                 {
@@ -42,6 +44,15 @@ namespace GuideStrap
             }
             catch { }
             return null;
+        }
+
+        // "5.0" and "5.0.0" count as the same version (System.Version alone calls 5.0.0 newer,
+        // which would offer the same update again every time)
+        static System.Version? Ver(string s)
+        {
+            if (!s.Contains('.')) s += ".0";
+            if (!System.Version.TryParse(s, out var v)) return null;
+            return new System.Version(v.Major, v.Minor, Math.Max(0, v.Build), Math.Max(0, v.Revision));
         }
 
         public static async Task InstallAsync(string url)

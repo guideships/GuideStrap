@@ -34,36 +34,41 @@ namespace GuideStrap
             var acc = accounts.FirstOrDefault(a => a.UserId == settings.ActiveAccountId);
 
             // left: logo, name, links
+            // the name and version are centered on the logo as one block, a little clear of the tilted logo's corner
             var logo = new LogoMark { Size = new Size(D(84), D(84)), Location = new Point(D(34), D(66)) };
-            var name = At(Lbl("GuideStrap", 19f, semibold: true), D(122), D(78));
-            var ver = At(Lbl($"Version {AppInfo.Version}", 9f, Theme.SubText), D(125), D(113));
+            var name = At(Lbl("GuideStrap", 19f, semibold: true), D(125), D(82));
+            var ver = At(Lbl($"Version {AppInfo.Version}", 9f, Theme.SubText), D(128), D(117));
             var about = new LinkText { Icon = "\uE946", Text = L.T("About GuideStrap") };
-            about.Location = new Point(D(160) - about.Width / 2, D(164));
             about.Click += (_, _) => OpenSettings("About");
             var folder = new LinkText { Icon = "\uE8B7", Text = L.T("Open GuideStrap folder") };
-            folder.Location = new Point(D(160) - folder.Width / 2, D(192));
             folder.Click += (_, _) =>
             {
                 Directory.CreateDirectory(Paths.Base);
                 Process.Start(new ProcessStartInfo(Paths.Base) { UseShellExecute = true });
             };
             var discord = new LinkText { Icon = "\uE8F2", Text = L.T("Join our Discord") };
-            discord.Location = new Point(D(160) - discord.Width / 2, D(220));
             discord.Click += (_, _) =>
             {
                 try { Process.Start(new ProcessStartInfo(AppInfo.DiscordUrl) { UseShellExecute = true }); } catch { }
             };
+            // the links form one column with their icons lined up, centered under the logo and name, evenly spaced
+            var links = new[] { about, folder, discord };
+            int blockCenter = (logo.Left + name.Left + name.PreferredWidth) / 2;
+            int colW = links.Max(l => l.Width);
+            int colX = Math.Clamp(blockCenter - colW / 2, D(20), Math.Max(D(20), D(286) - colW));
+            for (int i = 0; i < links.Length; i++) links[i].Location = new Point(colX, D(164) + i * D(28));
             Controls.AddRange(new Control[] { logo, name, ver, about, folder, discord });
 
-            // right: menu
-            var area = new Rectangle(D(300), D(56), D(276), D(184));
-            var launchBtn = new LauncherButton { Icon = "\uE72A", Text = "Launch Roblox", Bounds = new Rectangle(area.X, area.Y, area.Width, D(44)) };
+            // right: menu. Launch Roblox is the main action (filled). The column is centered top to bottom,
+            // with Accounts set a little apart from the two above (20 px instead of 34) and kept where it was.
+            var area = new Rectangle(D(300), D(70), D(276), D(160));
+            var launchBtn = new LauncherButton { Icon = "\uE72A", Text = "Launch Roblox", Primary = true, Bounds = new Rectangle(area.X, area.Y, area.Width, D(44)) };
             var configBtn = new LauncherButton { Icon = "\uE713", Text = "Configure settings", Bounds = new Rectangle(area.X, area.Y + D(52), area.Width, D(44)) };
             var accountsBtn = new LauncherButton
             {
                 Icon = "\uE716",
                 Text = acc != null ? $"Accounts  ·  {acc.DisplayName}" : "Accounts",
-                Bounds = new Rectangle(area.X, area.Y + D(130), area.Width, D(44)),
+                Bounds = new Rectangle(area.X, area.Y + D(116), area.Width, D(44)),
             };
             Controls.AddRange(new Control[] { launchBtn, configBtn, accountsBtn });
 
@@ -79,8 +84,11 @@ namespace GuideStrap
             Shown += async (_, _) =>
             {
                 ShowWhatsNew(settings);
-                await AutoUpdateCheckAsync(settings);
+                var check = AutoUpdateCheckAsync(settings);   // saves its check time right away, before waiting on GitHub
+                PrepareSettingsSoon();
+                await check;
             };
+            FormClosed += (_, _) => Form1.Discard();   // closed some other way (Launch Roblox, X): drop the ready-made window
             ApplyBackdrop(settings.LauncherBackground);
         }
 
@@ -110,8 +118,22 @@ namespace GuideStrap
 
         void OpenSettings(string page)
         {
-            context.Open(new Form1(page));
+            context.Open(Form1.Take(page));   // the one built in the background if it's ready, otherwise a new one
             Close();
+        }
+
+        // build the settings window once the main menu has been sitting for a moment
+        void PrepareSettingsSoon()
+        {
+            var t = new System.Windows.Forms.Timer { Interval = 800 };
+            t.Tick += (_, _) =>
+            {
+                t.Stop();
+                t.Dispose();
+                if (IsDisposed || Disposing || !Visible) return;
+                Form1.Prepare();
+            };
+            t.Start();
         }
     }
 }

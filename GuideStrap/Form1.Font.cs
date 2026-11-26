@@ -67,8 +67,7 @@ namespace GuideStrap
             Add(page, card, 8);
 
             var tip = Lbl("Works with .ttf and .otf files (free fonts: fonts.google.com). Emoji keep their normal look. Applies next time you press Play.", 8.5f, Theme.SubText);
-            tip.AutoSize = false;
-            tip.Size = new Size(CW, D(36));
+            FitNote(tip, CW, D(36));
             Add(page, tip, 0);
 
             // move the new controls (section, card, tip) above "Your own mods"

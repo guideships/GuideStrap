@@ -172,6 +172,8 @@ namespace GuideStrap
         float hoverT;
         bool down;
         public string Icon { get; set; } = "";
+        // the main action (Launch Roblox): filled with the theme's main-action color
+        public bool Primary { get; set; }
 
         public LauncherButton()
         {
@@ -186,6 +188,21 @@ namespace GuideStrap
         protected override void OnMouseLeave(EventArgs e) { down = false; AnimateHover(0f, 220); base.OnMouseLeave(e); }
         protected override void OnMouseDown(MouseEventArgs e) { down = true; Invalidate(); base.OnMouseDown(e); }
         protected override void OnMouseUp(MouseEventArgs e) { down = false; Invalidate(); base.OnMouseUp(e); }
+        protected override void OnClick(EventArgs e) { if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return; base.OnClick(e); }
+
+        // keyboard: Tab shows a focus ring, Enter or Space presses it
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { down = false; Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                e.SuppressKeyPress = true;
+                OnClick(EventArgs.Empty);
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
@@ -193,20 +210,41 @@ namespace GuideStrap
             Theme.ClearToParent(this, g, Theme.Bg);
             g.SmoothingMode = SmoothingMode.AntiAlias;
 
-            Color fill = Theme.Mix(Theme.Card, Theme.ButtonBg, hoverT);
-            if (down) fill = Theme.Mix(fill, Color.Black, 0.2f);
-            using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), LogicalToDeviceUnits(6));
+            Color fill, edge, fg, chev;
+            if (Primary)
+            {
+                fill = Theme.Mix(Theme.PrimaryBg, Theme.PrimaryHover, hoverT);
+                if (down) fill = Theme.Mix(fill, Color.Black, 0.12f);
+                edge = fill;
+                fg = Theme.PrimaryText;
+                chev = Theme.Mix(Theme.Mix(Theme.PrimaryText, fill, 0.3f), Theme.PrimaryText, hoverT);
+            }
+            else
+            {
+                fill = Theme.Mix(Theme.Card, Theme.ButtonBg, hoverT);
+                if (down) fill = Theme.Mix(fill, Color.Black, 0.2f);
+                edge = Theme.Mix(Theme.Border, Theme.Track, hoverT * 0.6f);
+                fg = ForeColor;
+                chev = Theme.Mix(Theme.SubText, Theme.Text, hoverT);
+            }
+            float rad = LogicalToDeviceUnits(6);
+            using var path = Theme.Round(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), rad);
             using (var b = new SolidBrush(fill)) g.FillPath(b, path);
-            using (var p = new Pen(Theme.Mix(Theme.Border, Theme.Track, hoverT * 0.6f))) g.DrawPath(p, path);
+            using (var p = new Pen(edge)) g.DrawPath(p, path);
+            if (Focused && ShowFocusCues)
+                Theme.DrawFocusRing(g, new RectangleF(2f, 2f, Width - 4.5f, Height - 4.5f), rad - 1, LogicalToDeviceUnits(2), fill);
 
+            // same insets on both sides: 16 px to the icon box on the left, 16 px past the chevron on the right
             const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine | TextFormatFlags.EndEllipsis;
+            const TextFormatFlags centered = TextFormatFlags.VerticalCenter | TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPadding | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, 12f);
             var chevFont = Theme.F(Theme.IconFont, 8f);
-            TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(LogicalToDeviceUnits(16), 0, LogicalToDeviceUnits(28), Height), Theme.Text, flags);
-            TextRenderer.DrawText(g, Text, Font, new Rectangle(LogicalToDeviceUnits(52), 0, Width - LogicalToDeviceUnits(96), Height), ForeColor, flags);
-            int cx = Width - LogicalToDeviceUnits(30) + (int)(LogicalToDeviceUnits(3) * hoverT);
-            TextRenderer.DrawText(g, "", chevFont, new Rectangle(cx, 0, LogicalToDeviceUnits(20), Height),
-                Theme.Mix(Theme.SubText, Theme.Text, hoverT), flags);
+            int inset = LogicalToDeviceUnits(16), iconBox = LogicalToDeviceUnits(24), chevBox = LogicalToDeviceUnits(14), nudge = LogicalToDeviceUnits(3);
+            TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(inset, 0, iconBox, Height), fg, centered);
+            int textX = inset + iconBox + LogicalToDeviceUnits(12);
+            int chevX = Width - inset - chevBox - nudge + (int)(nudge * hoverT);
+            TextRenderer.DrawText(g, Text, Font, new Rectangle(textX, 0, Math.Max(1, chevX - textX - LogicalToDeviceUnits(8)), Height), fg, flags);
+            TextRenderer.DrawText(g, "", chevFont, new Rectangle(chevX, 0, chevBox, Height), chev, centered);
         }
     }
 
@@ -235,12 +273,26 @@ namespace GuideStrap
 
         protected override void OnMouseEnter(EventArgs e) { hover = true; Invalidate(); base.OnMouseEnter(e); }
         protected override void OnMouseLeave(EventArgs e) { hover = false; Invalidate(); base.OnMouseLeave(e); }
+        protected override void OnClick(EventArgs e) { if (e is MouseEventArgs m && m.Button != MouseButtons.Left) return; base.OnClick(e); }
+        protected override void OnGotFocus(EventArgs e) { Invalidate(); base.OnGotFocus(e); }
+        protected override void OnLostFocus(EventArgs e) { Invalidate(); base.OnLostFocus(e); }
+        protected override void OnChangeUICues(UICuesEventArgs e) { Invalidate(); base.OnChangeUICues(e); }
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                e.SuppressKeyPress = true;
+                OnClick(EventArgs.Empty);
+            }
+            base.OnKeyDown(e);
+        }
 
         protected override void OnPaint(PaintEventArgs e)
         {
             var g = e.Graphics;
             Theme.ClearToParent(this, g, Theme.Bg);
-            Color c = hover ? Theme.Text : Theme.AccentLight;
+            bool lit = hover || (Focused && ShowFocusCues);
+            Color c = lit ? Theme.Text : Theme.AccentLight;
             const TextFormatFlags flags = TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.SingleLine;
             var iconFont = Theme.F(Theme.IconFont, 9.5f);
             int x = 0;
@@ -250,7 +302,9 @@ namespace GuideStrap
                 TextRenderer.DrawText(g, Icon, iconFont, new Rectangle(0, 0, a.Width, Height), c, flags);
                 x = a.Width;
             }
-            TextRenderer.DrawText(g, Text, Font, new Rectangle(x, 0, Width - x, Height), c, flags);
+            // hover or keyboard focus: the words get the font's own underline (sits right under the letters, words only)
+            var font = lit ? Theme.F("Segoe UI", 9.5f, FontStyle.Underline) : Font;
+            TextRenderer.DrawText(g, Text, font, new Rectangle(x, 0, Width - x, Height), c, flags);
         }
     }
 }

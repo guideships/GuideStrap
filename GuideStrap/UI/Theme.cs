@@ -52,7 +52,7 @@ namespace GuideStrap
         // Glass only: windows slightly see-through. Off by default, because Windows draws
         // softer (less sharp) text in see-through windows.
         public static bool SeeThrough { get; private set; }
-        public static float WindowOpacity => IsGlass && SeeThrough ? 0.86f : 1f;
+        public static float WindowOpacity => IsGlass && SeeThrough ? 0.95f : 1f;   // was 0.86: more solid so the background doesn't distract
 
         // Call once at startup, before any window is made.
         // Call at startup, before any window is made. Calling it again switches theme (open windows must be rebuilt).
@@ -85,8 +85,8 @@ namespace GuideStrap
                 ButtonHover = Color.FromArgb(46, 46, 46);
                 Border = Color.FromArgb(40, 40, 40);
                 Track = Color.FromArgb(52, 52, 52);
-                NavHover = Color.FromArgb(19, 19, 19);
-                NavSelected = Color.FromArgb(30, 30, 30);
+                NavHover = Color.FromArgb(22, 22, 22);       // was 19: hard to see against the 10 sidebar
+                NavSelected = Color.FromArgb(33, 33, 33);
                 Text = Color.FromArgb(240, 240, 240);
                 SubText = Color.FromArgb(165, 165, 165);
                 Magenta = Color.FromArgb(120, 120, 120);
@@ -113,8 +113,48 @@ namespace GuideStrap
                 AccentHover = Color.FromArgb(122, 122, 128);
                 AccentLight = Color.FromArgb(222, 222, 226);
                 Magenta = Color.FromArgb(124, 124, 130);
+                accentName = "Grey";
+                UpdatePrimary();
             }
             else SetAccent(accent);
+        }
+
+        // ---- main action colors (Play, Launch Roblox, dialog OK buttons, switches that are on) ----
+        // With a color accent: the accent with white text. With the grey accent (and Glass) the plain grey
+        // looked turned off, so it's a brighter grey (still white text, not a white button).
+        public static Color PrimaryBg = Color.FromArgb(124, 72, 232);
+        public static Color PrimaryHover = Color.FromArgb(143, 96, 242);
+        public static Color PrimaryText = Color.White;
+        static string accentName = "Purple";
+
+        static void UpdatePrimary()
+        {
+            if (accentName == "Grey")
+            {
+                PrimaryBg = Mix(Accent, Color.White, 0.08f);      // 100 grey -> 112, white text stays easy to read
+                PrimaryHover = Mix(Accent, Color.White, 0.17f);
+                PrimaryText = Color.White;
+            }
+            else
+            {
+                PrimaryBg = Accent;
+                PrimaryHover = AccentHover;
+                PrimaryText = Color.White;
+            }
+        }
+
+        // ---- keyboard focus (shown only after Tab or arrow keys, like Windows does) ----
+        // A ring just inside the control. Dark on light buttons, light everywhere else.
+        public static void DrawFocusRing(Graphics g, RectangleF r, float radius, float width, Color behind)
+        {
+            bool light = behind.GetBrightness() > 0.6f;
+            Color c = light ? Bg : Mix(AccentLight, Text, 0.35f);
+            var mode = g.SmoothingMode;
+            g.SmoothingMode = SmoothingMode.AntiAlias;
+            using (var path = Round(r, radius))
+            using (var p = new Pen(c, width))
+                g.DrawPath(p, path);
+            g.SmoothingMode = mode;
         }
 
         public static void SetAccent(string name)
@@ -125,6 +165,8 @@ namespace GuideStrap
             AccentHover = Mix(a.Color, Color.White, 0.14f);
             // grey gets a brighter highlight so selected icons still stand out
             AccentLight = Mix(a.Color, Color.White, a.Name == "Grey" ? 0.72f : 0.42f);
+            accentName = a.Name;
+            UpdatePrimary();
         }
         public static Color Magenta = Color.FromArgb(168, 56, 214);
         public static readonly Color Gold = Color.FromArgb(242, 194, 88);
